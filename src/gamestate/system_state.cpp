@@ -3539,8 +3539,10 @@ void state::load_scenario_data(parsers::error_handler& err) {
 
 	
 
-	if(err.accumulated_errors.size() == 0)
+	if(err.accumulated_errors.size() == 0) {
 		economy::presimulate(*this);
+		economy::daily_update(*this);
+	}		
 	
 
 	ai::identify_focuses(*this);

@@ -13,6 +13,7 @@
 #include "gui_production_window.hpp"
 #include "province_templates.hpp"
 #include "nations_templates.hpp"
+#include "map_modes.hpp"
 
 namespace ui {
 
@@ -75,7 +76,7 @@ public:
 	}
 };
 
-class province_rgo : public image_element_base {
+class province_rgo : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto fat_id = dcon::fatten(state.world, retrieve<dcon::province_id>(state, parent));
@@ -90,6 +91,14 @@ public:
 		auto prov = retrieve<dcon::province_id>(state, parent);
 		auto rgo = state.world.province_get_rgo(prov);
 		text::add_line(state, contents, state.world.commodity_get_name(rgo));
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		auto prov = retrieve<dcon::province_id>(state, parent);
+		auto rgo = state.world.province_get_rgo(prov);
+
+		state.user_settings.selected_good = rgo;
+		map_mode::set_map_mode(state, map_mode::mode::trade_good_price);
 	}
 };
 
@@ -1165,13 +1174,14 @@ public:
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto prov_id = retrieve<dcon::province_id>(state, parent);
 		auto owner = state.world.province_get_nation_from_province_ownership(prov_id);
+		auto s_id = state.world.province_get_state_membership(prov_id);
 		auto max_emp = economy::rgo_max_employment(state, owner, prov_id);
 		auto employment_ratio = state.world.province_get_rgo_employment(prov_id);
 
 		bool is_mine = state.world.commodity_get_is_mine(state.world.province_get_rgo(prov_id));
 		float const min_wage_factor = economy::pop_min_wage_factor(state, owner);
-		float farmer_min_wage = economy::pop_farmer_min_wage(state, owner, min_wage_factor);
-		float laborer_min_wage = economy::pop_laborer_min_wage(state, owner, min_wage_factor);
+		float farmer_min_wage = economy::pop_farmer_min_wage(state, s_id, min_wage_factor);
+		float laborer_min_wage = economy::pop_laborer_min_wage(state, s_id, min_wage_factor);
 		float expected_min_wage = is_mine ? laborer_min_wage : farmer_min_wage;
 
 		auto [non_slaves, slaves, total_relevant] = economy::rgo_relevant_population(state, prov_id, owner);

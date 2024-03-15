@@ -1245,6 +1245,20 @@ void mobilization_map_tt_box(sys::state& state, text::columnar_layout& contents,
 		text::close_layout_box(contents, box);
 	}
 }
+void trade_good_price(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
+	auto fat = dcon::fatten(state.world, prov);
+
+	auto s = fat.get_state_membership();
+	auto price = s.get_prices(state.user_settings.selected_good);
+
+	if(prov.value > state.province_definitions.first_sea_province.value)
+		return;
+
+	auto box = text::open_layout_box(contents);
+	text::add_to_layout_box(state, contents, box, text::prettify_currency(price), text::text_color::yellow);
+	text::close_layout_box(contents, box);		
+}
+
 
 void populate_map_tooltip(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
 	switch(state.map_state.active_map_mode) {
@@ -1383,6 +1397,9 @@ void populate_map_tooltip(sys::state& state, text::columnar_layout& contents, dc
 		break;
 	case map_mode::mode::workforce:
 		workforce_map_tt_box(state, contents, prov);
+		break;
+	case map_mode::mode::trade_good_price:
+		trade_good_price(state, contents, prov);
 		break;
 	default:
 		break;

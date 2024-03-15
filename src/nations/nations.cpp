@@ -87,6 +87,11 @@ dcon::nation_id owner_of_pop(sys::state const& state, dcon::pop_id pop_ids) {
 	return state.world.province_get_nation_from_province_ownership(location);
 }
 
+dcon::state_instance_id state_of_pop(sys::state const& state, dcon::pop_id pop_ids) {
+	auto location = state.world.pop_get_province_from_pop_location(pop_ids);
+	return state.world.province_get_state_membership(location);
+}
+
 void restore_state_instances(sys::state& state) {
 	state.world.for_each_state_instance([&](dcon::state_instance_id sid) {
 		auto owner = state.world.state_instance_get_nation_from_state_ownership(sid);
@@ -130,7 +135,7 @@ void update_cached_values(sys::state& state) {
 }
 
 void restore_unsaved_values(sys::state& state) {
-	state.world.nation_resize_demand_satisfaction(state.world.commodity_size());
+	state.world.state_instance_resize_local_demand_satisfaction(state.world.commodity_size());
 
 	for(auto n : state.world.in_nation)
 		n.set_is_great_power(false);

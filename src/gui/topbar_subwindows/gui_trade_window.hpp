@@ -20,8 +20,13 @@ class commodity_player_availability_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto commodity_id = retrieve<dcon::commodity_id>(state, parent);
+
+		auto n = state.local_player_nation;
+		auto p = state.world.nation_get_capital(n);
+		auto s = state.world.province_get_state_membership(p);
+
 		if(commodity_id)
-			set_text(state, text::format_float(state.world.nation_get_demand_satisfaction(state.local_player_nation, commodity_id), 2));
+			set_text(state, text::format_float(state.world.state_instance_get_local_demand_satisfaction(s, commodity_id), 2));
 	}
 };
 
@@ -302,7 +307,7 @@ class trade_commodity_entry_button : public tinted_right_click_button_element_ba
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto com = retrieve<dcon::commodity_id>(state, parent);
-		auto sat = state.world.nation_get_demand_satisfaction(state.local_player_nation, com);
+		auto sat = 0.5f; // state.world.nation_get_demand_satisfaction(state.local_player_nation, com);
 		if(sat < 0.5f) { // shortage
 			color = sys::pack_color(255, 196, 196);
 		} else if(sat >= 1.f) { // full fulfillment
@@ -332,7 +337,11 @@ public:
 		auto com = retrieve<dcon::commodity_id>(state, parent);
 		text::add_line(state, contents, state.world.commodity_get_name(com));
 
-		auto sat = state.world.nation_get_demand_satisfaction(state.local_player_nation, com);
+		auto n = state.local_player_nation;
+		auto p = state.world.nation_get_capital(n);
+		auto s = state.world.province_get_state_membership(p);
+
+		auto sat = state.world.state_instance_get_local_demand_satisfaction(s, com);
 		if(sat < 0.5f) {
 			text::add_line(state, contents, "alice_commodity_shortage");
 		} else if(sat >= 1.f) {
@@ -354,8 +363,8 @@ public:
 
 		static std::vector<tagged_value> producers;
 		producers.clear();
-		for(auto n : state.world.in_nation) {
-			producers.push_back(tagged_value{ n.get_domestic_market_pool(com), n.id });
+		for(auto ni : state.world.in_nation) {
+			producers.push_back(tagged_value{ ni.get_domestic_market_pool(com), ni.id });
 		}
 		std::sort(producers.begin(), producers.end(), [](auto const& a, auto const& b) { return a.v > b.v; });
 		for(uint32_t i = 0; i < producers.size() && i < 5; ++i) {
@@ -376,14 +385,14 @@ public:
 			float a_total = 0.0f;
 			float r_total = 0.0f;
 			float f_total = 0.0f;
-			for(auto p : state.world.in_province) {
-				if(p.get_nation_from_province_ownership()) {
-					if(p.get_rgo() == com)
-						r_total += p.get_rgo_actual_production();
+			for(auto pi : state.world.in_province) {
+				if(pi.get_nation_from_province_ownership()) {
+					if(pi.get_rgo() == com)
+						r_total += pi.get_rgo_actual_production();
 				}
 			}
-			for(auto n : state.world.in_nation) {
-				a_total += state.world.nation_get_artisan_actual_production(n, com);
+			for(auto si : state.world.in_state_instance) {
+				a_total += state.world.state_instance_get_local_artisan_actual_production(si, com);
 			}
 			for(auto f : state.world.in_factory) {
 				if(f.get_building_type().get_output() == com)
@@ -395,8 +404,8 @@ public:
 			text::add_line(state, contents, "w_fac_prod", text::variable_type::x, text::fp_one_place{ f_total });
 		}
 
-		text::add_line(state, contents, "w_artisan_profit", text::variable_type::x, text::fp_one_place{ economy::base_artisan_profit(state, state.local_player_nation, com) * economy::artisan_scale_limit(state, state.local_player_nation, com) });
-		text::add_line(state, contents, "w_artisan_distribution", text::variable_type::x, text::fp_one_place{ state.world.nation_get_artisan_distribution(state.local_player_nation, com) * 100.f });
+		text::add_line(state, contents, "w_artisan_profit", text::variable_type::x, text::fp_one_place{ economy::base_artisan_profit(state, n, s, com) * economy::artisan_scale_limit(state, n, s, com) });
+		text::add_line(state, contents, "w_artisan_distribution", text::variable_type::x, text::fp_one_place{ state.world.state_instance_get_local_artisan_distribution(s, com) * 100.f });
 	}
 };
 
@@ -772,7 +781,14 @@ public:
 			distribution.emplace_back(state.culture_definitions.aristocrat, amount);
 		}
 		{
-			auto amount = state.world.nation_get_artisan_actual_production(state.local_player_nation, com);
+			auto amount = 0.f;
+			state.world.nation_for_each_state_ownership(
+				state.local_player_nation,
+				[&](dcon::state_ownership_id so) {
+					auto s = state.world.state_ownership_get_state(so);
+					amount += state.world.state_instance_get_local_artisan_actual_production(s, com);
+				}
+			);			
 			total += amount;
 			distribution.emplace_back(state.culture_definitions.artisans, amount);
 		}

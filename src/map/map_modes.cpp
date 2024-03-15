@@ -757,6 +757,80 @@ std::vector<uint32_t> players_map_from(sys::state& state) {
 	return prov_color;
 }
 
+static float sigmoid(float value) {
+	return 1 / (1 + std::exp(-value));
+}
+
+std::vector<uint32_t> trade_good_price_map_from(sys::state& state) {
+	std::vector<float> prov_price(state.world.province_size() + 1);
+	std::unordered_map<int32_t, float> continent_max_pop = {};
+	auto sel_nation = state.world.province_get_nation_from_province_ownership(state.map_state.get_selected_province());
+
+	float sum = 0.f;
+	float count = 0.f;	
+
+	state.world.for_each_province([&](dcon::province_id prov_id) {
+		auto nation = state.world.province_get_nation_from_province_ownership(prov_id);
+		if((sel_nation && nation == sel_nation) || !sel_nation) {
+			auto fat_id = dcon::fatten(state.world, prov_id);
+			auto s = fat_id.get_state_membership();
+			auto price = s.get_prices(state.user_settings.selected_good);
+
+			sum += price;
+			count += 1.f;
+
+			auto i = province::to_map_id(prov_id);
+			prov_price[i] = price;
+		}
+	});
+
+	float average = sum / count;
+	float square_sum = 0.0001f;
+
+	state.world.for_each_province([&](dcon::province_id prov_id) {
+		auto nation = state.world.province_get_nation_from_province_ownership(prov_id);
+		if((sel_nation && nation == sel_nation) || !sel_nation) {
+			auto fat_id = dcon::fatten(state.world, prov_id);
+			auto s = fat_id.get_state_membership();
+			auto price = s.get_prices(state.user_settings.selected_good);
+
+			square_sum += (price - average) * (price - average) / count;
+		}
+	});
+
+	state.world.for_each_province([&](dcon::province_id prov_id) {
+		auto nation = state.world.province_get_nation_from_province_ownership(prov_id);
+		if((sel_nation && nation == sel_nation) || !sel_nation) {
+			auto i = province::to_map_id(prov_id);
+			prov_price[i] = sigmoid((prov_price[i] - average) / std::sqrt(square_sum));
+		}
+	});
+
+	uint32_t province_size = state.world.province_size() + 1;
+	uint32_t texture_size = province_size + 256 - province_size % 256;
+
+	std::vector<uint32_t> prov_color(texture_size * 2);
+	state.world.for_each_province([&](dcon::province_id prov_id) {
+		auto fat_id = dcon::fatten(state.world, prov_id);
+		auto nation = fat_id.get_nation_from_province_ownership();
+
+		if((sel_nation && nation == sel_nation) || !sel_nation) {
+			auto pi = province::to_map_id(prov_id);
+			float revolt_risk = prov_price[pi];
+
+			uint32_t color = ogl::color_gradient(revolt_risk,
+				sys::pack_color(247, 15, 15), // green
+				sys::pack_color(46, 247, 15) // red
+			);
+			auto i = province::to_map_id(prov_id);
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+		}
+	});
+
+	return prov_color;
+}
+
 #include "gui_element_types.hpp"
 
 std::vector<uint32_t> select_states_map_from(sys::state& state) {
@@ -1002,6 +1076,9 @@ void set_map_mode(sys::state& state, mode mode) {
 		break;
 	case mode::workforce:
 		prov_color = workforce_map_from(state);
+		break;
+	case mode::trade_good_price:
+		prov_color = trade_good_price_map_from(state);
 		break;
 	default:
 		return;

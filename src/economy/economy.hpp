@@ -159,45 +159,44 @@ bool is_bankrupt_debtor_to(sys::state& state, dcon::nation_id debt_holder, dcon:
 void populate_effective_prices(
 	sys::state& state,
 	dcon::nation_id n,
+	dcon::state_instance_id s,
 	ve::vectorizable_buffer<float, dcon::commodity_id>& effective_prices
 );
 
 
 float factory_min_input_available(
 	sys::state& state,
-	dcon::nation_id n,
+	dcon::state_instance_id s,
 	dcon::factory_type_fat_id fac_type
 );
 float factory_input_total_cost(
 	sys::state& state,
-	dcon::nation_id n,
-	dcon::factory_type_fat_id fac_type,
-	ve::vectorizable_buffer<float, dcon::commodity_id> const& effective_prices
+	dcon::state_instance_id s,
+	dcon::factory_type_fat_id fac_type
 );
 float factory_min_e_input_available(
 	sys::state& state,
-	dcon::nation_id n,
+	dcon::state_instance_id s,
 	dcon::factory_type_fat_id fac_type
 );
 float factory_e_input_total_cost(
 	sys::state& state,
-	dcon::nation_id n,
-	dcon::factory_type_fat_id fac_type,
-	ve::vectorizable_buffer<float, dcon::commodity_id> const& effective_prices
+	dcon::state_instance_id s,
+	dcon::factory_type_fat_id fac_type
 );
 float factory_input_multiplier(
 	sys::state& state,
 	dcon::factory_fat_id fac,
 	dcon::nation_id n,
-	dcon::province_id p,
-	dcon::state_instance_id s
+	dcon::state_instance_id s,
+	dcon::province_id p	
 );
 float factory_throughput_multiplier(
 	sys::state& state,
 	dcon::factory_type_fat_id fac_type,
 	dcon::nation_id n,
-	dcon::province_id p,
-	dcon::state_instance_id s
+	dcon::state_instance_id s,
+	dcon::province_id p	
 );
 float factory_output_multiplier(
 	sys::state& state,
@@ -209,8 +208,7 @@ float factory_max_production_scale(
 	sys::state& state,
 	dcon::factory_fat_id fac,
 	float mobilization_impact,
-	bool occupied,
-	bool overseas
+	bool occupied
 );
 float factory_desired_raw_profit(
 	dcon::factory_fat_id fac,
@@ -230,9 +228,9 @@ void initialize(sys::state& state);
 void regenerate_unsaved_values(sys::state& state);
 
 float pop_min_wage_factor(sys::state& state, dcon::nation_id n);
-float pop_farmer_min_wage(sys::state& state, dcon::nation_id n, float min_wage_factor);
-float pop_laborer_min_wage(sys::state& state, dcon::nation_id n, float min_wage_factor);
-float pop_factory_min_wage(sys::state& state, dcon::nation_id n, float min_wage_factor);
+float pop_farmer_min_wage(sys::state& state, dcon::state_instance_id s, float min_wage_factor);
+float pop_laborer_min_wage(sys::state& state, dcon::state_instance_id s, float min_wage_factor);
+float pop_factory_min_wage(sys::state& state, dcon::state_instance_id s, float min_wage_factor);
 
 std::tuple<float, float, float> rgo_relevant_population(sys::state& state, dcon::province_id p, dcon::nation_id n);
 float rgo_overhire_modifier(sys::state& state, dcon::province_id p, dcon::nation_id n);
@@ -245,8 +243,8 @@ void update_factory_employment(sys::state& state);
 void daily_update(sys::state& state);
 void resolve_constructions(sys::state& state);
 
-float base_artisan_profit(sys::state& state, dcon::nation_id n, dcon::commodity_id c);
-float artisan_scale_limit(sys::state& state, dcon::nation_id n, dcon::commodity_id c);
+float base_artisan_profit(sys::state& state, dcon::nation_id n, dcon::state_instance_id s, dcon::commodity_id c);
+float artisan_scale_limit(sys::state& state, dcon::nation_id n, dcon::state_instance_id s, dcon::commodity_id c);
 
 float stockpile_commodity_daily_increase(sys::state& state, dcon::commodity_id c, dcon::nation_id n);
 float global_market_commodity_daily_increase(sys::state& state, dcon::commodity_id c);

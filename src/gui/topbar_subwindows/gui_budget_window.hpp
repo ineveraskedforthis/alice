@@ -843,6 +843,8 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 		float admin_cost_factor = 2.0f - admin_eff;
 		for(auto lc : state.world.nation_get_province_land_construction(n)) {
 			auto province = state.world.pop_get_province_from_pop_location(state.world.province_land_construction_get_pop(lc));
+			auto s = state.world.province_get_state_membership(province);
+
 			if(state.world.province_get_nation_from_province_control(province) == n) {
 				auto& base_cost = state.military_definitions.unit_base_definitions[state.world.province_land_construction_get_type(lc)].build_cost;
 				auto& current_purchased = state.world.province_land_construction_get_purchased_goods(lc);
@@ -852,7 +854,7 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					if(auto cid = base_cost.commodity_type[i]; cid) {
 						if(current_purchased.commodity_amounts[i] < base_cost.commodity_amounts[i] * admin_cost_factor) {
-							float amount = state.world.nation_get_demand_satisfaction(n, cid) * base_cost.commodity_amounts[i] / construction_time;
+							float amount = state.world.state_instance_get_local_demand_satisfaction(s, cid) * base_cost.commodity_amounts[i] / construction_time;
 							float cost = state.world.commodity_get_current_price(cid);
 							total_cost += cost * amount;
 							total[base_cost.commodity_type[i].index()] += cost * amount;
@@ -871,6 +873,7 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 		}
 		for(auto po : state.world.nation_get_province_ownership(n)) {
 			auto p = po.get_province();
+			auto s = p.get_state_membership();
 			if(state.world.province_get_nation_from_province_control(p) != n)
 				continue;
 			auto rng = state.world.province_get_province_naval_construction(p);
@@ -884,7 +887,7 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					if(auto cid = base_cost.commodity_type[i]; cid) {
 						if(current_purchased.commodity_amounts[i] < base_cost.commodity_amounts[i] * admin_cost_factor) {
-							float amount = state.world.nation_get_demand_satisfaction(n, cid) * base_cost.commodity_amounts[i] / construction_time;
+							float amount = state.world.state_instance_get_local_demand_satisfaction(s, cid) * base_cost.commodity_amounts[i] / construction_time;
 							float cost = state.world.commodity_get_current_price(cid);
 							total_cost += cost * amount;
 							total[base_cost.commodity_type[i].index()] += cost * amount;
@@ -907,12 +910,13 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 				auto& base_cost = state.economy_definitions.building_definitions[int32_t(t)].cost;
 				auto& current_purchased = c.get_purchased_goods();
 				float construction_time = float(state.economy_definitions.building_definitions[int32_t(t)].time);
+				auto s = c.get_province().get_state_membership();
 				//
 				float total_cost = 0.f;
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					if(auto cid = base_cost.commodity_type[i]; cid) {
 						if(current_purchased.commodity_amounts[i] < base_cost.commodity_amounts[i] * admin_cost_factor) {
-							float amount = state.world.nation_get_demand_satisfaction(n, cid) * base_cost.commodity_amounts[i] / construction_time;
+							float amount = state.world.state_instance_get_local_demand_satisfaction(s, cid) * base_cost.commodity_amounts[i] / construction_time;
 							float cost = state.world.commodity_get_current_price(cid);
 							total_cost += cost * amount;
 							total[base_cost.commodity_type[i].index()] += cost * amount;
@@ -940,7 +944,7 @@ class budget_construction_stockpile_slider : public budget_slider<budget_slider_
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					if(auto cid = base_cost.commodity_type[i]; cid) {
 						if(current_purchased.commodity_amounts[i] < base_cost.commodity_amounts[i] * admin_cost_factor) {
-							float amount = state.world.nation_get_demand_satisfaction(n, cid) * base_cost.commodity_amounts[i] * factory_mod / construction_time;
+							float amount = state.world.state_instance_get_local_demand_satisfaction(c.get_state(), cid) * base_cost.commodity_amounts[i] * factory_mod / construction_time;
 							float cost = state.world.commodity_get_current_price(cid);
 							total_cost += cost * amount;
 							total[base_cost.commodity_type[i].index()] += cost * amount;
@@ -1691,8 +1695,15 @@ class domestic_investment_slider : public budget_slider<budget_slider_target::do
 		text::add_line_break_to_layout_box(state, contents, box);
 		text::close_layout_box(contents, box);
 
+		float total_needs = 0.f;
+
+		state.world.nation_for_each_state_ownership(n, [&](dcon::state_ownership_id so) {
+			auto s = state.world.state_ownership_get_state(so);
+			total_needs += state.world.state_instance_get_luxury_needs_costs(s, state.culture_definitions.capitalists);
+		});
+
 		text::add_line(state, contents, "alice_domestic_investment_pops", text::variable_type::x, text::pretty_integer{ int32_t(state.world.nation_get_demographics(n, demographics::to_key(state, state.culture_definitions.capitalists)) + state.world.nation_get_demographics(n, demographics::to_key(state, state.culture_definitions.aristocrat))) });
-		text::add_line(state, contents, "alice_domestic_investment_needs", text::variable_type::x, text::fp_currency{ state.world.nation_get_luxury_needs_costs(n, state.culture_definitions.capitalists) });
+		text::add_line(state, contents, "alice_domestic_investment_needs", text::variable_type::x, text::fp_currency{ total_needs });
 	}
 };
 class domestic_investment_estimated_text : public simple_text_element_base {

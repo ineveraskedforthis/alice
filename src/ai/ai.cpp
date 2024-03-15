@@ -478,12 +478,18 @@ void update_influence_priorities(sys::state& state) {
 
 			float weight = 0.0f;
 
+
+			// TODO:
+			/*
 			for(auto c : state.world.in_commodity) {
 				if(auto d = state.world.nation_get_real_demand(n.nation, c); d > 0.001f) {
-					auto cweight = std::min(1.0f, t.get_domestic_market_pool(c) / d) * (1.0f - state.world.nation_get_demand_satisfaction(n.nation, c));
+					auto cweight =
+						std::min(1.0f, t.get_domestic_market_pool(c) / d)
+						* (1.0f - state.world.nation_get_demand_satisfaction(n.nation, c));
 					weight += cweight;
 				}
 			}
+			*/
 
 			//We probably don't want to fight a forever lasting sphere war, let's find some other uncontested nations
 			if(t.get_in_sphere_of()) {
@@ -836,64 +842,42 @@ void update_ai_ruling_party(sys::state& state) {
 	}
 }
 
-void get_desired_factory_types(sys::state& state, dcon::nation_id nid, std::vector<dcon::factory_type_id>& desired_types) {
+void get_desired_factory_types(sys::state& state, dcon::nation_id nid, dcon::state_instance_id sid, std::vector<dcon::factory_type_id>& desired_types) {
 	assert(desired_types.empty());
 	auto n = dcon::fatten(state.world, nid);
+	auto s = dcon::fatten(state.world, sid);
 
-	/*
-	// first pass: try to fill shortages
 	for(auto type : state.world.in_factory_type) {
 		if(n.get_active_building(type) || type.get_is_available_from_start()) {
-			bool lacking_output = n.get_demand_satisfaction(type.get_output()) < 1.0f;
-			if(lacking_output) {
-				auto& inputs = type.get_inputs();
-				bool lacking_input = false;
-				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-					if(inputs.commodity_type[i]) {
-						if(n.get_demand_satisfaction(inputs.commodity_type[i]) < 1.0f)
-							lacking_input = true;
-					} else {
-						break;
-					}
+			auto& inputs = type.get_inputs();
+			bool lacking_input = false;
+			bool lacking_output = s.get_local_demand_satisfaction(type.get_output()) < 0.98f;
+
+			float input_total = 0.f;
+			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+				if(inputs.commodity_type[i]) {
+					input_total +=
+						inputs.commodity_amounts[i]
+						* s.get_prices(inputs.commodity_type[i]);
+					if(s.get_local_demand_satisfaction(inputs.commodity_type[i]) < 0.98f)
+						lacking_input = true;
+				} else {
+					break;
 				}
-				if(!lacking_input)
-					desired_types.push_back(type.id);
 			}
+
+			float output_total = type.get_output_amount() * s.get_prices(type.get_output());
+
+			float input_multiplier = std::max(0.1f, (economy::inputs_base_factor +
+				state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_input)));
+
+			float output_multiplier = state.world.nation_get_factory_goods_output(n, type.get_output()) +
+				state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_output) + 1.0f;
+
+
+			if(!lacking_input && (lacking_output || (input_total * input_multiplier * 0.9 <= output_total * output_multiplier)))
+				desired_types.push_back(type.id);
 		} // END if building unlocked
-	}
-	*/
-
-	if(desired_types.empty()) { // second pass: try to make money
-		for(auto type : state.world.in_factory_type) {
-			if(n.get_active_building(type) || type.get_is_available_from_start()) {
-				auto& inputs = type.get_inputs();
-				bool lacking_input = false;
-				bool lacking_output = n.get_demand_satisfaction(type.get_output()) < 0.98f;
-
-				float input_total = 0.f;
-				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-					if(inputs.commodity_type[i]) {
-						input_total += inputs.commodity_amounts[i] * state.world.commodity_get_current_price(inputs.commodity_type[i]);
-						if(n.get_demand_satisfaction(inputs.commodity_type[i]) < 0.98f)
-							lacking_input = true;
-					} else {
-						break;
-					}
-				}
-
-				float output_total = type.get_output_amount() * state.world.commodity_get_current_price(type.get_output());
-
-				float input_multiplier = std::max(0.1f, (economy::inputs_base_factor +
-					state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_input)));
-
-				float output_multiplier = state.world.nation_get_factory_goods_output(n, type.get_output()) +
-					state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_output) + 1.0f;
-
-
-				if(!lacking_input && (lacking_output || (input_total * input_multiplier * 0.9 <= output_total * output_multiplier)))
-					desired_types.push_back(type.id);
-			} // END if building unlocked
-		}
 	}
 }
 
@@ -986,91 +970,95 @@ void update_ai_econ_construction(sys::state& state) {
 
 			// try to build
 			static::std::vector<dcon::factory_type_id> desired_types;
-			desired_types.clear();
-			get_desired_factory_types(state, n, desired_types);
 
 			// desired types filled: try to construct or upgrade
-			if(!desired_types.empty()) {				
-				if((rules & issue_rule::build_factory) == 0 && (rules & issue_rule::expand_factory) != 0) { // can't build -- by elimination, can upgrade
+						
+			if((rules & issue_rule::build_factory) == 0 && (rules & issue_rule::expand_factory) != 0) { // can't build -- by elimination, can upgrade
 					
-				} else if((rules & issue_rule::build_factory) != 0) { // -- i.e. if building is possible
-					for(auto si : ordered_states) {
-						if(max_projects <= 0)
-							break;
+			} else if((rules & issue_rule::build_factory) != 0) { // -- i.e. if building is possible
+				for(auto si : ordered_states) {
+					if(max_projects <= 0)
+						break;
 
-						// check -- either unemployed factory workers or no factory workers
-						auto pw_num = state.world.state_instance_get_demographics(si,
-								demographics::to_key(state, state.culture_definitions.primary_factory_worker));
-						pw_num += state.world.state_instance_get_demographics(si,
-								demographics::to_key(state, state.culture_definitions.secondary_factory_worker));
-						auto pw_employed = state.world.state_instance_get_demographics(si,
-								demographics::to_employment_key(state, state.culture_definitions.primary_factory_worker));
-						pw_employed += state.world.state_instance_get_demographics(si,
-								demographics::to_employment_key(state, state.culture_definitions.secondary_factory_worker));
+					desired_types.clear();
+					get_desired_factory_types(state, n, si, desired_types);
 
-						if(pw_employed >= float(pw_num) * 2.5f && pw_num > 0.0f)
-							continue; // no spare workers
+					if(desired_types.empty()) {
+						continue;
+					}
 
-						auto type_selection = desired_types[rng::get_random(state, uint32_t(n.id.index() + max_projects)) % desired_types.size()];
-						assert(type_selection);
+					// check -- either unemployed factory workers or no factory workers
+					auto pw_num = state.world.state_instance_get_demographics(si,
+							demographics::to_key(state, state.culture_definitions.primary_factory_worker));
+					pw_num += state.world.state_instance_get_demographics(si,
+							demographics::to_key(state, state.culture_definitions.secondary_factory_worker));
+					auto pw_employed = state.world.state_instance_get_demographics(si,
+							demographics::to_employment_key(state, state.culture_definitions.primary_factory_worker));
+					pw_employed += state.world.state_instance_get_demographics(si,
+							demographics::to_employment_key(state, state.culture_definitions.secondary_factory_worker));
 
-						if(state.world.factory_type_get_is_coastal(type_selection) && !province::state_is_coastal(state, si))
-							continue;
+					if(pw_employed >= float(pw_num) * 2.5f && pw_num > 0.0f)
+						continue; // no spare workers
 
-						bool already_in_progress = [&]() {
-							for(auto p : state.world.state_instance_get_state_building_construction(si)) {
-								if(p.get_type() == type_selection)
-									return true;
-							}
-							return false;
-						}();
+					auto type_selection = desired_types[rng::get_random(state, uint32_t(n.id.index() + max_projects)) % desired_types.size()];
+					assert(type_selection);
 
-						if(already_in_progress)
-							continue;
+					if(state.world.factory_type_get_is_coastal(type_selection) && !province::state_is_coastal(state, si))
+						continue;
 
-						// check: if present, try to upgrade
-						bool present_in_location = false;
-						bool under_cap = false;
-
-						province::for_each_province_in_state_instance(state, si, [&](dcon::province_id p) {
-							for(auto fac : state.world.province_get_factory_location(p)) {
-								auto type = fac.get_factory().get_building_type();
-								if(type_selection == type) {
-									under_cap = fac.get_factory().get_production_scale() < 0.9f || fac.get_factory().get_primary_employment() < 0.9f;
-									present_in_location = true;
-									return;
-								}
-							}
-						});
-						if(under_cap) {
-							continue; // factory doesn't need to get larger
+					bool already_in_progress = [&]() {
+						for(auto p : state.world.state_instance_get_state_building_construction(si)) {
+							if(p.get_type() == type_selection)
+								return true;
 						}
-						if(present_in_location) {
-							if((rules & issue_rule::expand_factory) != 0) {
-								auto new_up = fatten(state.world, state.world.force_create_state_building_construction(si, n));
-								new_up.set_is_pop_project(false);
-								new_up.set_is_upgrade(true);
-								new_up.set_type(type_selection);
-								--max_projects;
-							}
-							continue;
-						}
+						return false;
+					}();
 
-						// else -- try to build -- must have room
-						int32_t num_factories = economy::state_factory_count(state, si, n);
-						if(num_factories < int32_t(state.defines.factories_per_state)) {
+					if(already_in_progress)
+						continue;
+
+					// check: if present, try to upgrade
+					bool present_in_location = false;
+					bool under_cap = false;
+
+					province::for_each_province_in_state_instance(state, si, [&](dcon::province_id p) {
+						for(auto fac : state.world.province_get_factory_location(p)) {
+							auto type = fac.get_factory().get_building_type();
+							if(type_selection == type) {
+								under_cap = fac.get_factory().get_production_scale() < 0.9f || fac.get_factory().get_primary_employment() < 0.9f;
+								present_in_location = true;
+								return;
+							}
+						}
+					});
+					if(under_cap) {
+						continue; // factory doesn't need to get larger
+					}
+					if(present_in_location) {
+						if((rules & issue_rule::expand_factory) != 0) {
 							auto new_up = fatten(state.world, state.world.force_create_state_building_construction(si, n));
 							new_up.set_is_pop_project(false);
-							new_up.set_is_upgrade(false);
+							new_up.set_is_upgrade(true);
 							new_up.set_type(type_selection);
 							--max_projects;
-							continue;
-						} else {
-							// TODO: try to delete a factory here
 						}
-					} // END for(auto si : ordered_states) {
-				} // END if((rules & issue_rule::build_factory) == 0)
-			} // END if(!desired_types.empty()) {
+						continue;
+					}
+
+					// else -- try to build -- must have room
+					int32_t num_factories = economy::state_factory_count(state, si, n);
+					if(num_factories < int32_t(state.defines.factories_per_state)) {
+						auto new_up = fatten(state.world, state.world.force_create_state_building_construction(si, n));
+						new_up.set_is_pop_project(false);
+						new_up.set_is_upgrade(false);
+						new_up.set_type(type_selection);
+						--max_projects;
+						continue;
+					} else {
+						// TODO: try to delete a factory here
+					}
+				} // END for(auto si : ordered_states) {
+			} // END if((rules & issue_rule::build_factory) == 0)
 		} // END  if((rules & issue_rule::expand_factory) != 0 || (rules & issue_rule::build_factory) != 0)
 
 		static std::vector<dcon::province_id> project_provs;

@@ -231,6 +231,7 @@ int32_t get_level(sys::state& state, dcon::nation_id gp, dcon::nation_id target)
 dcon::nation_id get_nth_great_power(sys::state const& state, uint16_t n);
 
 dcon::nation_id owner_of_pop(sys::state const& state, dcon::pop_id pop_ids);
+dcon::state_instance_id state_of_pop(sys::state const& state, dcon::pop_id pop_ids);
 
 bool can_release_as_vassal(sys::state const& state, dcon::nation_id n, dcon::national_identity_id releasable);
 bool identity_has_holder(sys::state const& state, dcon::national_identity_id ident);

@@ -50,6 +50,7 @@ enum class mode : uint8_t {
 	workforce = 0x2b,
 	mobilization = 0x2c,
 	state_select = 0x2d,
+	trade_good_price = 0x2e
 };
 
 const uint8_t PROV_COLOR_LAYERS = 2;

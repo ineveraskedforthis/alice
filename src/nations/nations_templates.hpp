@@ -31,6 +31,12 @@ auto owner_of_pop(sys::state const& state, T pop_ids) {
 }
 
 template<typename T>
+auto state_of_pop(sys::state const& state, T pop_ids) {
+	auto location = state.world.pop_get_province_from_pop_location(pop_ids);
+	return state.world.province_get_state_membership(location);
+}
+
+template<typename T>
 auto central_blockaded_fraction(sys::state const& state, T ids) {
 	auto cpc = ve::to_float(state.world.nation_get_central_ports(ids));
 	auto b_count = ve::to_float(state.world.nation_get_central_blockaded(ids));

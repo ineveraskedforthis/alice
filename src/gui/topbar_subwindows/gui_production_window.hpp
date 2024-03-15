@@ -659,30 +659,24 @@ class normal_factory_background : public opaque_element_base {
 
 		auto& inputs = type.get_inputs();
 		auto& einputs = type.get_efficiency_inputs();
-
-		static auto effective_prices = state.world.commodity_make_vectorizable_float_buffer();
-		economy::populate_effective_prices(state, n, effective_prices);
-
 		//inputs
 
-		float input_total = economy::factory_input_total_cost(state, n, type, effective_prices);
-		float min_input_available = economy::factory_min_input_available(state, n, type);
-		float e_input_total = economy::factory_e_input_total_cost(state, n, type, effective_prices);
-		float min_e_input_available = economy::factory_min_e_input_available(state, n, type);
+		float input_total = economy::factory_input_total_cost(state, s, type);
+		float min_input_available = economy::factory_min_input_available(state, s, type);
+		float e_input_total = economy::factory_e_input_total_cost(state, s, type);
+		float min_e_input_available = economy::factory_min_e_input_available(state, s, type);
 
 		//modifiers
 
-		float input_multiplier = economy::factory_input_multiplier(state, fac, n, p, s);
-		float throughput_multiplier = economy::factory_throughput_multiplier(state, type, n, p, s);
+		float input_multiplier = economy::factory_input_multiplier(state, fac, n, s, p);
+		float throughput_multiplier = economy::factory_throughput_multiplier(state, type, n, s, p);
 		float output_multiplier = economy::factory_output_multiplier(state, fac, n, p);
 
 		float max_production_scale = economy::factory_max_production_scale(
 			state,
 			fac,
 			mobilization_impact,
-			p_fat.get_nation_from_province_control() != n, // is occupied
-			p_fat.get_connected_region_id() != cap_region
-			&& p_fat.get_continent() != cap_continent // is overseas
+			p_fat.get_nation_from_province_control() != n // is occupied
 		);
 
 		float effective_production_scale = std::min(fac.get_production_scale() * fac.get_level(), max_production_scale);
@@ -728,7 +722,7 @@ class normal_factory_background : public opaque_element_base {
 			name_entry.x_size /= 10;
 			text::add_to_layout_box(state, contents, name_entry, state.world.commodity_get_name(cid));
 			
-			auto sat = state.world.nation_get_demand_satisfaction(n, cid);
+			auto sat = state.world.state_instance_get_local_demand_satisfaction(s, cid);
 			text::add_to_layout_box(state, contents,
 				demand_satisfaction,
 				text::fp_percentage{ sat },
@@ -743,7 +737,7 @@ class normal_factory_background : public opaque_element_base {
 				* effective_production_scale;
 
 			float cost =
-				effective_prices.get(cid)
+				state.world.state_instance_get_prices(s, cid)
 				* amount;
 
 			total_expenses += cost;
@@ -772,7 +766,7 @@ class normal_factory_background : public opaque_element_base {
 			name_entry.x_size /= 10;
 			text::add_to_layout_box(state, contents, name_entry, state.world.commodity_get_name(cid));
 
-			auto sat = state.world.nation_get_demand_satisfaction(n, cid);
+			auto sat = state.world.state_instance_get_local_demand_satisfaction(s, cid);
 			text::add_to_layout_box(state, contents,
 				demand_satisfaction,
 				text::fp_percentage{ sat },
@@ -787,7 +781,7 @@ class normal_factory_background : public opaque_element_base {
 				* effective_production_scale;
 
 			float cost =
-				effective_prices.get(cid)
+				state.world.state_instance_get_prices(s, cid)
 				* amount;
 
 			total_expenses += cost;
@@ -841,7 +835,7 @@ class normal_factory_background : public opaque_element_base {
 				* effective_production_scale;
 
 			float output_cost =
-				effective_prices.get(cid)
+				state.world.state_instance_get_prices(s, cid)
 				* output_amount;
 
 			text::add_to_layout_box(state, contents, amount, text::fp_two_places{ output_amount });
@@ -874,7 +868,7 @@ class normal_factory_background : public opaque_element_base {
 		text::add_line_break_to_layout(state, contents);
 
 		auto const min_wage_factor = economy::pop_min_wage_factor(state, n);
-		float factory_min_wage = economy::pop_factory_min_wage(state, n, min_wage_factor);
+		float factory_min_wage = economy::pop_factory_min_wage(state, s, min_wage_factor);
 
 		float wage_estimation =
 			factory_min_wage
@@ -1106,7 +1100,16 @@ public:
 			parent->impl_get(state, payload);
 			auto content = any_cast<production_factory_slot_data>(payload);
 
-			const dcon::nation_id n = retrieve<dcon::nation_id>(state, parent);
+			dcon::nation_id n = retrieve<dcon::nation_id>(state, parent);
+			auto p = state.world.factory_get_province_from_factory_location(retrieve<dcon::factory_id>(state, parent));
+			auto p_fat = fatten(state.world, p);
+			auto sdef = state.world.abstract_state_membership_get_state(state.world.province_get_abstract_state_membership(p));
+			dcon::state_instance_id s{};
+			state.world.for_each_state_instance([&](dcon::state_instance_id id) {
+				if(state.world.state_instance_get_definition(id) == sdef)
+					s = id;
+			});
+
 			dcon::factory_type_fat_id fat_btid(state.world, dcon::factory_type_id{});
 			if(std::holds_alternative<economy::new_factory>(content.activity)) {
 				// New factory
@@ -1156,7 +1159,7 @@ public:
 					dcon::commodity_id cid = cset.commodity_type[size_t(i)];
 					input_icons[size_t(i)]->frame = int32_t(state.world.commodity_get_icon(cid));
 					input_icons[size_t(i)]->com = cid;
-					bool is_lack = cid != dcon::commodity_id{} ? state.world.nation_get_demand_satisfaction(n, cid) < 0.5f : false;
+					bool is_lack = cid != dcon::commodity_id{} ? state.world.state_instance_get_local_demand_satisfaction(s, cid) < 0.5f : false;
 					input_lack_icons[size_t(i)]->set_visible(state, is_lack);
 				}
 			}
@@ -1739,7 +1742,13 @@ class commodity_primary_worker_amount : public simple_text_element_base {
 			break;
 
 		case economy::commodity_production_type::derivative:
-			total += nation.get_artisan_distribution(content) * nation.get_demographics(demographics::to_key(state, state.culture_definitions.artisans));
+			state.world.nation_for_each_state_ownership(nation, [&](dcon::state_ownership_id so) {
+				auto s = state.world.state_ownership_get_state(so);
+				float dist = state.world.state_instance_get_local_artisan_distribution(s, content);
+				float amount = state.world.state_instance_get_demographics(s, demographics::to_key(state, state.culture_definitions.artisans));
+				total += dist * amount;
+			});
+			
 			for(auto province_ownership : state.world.nation_get_province_ownership(nation)) {
 				auto province = province_ownership.get_province();
 				for(auto fac : province.get_factory_location()) {
@@ -1781,7 +1790,13 @@ class commodity_secondary_worker_amount : public simple_text_element_base {
 			break;
 
 		case economy::commodity_production_type::both:
-			total += nation.get_artisan_distribution(content) * nation.get_demographics(demographics::to_key(state, state.culture_definitions.artisans));
+			state.world.nation_for_each_state_ownership(nation, [&](dcon::state_ownership_id so) {
+				auto s = state.world.state_ownership_get_state(so);
+				float dist = state.world.state_instance_get_local_artisan_distribution(s, content);
+				float amount = state.world.state_instance_get_demographics(s, demographics::to_key(state, state.culture_definitions.artisans));
+				total += dist * amount;
+			});
+
 			for(auto province_ownership : state.world.nation_get_province_ownership(nation)) {
 				auto province = province_ownership.get_province();
 				for(auto fac : province.get_factory_location()) {

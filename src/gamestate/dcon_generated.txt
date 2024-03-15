@@ -2656,6 +2656,97 @@ object {
 		name{ naval_base_is_taken }
 		type{ bitfield }
 	}
+
+	property {
+		name{ stockpiles }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ prices }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ prices_buffer }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_artisan_distribution }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_artisan_actual_production }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_demand_satisfaction }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_supply_buyout }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_artisan_profit }
+		type{ float }
+		tag{ save }
+	}
+	property {
+		name{ local_demand }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ local_supply }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property{
+		name{ life_needs_costs }
+		type{ array{pop_type_id}{float} }
+		tag{ save }
+	}
+	property{
+		name{ everyday_needs_costs }
+		type{ array{pop_type_id}{float} }
+		tag{ save }
+	}
+	property{
+		name{ luxury_needs_costs }
+		type{ array{pop_type_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ life_needs_weights }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ everyday_needs_weights }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ luxury_needs_weights }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ construction_demand }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ private_construction_demand }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
 }
 relationship{
 	name{ colonization }
@@ -3503,6 +3594,11 @@ object {
 		tag{ save }
 	}
 	property {
+		name{ prices }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
 		name{ real_demand }
 		type{ array{commodity_id}{float} }
 		tag{ save }
@@ -3521,65 +3617,6 @@ object {
 		name{ navy_demand }
 		type{ array{commodity_id}{float} }
 		tag{ save }
-	}
-	property {
-		name{ construction_demand }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ private_construction_demand }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ demand_satisfaction }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property{
-		name{ life_needs_costs }
-		type{ array{pop_type_id}{float} }
-		tag{ save }
-	}
-	property{
-		name{ everyday_needs_costs }
-		type{ array{pop_type_id}{float} }
-		tag{ save }
-	}
-	property{
-		name{ luxury_needs_costs }
-		type{ array{pop_type_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ life_needs_weights }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ everyday_needs_weights }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ luxury_needs_weights }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ artisan_distribution }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ artisan_actual_production }
-		type{ array{commodity_id}{float} }
-		tag{ save }
-	}
-	property {
-		name{ artisan_profit }
-		type{ float }
 	}
 	property {
 		name{ overseas_penalty }

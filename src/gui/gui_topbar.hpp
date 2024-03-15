@@ -1961,9 +1961,17 @@ public:
 						sys::commodity_group(state.world.commodity_get_commodity_group(cid)) != sys::commodity_group::consumer_goods &&
 						sys::commodity_group(state.world.commodity_get_commodity_group(cid)) != sys::commodity_group::industrial_and_consumer_goods)
 					return;
+
+				/*
 				float produced = state.world.nation_get_domestic_market_pool(state.local_player_nation, cid);
-				float consumed = state.world.nation_get_real_demand(state.local_player_nation, cid) *
-												 state.world.nation_get_demand_satisfaction(state.local_player_nation, cid);
+				float consumed =
+					state.world.nation_get_real_demand(state.local_player_nation, cid)
+					* state.world.nation_get_demand_satisfaction(state.local_player_nation, cid);
+				*/
+
+				float produced = 0.f;
+				float consumed = 0.f;
+
 				v.insert({produced - consumed, cid.index()});
 			}
 
