@@ -139,8 +139,8 @@ inline constexpr float inputs_base_factor = 1.0f;
 inline constexpr float rgo_boost = 1.0f;
 
 //demand modifiers
-inline constexpr float lx_extra_factor = 10.0f;
-inline constexpr float en_extra_factor = 10.0f;
+inline constexpr float lx_extra_factor = 1.0f;
+inline constexpr float en_extra_factor = 1.0f;
 
 void presimulate(sys::state& state);
 

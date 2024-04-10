@@ -571,15 +571,6 @@ public:
 			});
 			float per_state = 4.0f * total_level * std::max(std::min(1.0f, worker_total / total_factory_capacity), 0.05f);
 			if(per_state > 0.f) {
-				/*
-				text::substitution_map sub{};
-				text::add_to_substitution_map(sub, text::variable_type::name, si.get_state());
-				text::add_to_substitution_map(sub, text::variable_type::cap, text::fp_two_places{ total_factory_capacity });
-				text::add_to_substitution_map(sub, text::variable_type::level, text::int_wholenum{ int32_t(total_level) });
-				text::add_to_substitution_map(sub, text::variable_type::amount, text::fp_two_places{ worker_total });
-				text::add_to_substitution_map(sub, text::variable_type::total, text::fp_two_places{ per_state });
-				*/
-
 				auto box = text::open_layout_box(contents);
 				text::layout_box name_entry = box;
 				text::layout_box level_entry = box;
@@ -1649,13 +1640,20 @@ public:
 	}
 };
 
-class commodity_image : public image_element_base {
+class commodity_image : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		frame = int32_t(state.world.commodity_get_icon(retrieve<dcon::commodity_id>(state, parent)));
 	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
 		return tooltip_behavior::variable_tooltip;
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		auto good = retrieve<dcon::commodity_id>(state, parent);
+
+		state.user_settings.selected_good = good;
+		map_mode::set_map_mode(state, map_mode::mode::trade_good_price);
 	}
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {

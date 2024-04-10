@@ -638,13 +638,9 @@ class normal_factory_background : public opaque_element_base {
 			return;
 		dcon::nation_id n = retrieve<dcon::nation_id>(state, parent);
 		auto p = state.world.factory_get_province_from_factory_location(retrieve<dcon::factory_id>(state, parent));
+
 		auto p_fat = fatten(state.world, p);
-		auto sdef = state.world.abstract_state_membership_get_state(state.world.province_get_abstract_state_membership(p));
-		dcon::state_instance_id s{};
-		state.world.for_each_state_instance([&](dcon::state_instance_id id) {
-			if(state.world.state_instance_get_definition(id) == sdef)
-				s = id;
-		});
+		auto s = p_fat.get_state_membership();
 
 		// nation data
 
@@ -681,7 +677,10 @@ class normal_factory_background : public opaque_element_base {
 
 		float effective_production_scale = std::min(fac.get_production_scale() * fac.get_level(), max_production_scale);
 
-		auto amount = (0.75f + 0.25f * min_e_input_available) * min_input_available * state.world.factory_get_production_scale(fid);
+		auto amount =
+			(0.75f + 0.25f * min_e_input_available)
+			* min_input_available
+			* state.world.factory_get_production_scale(fid);
 
 		text::add_line(state, contents, "factory_stats_1", text::variable_type::val, text::fp_percentage{amount});
 
@@ -1103,12 +1102,13 @@ public:
 			dcon::nation_id n = retrieve<dcon::nation_id>(state, parent);
 			auto p = state.world.factory_get_province_from_factory_location(retrieve<dcon::factory_id>(state, parent));
 			auto p_fat = fatten(state.world, p);
-			auto sdef = state.world.abstract_state_membership_get_state(state.world.province_get_abstract_state_membership(p));
-			dcon::state_instance_id s{};
-			state.world.for_each_state_instance([&](dcon::state_instance_id id) {
-				if(state.world.state_instance_get_definition(id) == sdef)
-					s = id;
-			});
+			auto s = p_fat.get_state_membership();
+			//auto sdef = state.world.abstract_state_membership_get_state(state.world.province_get_abstract_state_membership(p));
+			//dcon::state_instance_id s{};
+			//state.world.for_each_state_instance([&](dcon::state_instance_id id) {
+			//	if(state.world.state_instance_get_definition(id) == sdef)
+			//		s = id;
+			//});
 
 			dcon::factory_type_fat_id fat_btid(state.world, dcon::factory_type_id{});
 			if(std::holds_alternative<economy::new_factory>(content.activity)) {

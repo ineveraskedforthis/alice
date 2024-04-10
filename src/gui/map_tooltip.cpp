@@ -1250,13 +1250,54 @@ void trade_good_price(sys::state& state, text::columnar_layout& contents, dcon::
 
 	auto s = fat.get_state_membership();
 	auto price = s.get_prices(state.user_settings.selected_good);
+	auto supply = s.get_local_supply(state.user_settings.selected_good);
+	auto stockpile = s.get_stockpiles(state.user_settings.selected_good);
+	auto demand = s.get_local_demand(state.user_settings.selected_good);
 
 	if(prov.value > state.province_definitions.first_sea_province.value)
 		return;
 
 	auto box = text::open_layout_box(contents);
 	text::add_to_layout_box(state, contents, box, text::prettify_currency(price), text::text_color::yellow);
-	text::close_layout_box(contents, box);		
+	text::add_space_to_layout_box(state, contents, box);
+	text::add_to_layout_box(state, contents, box, text::fp_two_places{ supply }, text::text_color::yellow);
+	text::add_space_to_layout_box(state, contents, box);
+	text::add_to_layout_box(state, contents, box, text::fp_two_places{ stockpile }, text::text_color::yellow);
+	text::add_space_to_layout_box(state, contents, box);
+	text::add_to_layout_box(state, contents, box, text::fp_two_places{ demand }, text::text_color::yellow);
+	text::close_layout_box(contents, box);
+
+	state.world.for_each_commodity([&](dcon::commodity_id c) {
+		auto price = s.get_prices(c);
+		auto supply = s.get_local_supply(c);
+		auto stockpile = s.get_stockpiles(c);
+		auto demand = s.get_local_demand(c);
+
+		auto box = text::open_layout_box(contents);
+		text::layout_box name_entry = box;
+		text::layout_box supply_box = box;
+		//text::layout_box stockpile_box = box;
+		text::layout_box demand_box = box;		
+		text::layout_box price_box = box;
+
+		name_entry.x_size /= 10;
+		text::add_to_layout_box(state, contents, name_entry, state.world.commodity_get_name(c));
+
+		supply_box.x_position += 150;
+		text::add_to_layout_box(state, contents, supply_box, text::fp_two_places{ supply + stockpile });
+
+		//stockpile_box.x_position += 180;
+		//text::add_to_layout_box(state, contents, stockpile_box, text::fp_two_places{ stockpile });
+
+		demand_box.x_position += 250;
+		text::add_to_layout_box(state, contents, demand_box, text::fp_two_places{ demand });
+
+		price_box.x_position += 350;
+		text::add_to_layout_box(state, contents, price_box, text::prettify_currency(price), text::text_color::yellow);
+
+		text::add_to_layout_box(state, contents, box, std::string(" "));
+		text::close_layout_box(contents, box);
+	});
 }
 
 

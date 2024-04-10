@@ -758,7 +758,7 @@ std::vector<uint32_t> players_map_from(sys::state& state) {
 }
 
 static float sigmoid(float value) {
-	return 1 / (1 + std::exp(-value));
+	return 1 / (1 + std::exp(-1.5f * value));
 }
 
 std::vector<uint32_t> trade_good_price_map_from(sys::state& state) {
@@ -774,7 +774,7 @@ std::vector<uint32_t> trade_good_price_map_from(sys::state& state) {
 		if((sel_nation && nation == sel_nation) || !sel_nation) {
 			auto fat_id = dcon::fatten(state.world, prov_id);
 			auto s = fat_id.get_state_membership();
-			auto price = s.get_prices(state.user_settings.selected_good);
+			auto price = std::log(0.005f + s.get_prices(state.user_settings.selected_good));
 
 			sum += price;
 			count += 1.f;
@@ -792,7 +792,7 @@ std::vector<uint32_t> trade_good_price_map_from(sys::state& state) {
 		if((sel_nation && nation == sel_nation) || !sel_nation) {
 			auto fat_id = dcon::fatten(state.world, prov_id);
 			auto s = fat_id.get_state_membership();
-			auto price = s.get_prices(state.user_settings.selected_good);
+			auto price = std::log(0.005f + s.get_prices(state.user_settings.selected_good));
 
 			square_sum += (price - average) * (price - average) / count;
 		}

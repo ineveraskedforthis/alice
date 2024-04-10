@@ -3609,6 +3609,11 @@ object {
 		tag{ save }
 	}
 	property {
+		name{ exports }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
 		name{ army_demand }
 		type{ array{commodity_id}{float} }
 		tag{ save }
