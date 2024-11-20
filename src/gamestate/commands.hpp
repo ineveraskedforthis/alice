@@ -122,6 +122,11 @@ enum class command_type : uint8_t {
 	advance_tick = 120,
 	chat_message = 121,
 
+	// api
+	get_nation_data = 200,
+	get_province_data = 201,
+	console_api = 202,
+
 	// console cheats
 	console_command = 255,
 };
@@ -452,6 +457,32 @@ struct notify_leaves_data {
 	bool make_ai;
 };
 
+struct nation_data {
+	dcon::nation_id nation_id;
+	char name[15];
+	float treasury;
+};
+
+struct population_by_type {
+	float size;
+	dcon::pop_type_id pop_type;
+};
+
+struct province_data {
+	dcon::province_id province_id;
+	dcon::state_instance_id state_id;
+
+	char name[80];
+
+	float population;
+	population_by_type population_distribution[20];
+};
+
+struct console_command_part {
+	char command_part[100];
+	bool last;
+};
+
 struct payload {
 	union dtype {
 		national_focus_data nat_focus;
@@ -515,6 +546,10 @@ struct payload {
 		nbutton_data nbutton;
 		pbutton_data pbutton;
 		cheat_invention_data_t cheat_invention_data;
+
+		nation_data nation_data_api_response;
+		province_data province_data_api_response;
+		console_command_part console_api_data;
 		dtype() { }
 	} data;
 	dcon::nation_id source;
@@ -875,6 +910,8 @@ void execute_pending_commands(sys::state& state);
 bool can_perform_command(sys::state& state, payload& c);
 
 void notify_console_command(sys::state& state);
+
+std::string execute_console_command(sys::state& state, std::string command);
 
 } // namespace command
 

@@ -66,6 +66,8 @@ struct client_data {
 	inline bool is_active() const {
 		return socket_fd > 0;
 	}
+
+	std::string current_console_command;
 };
 
 struct network_state {

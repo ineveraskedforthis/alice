@@ -3872,6 +3872,50 @@ void execute_console_command(sys::state& state) {
 	}
 }
 
+std::string execute_console_command(sys::state& state, std::string command) {
+	std::string result = "";
+
+	if(command.length() > 0) {
+		ui::initialize_console_fif_environment(state);
+		fif::interpreter_stack stack;
+		fif::run_fif_interpreter(*state.fif_environment, command, stack);
+		if(state.fif_environment->mode == fif::fif_mode::error) {
+			state.fif_environment->mode = fif::fif_mode::interpreting;
+			result += state.console_command_error;
+			state.console_command_error.clear();
+		} else {
+			std::string temp_result;
+			for(uint32_t i = 0; i < stack.main_size(); ++i) {
+				temp_result += ui::format_fif_value(state, stack.main_data(i), stack.main_type(i));
+				temp_result += " ";
+			}
+			if(stack.main_size() > 0) {
+				state.fif_environment->source_stack.push_back("drop");
+				state.fif_environment->compiler_stack.emplace_back(std::make_unique<fif::outer_interpreter>(*state.fif_environment));
+				fif::outer_interpreter* o = static_cast<fif::outer_interpreter*>(state.fif_environment->compiler_stack.back().get());
+				static_cast<fif::interpreter_stack*>(o->interpreter_state.get())->move_into(std::move(stack));
+
+				switch_compiler_stack_mode(*state.fif_environment, fif::fif_mode::interpreting);
+				fif::mode_switch_scope* m = static_cast<fif::mode_switch_scope*>(state.fif_environment->compiler_stack.back().get());
+				m->interpreted_link = o;
+
+				while(o->interpreter_state->main_size() > 0) {
+					fif::execute_fif_word(fif::parse_result{ "drop", false }, *state.fif_environment, false);
+				}
+
+				state.fif_environment->source_stack.pop_back();
+				restore_compiler_stack_mode(*state.fif_environment);
+
+				state.fif_environment->compiler_stack.pop_back();
+			}
+			result += temp_result;
+			state.fif_environment->mode = fif::fif_mode::interpreting;
+		}
+	}
+
+	return result;
+}
+
 void evenly_split_army(sys::state& state, dcon::nation_id source, dcon::army_id a) {
 	payload p;
 	memset(&p, 0, sizeof(payload));
