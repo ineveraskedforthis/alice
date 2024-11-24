@@ -750,12 +750,12 @@ static void receive_from_clients(sys::state& state) {
 						size_t start = 0;
 
 						while(start < response.length()) {
-							size_t end = std::min(start + 100, response.length());
+							size_t end = std::min(start + 99, response.length());
 							command::payload c;
 							memset(&c, 0, sizeof(command::payload));
 							c.type = command::command_type::console_api;
 
-							auto sub_view = view.substr(start, 100);
+							auto sub_view = view.substr(start, 99);
 
 							strcpy(c.data.console_api_data.command_part, std::string(sub_view).c_str());
 							if(end == response.length())
