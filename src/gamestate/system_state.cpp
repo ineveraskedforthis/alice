@@ -4217,6 +4217,8 @@ void state::single_game_tick() {
 		print_oos_check(*this, "research");
 
 		nations::update_industrial_scores(*this);
+		print_oos_check(*this, "update_industrial_scores");
+
 		nations::update_military_scores(*this); // depends on ship score, land unit average
 		print_oos_check(*this, "update_military_scores");
 
