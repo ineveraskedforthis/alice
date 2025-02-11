@@ -291,6 +291,16 @@ void create_in_game_windows(sys::state& state) {
 
 namespace sys {
 
+void print_oos_check(sys::state& state, std::string location) {
+	auto state_string = state.get_save_checksum().to_string();
+	std::string pretty = "";
+	for(auto c : state_string) {
+		pretty += ('a' + c % 30);
+	}
+	pretty += "\n";
+	state.console_log(location + ":" + pretty);
+}
+
 void state::start_state_selection(state_selection_data& data) {
 	if(state_selection) {
 		state_selection->on_cancel(*this);
@@ -3911,6 +3921,8 @@ void state::single_game_tick() {
 		return;
 	}
 
+	print_oos_check(*this, "start");
+
 	auto ymd_date = current_date.to_ymd(start_date);
 
 	diplomatic_message::update_pending(*this);
@@ -3993,6 +4005,8 @@ void state::single_game_tick() {
 		}
 	});
 
+	print_oos_check(*this, "after demo 1");
+
 	// apply in parallel where we can
 	concurrency::parallel_for(0, 8, [&](int32_t index) {
 		switch(index) {
@@ -4057,6 +4071,8 @@ void state::single_game_tick() {
 		}
 	});
 
+	print_oos_check(*this, "after demo 2");
+
 	// because they may add pops, these changes must be applied sequentially
 	{
 		auto o = uint32_t(ymd_date.day + 6);
@@ -4091,6 +4107,8 @@ void state::single_game_tick() {
 
 	demographics::remove_size_zero_pops(*this);
 
+	print_oos_check(*this, "after demo 3");
+
 	// basic repopulation of demographics derived values
 
 	int64_t pc_difference = 0;
@@ -4101,6 +4119,8 @@ void state::single_game_tick() {
 	//
 	// ALTERNATE PAR DEMO START POINT A
 	//
+
+	print_oos_check(*this, "various updates");
 
 	concurrency::parallel_invoke([&]() {
 		// values updates pass 1 (mostly trivial things, can be done in parallel)
@@ -4168,11 +4188,15 @@ void state::single_game_tick() {
 			}
 		});
 
+		print_oos_check(*this, "daily updates");
+
 		economy::daily_update(*this, false, 1.f);
 
 		//
 		// ALTERNATE PAR DEMO START POINT B
 		//
+
+		print_oos_check(*this, "economy update");
 
 		military::recover_org(*this);
 		military::update_siege_progress(*this);
@@ -4182,20 +4206,38 @@ void state::single_game_tick() {
 
 		military::advance_mobilizations(*this);
 
+		print_oos_check(*this, "military update");
+
 		province::update_colonization(*this);
 		military::update_cbs(*this); // may add/remove cbs to a nation
 
+		print_oos_check(*this, "cbs and colonisation");
+
 		event::update_events(*this);
+
+		print_oos_check(*this, "events");
 
 		culture::update_research(*this, uint32_t(ymd_date.year));
 
+		print_oos_check(*this, "research");
+
 		nations::update_military_scores(*this); // depends on ship score, land unit average
+		print_oos_check(*this, "update_military_scores");
+
 		nations::update_rankings(*this);				// depends on industrial score, military scores
+		print_oos_check(*this, "update_rankings");
+
 		nations::update_great_powers(*this);		// depends on rankings
+		print_oos_check(*this, "update_great_powers");
+
 		nations::update_influence(*this);				// depends on rankings, great powers
+		print_oos_check(*this, "update_influence");
 
 		nations::update_crisis(*this);
+		print_oos_check(*this, "update_crisis");
+
 		politics::update_elections(*this);
+		print_oos_check(*this, "update_elections");
 
 		if(current_date.value % 4 == 0) {
 			ai::update_ai_colonial_investment(*this);
@@ -4208,92 +4250,117 @@ void state::single_game_tick() {
 		}
 		ai::take_ai_decisions(*this);
 
+		print_oos_check(*this, "decisions");
+
 		// Once per month updates, spread out over the month
 		switch(ymd_date.day) {
 		case 1:
 			nations::update_monthly_points(*this);
 			economy::prune_factories(*this);
+			print_oos_check(*this, "monthly case 1");
 			break;
 		case 2:
 			province::update_blockaded_cache(*this);
 			sys::update_modifier_effects(*this);
+			print_oos_check(*this, "monthly case 2");
 			break;
 		case 3:
 			military::monthly_leaders_update(*this);
 			ai::add_gw_goals(*this);
+			print_oos_check(*this, "monthly case 3");
 			break;
 		case 4:
 			military::reinforce_regiments(*this);
 			if(!bool(defines.alice_eval_ai_mil_everyday)) {
 				ai::make_defense(*this);
 			}
+			print_oos_check(*this, "monthly case 4");
 			break;
 		case 5:
 			rebel::update_movements(*this);
 			rebel::update_factions(*this);
+			print_oos_check(*this, "monthly case 5");
 			break;
 		case 6:
 			ai::form_alliances(*this);
 			if(!bool(defines.alice_eval_ai_mil_everyday)) {
 				ai::make_attacks(*this);
 			}
+			print_oos_check(*this, "monthly case 6");
 			break;
 		case 7:
 			ai::update_ai_general_status(*this);
+			print_oos_check(*this, "monthly case 7");
 			break;
 		case 8:
 			military::apply_attrition(*this);
+			print_oos_check(*this, "monthly case 8");
 			break;
 		case 9:
 			military::repair_ships(*this);
+			print_oos_check(*this, "monthly case 9");
 			break;
 		case 10:
 			province::update_crimes(*this);
+			print_oos_check(*this, "monthly case 10");
 			break;
 		case 11:
 			province::update_nationalism(*this);
+			print_oos_check(*this, "monthly case 11");
 			break;
 		case 12:
 			ai::update_ai_research(*this);
 			rebel::update_armies(*this);
 			rebel::rebel_hunting_check(*this);
+			print_oos_check(*this, "monthly case 12");
 			break;
 		case 13:
 			ai::perform_influence_actions(*this);
+			print_oos_check(*this, "monthly case 13");
 			break;
 		case 14:
 			ai::update_focuses(*this);
+			print_oos_check(*this, "monthly case 14");
 			break;
 		case 15:
 			culture::discover_inventions(*this);
+			print_oos_check(*this, "monthly case 15");
 			break;
 		case 16:
 			ai::build_ships(*this);
+			print_oos_check(*this, "monthly case 16");
 			break;
 		case 17:
 			ai::update_land_constructions(*this);
+			print_oos_check(*this, "monthly case 17");
 			break;
 		case 18:
 			ai::update_ai_econ_construction(*this);
+			print_oos_check(*this, "monthly case 18");
 			break;
 		case 19:
 			ai::update_budget(*this);
+			print_oos_check(*this, "monthly case 19");
 			break;
 		case 20:
 			nations::monthly_flashpoint_update(*this);
 			if(!bool(defines.alice_eval_ai_mil_everyday)) {
 				ai::make_defense(*this);
 			}
+			print_oos_check(*this, "monthly case 20");
 			break;
 		case 21:
 			ai::update_ai_colony_starting(*this);
+			print_oos_check(*this, "monthly case 21");
 			break;
 		case 22:
 			ai::take_reforms(*this);
+			print_oos_check(*this, "monthly case 22");
 			break;
 		case 23:
 			ai::civilize(*this);
 			ai::make_war_decs(*this);
+			print_oos_check(*this, "monthly case 23");
 			break;
 		case 24:
 			rebel::execute_rebel_victories(*this);
@@ -4302,21 +4369,27 @@ void state::single_game_tick() {
 			}
 			rebel::update_armies(*this);
 			rebel::rebel_hunting_check(*this);
+			print_oos_check(*this, "monthly case 24");
 			break;
 		case 25:
 			rebel::execute_province_defections(*this);
+			print_oos_check(*this, "monthly case 25");
 			break;
 		case 26:
 			ai::make_peace_offers(*this);
+			print_oos_check(*this, "monthly case 26");
 			break;
 		case 27:
 			ai::update_crisis_leaders(*this);
+			print_oos_check(*this, "monthly case 27");
 			break;
 		case 28:
 			rebel::rebel_risings_check(*this);
+			print_oos_check(*this, "monthly case 28");
 			break;
 		case 29:
 			ai::update_war_intervention(*this);
+			print_oos_check(*this, "monthly case 29");
 			break;
 		case 30:
 			if(!bool(defines.alice_eval_ai_mil_everyday)) {
@@ -4324,16 +4397,22 @@ void state::single_game_tick() {
 			}
 			rebel::update_armies(*this);
 			rebel::rebel_hunting_check(*this);
+			print_oos_check(*this, "monthly case 30");
 			break;
 		case 31:
 			ai::update_cb_fabrication(*this);
 			ai::update_ai_ruling_party(*this);
+			print_oos_check(*this, "monthly case 31");
 			break;
 		default:
 			break;
 		}
 
+		print_oos_check(*this, "monthly end");
+
 		military::apply_regiment_damage(*this);
+
+		print_oos_check(*this, "damage");
 
 		if(ymd_date.day == 1) {
 			if(ymd_date.month == 1) {
@@ -4401,17 +4480,24 @@ void state::single_game_tick() {
 			}
 		}
 
+		print_oos_check(*this, "yearly");
+
 		ai::general_ai_unit_tick(*this);
+
+		print_oos_check(*this, "unit");
 
 		military::run_gc(*this);
 		nations::run_gc(*this);
 		military::update_blackflag_status(*this);
 		ai::daily_cleanup(*this);
 
+		print_oos_check(*this, "cleanup");
+
 		province::update_connected_regions(*this);
 		province::update_cached_values(*this);
 		nations::update_cached_values(*this);
 
+		print_oos_check(*this, "cached");
 	},
 	[&]() {
 		if(network_mode == network_mode_type::single_player)

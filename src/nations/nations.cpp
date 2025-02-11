@@ -1134,10 +1134,22 @@ void update_great_powers(sys::state& state) {
 			});
 		}
 	}
+	state.console_log(
+		"great_nations before"
+	);
+	for(auto item : state.great_nations) {
+		state.console_log(std::to_string(item.nation.value) + std::to_string(item.last_greatness.to_raw_value()));
+	}
 	if(at_least_one_added) {
 		std::sort(state.great_nations.begin(), state.great_nations.end(), [&](sys::great_nation& a, sys::great_nation& b) {
 			return state.world.nation_get_rank(a.nation) < state.world.nation_get_rank(b.nation);
 		});
+	}
+	state.console_log(
+		"great_nations after"
+	);
+	for(auto item : state.great_nations) {
+		state.console_log(std::to_string(item.nation.value) + std::to_string(item.last_greatness.to_raw_value()));
 	}
 }
 
