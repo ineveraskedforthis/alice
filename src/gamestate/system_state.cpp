@@ -4124,7 +4124,7 @@ void state::single_game_tick() {
 
 	concurrency::parallel_invoke([&]() {
 		// values updates pass 1 (mostly trivial things, can be done in parallel)
-		concurrency::parallel_for(0, 17, [&](int32_t index) {
+		concurrency::parallel_for(0, 15, [&](int32_t index) {
 			switch(index) {
 			case 0:
 				ai::refresh_home_ports(*this);
@@ -4147,42 +4147,37 @@ void state::single_game_tick() {
 				military::regenerate_ship_scores(*this);
 				break;
 			case 4:
-				nations::update_industrial_scores(*this);
-				break;
-			case 5:
 				military::update_naval_supply_points(*this);
 				break;
-			case 6:
+			case 5:
 				military::update_all_recruitable_regiments(*this);
 				break;
-			case 7:
+			case 6:
 				military::regenerate_total_regiment_counts(*this);
 				break;
-			case 8:
-				break;
-			case 9:
+			case 7:
 				economy::update_factory_employment(*this);
 				break;
-			case 10:
+			case 8:
 				nations::update_administrative_efficiency(*this);
 				rebel::daily_update_rebel_organization(*this);
 				break;
-			case 11:
+			case 9:
 				military::daily_leaders_update(*this);
 				break;
-			case 12:
+			case 10:
 				politics::daily_party_loyalty_update(*this);
 				break;
-			case 13:
+			case 11:
 				nations::daily_update_flashpoint_tension(*this);
 				break;
-			case 14:
+			case 12:
 				military::update_ticking_war_score(*this);
 				break;
-			case 15:
+			case 13:
 				military::increase_dig_in(*this);
 				break;
-			case 16:
+			case 14:
 				military::update_blockade_status(*this);
 				break;
 			}
@@ -4221,6 +4216,7 @@ void state::single_game_tick() {
 
 		print_oos_check(*this, "research");
 
+		nations::update_industrial_scores(*this);
 		nations::update_military_scores(*this); // depends on ship score, land unit average
 		print_oos_check(*this, "update_military_scores");
 
