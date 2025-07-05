@@ -99,6 +99,20 @@ void reform_rules_description(sys::state& state, text::columnar_layout& contents
 
 void reform_description(sys::state& state, text::columnar_layout& contents, dcon::issue_option_id ref) {
 	auto reform = fatten(state.world, ref);
+	{
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, reform.get_name(), text::text_color::yellow);
+		text::close_layout_box(contents, box);
+	}
+	if(auto desc = reform.get_desc();  state.key_is_localized(desc)) {
+		text::substitution_map sub{};
+		text::add_to_substitution_map(sub, text::variable_type::country, state.local_player_nation);
+		text::add_to_substitution_map(sub, text::variable_type::country_adj, text::get_adjective(state, state.local_player_nation));
+		text::add_to_substitution_map(sub, text::variable_type::capital, state.world.nation_get_capital(state.local_player_nation));
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, desc, sub);
+		text::close_layout_box(contents, box);
+	}
 
 	auto total = state.world.nation_get_demographics(state.local_player_nation, demographics::total);
 	auto support = state.world.nation_get_demographics(state.local_player_nation, demographics::to_key(state, ref));
@@ -143,10 +157,101 @@ void reform_description(sys::state& state, text::columnar_layout& contents, dcon
 				uint32_t((ref.index() << 2) ^ state.local_player_nation.index()));
 	}
 	reform_rules_description(state, contents, reform.get_rules());
+	text::add_line_break_to_layout(state, contents);
+	auto current = state.world.nation_get_issues(state.local_player_nation, reform.get_parent_issue()).id;
+
+	if(current == ref)
+		return;
+
+	bool some_support_shown = false;
+	text::add_line(state, contents, "alice_reform_support_header");
+	auto tag = state.world.nation_get_identity_from_identity_holder(state.local_player_nation);
+	auto start = state.world.national_identity_get_political_party_first(tag).id.index();
+	auto end = start + state.world.national_identity_get_political_party_count(tag);
+	auto count_party_issues = state.world.political_party_get_party_issues_size();
+
+	for(uint32_t icounter = state.world.ideology_size(); icounter-- > 0;) {
+		dcon::ideology_id iid{ dcon::ideology_id::value_base_t(icounter) };
+		dcon::value_modifier_key condition;
+		if(parent.get_issue_type() == uint8_t(culture::issue_type::political)) {
+			condition = ref.index() > current.index() ? state.world.ideology_get_add_political_reform(iid) : state.world.ideology_get_remove_political_reform(iid);
+		} else if(parent.get_issue_type() == uint8_t(culture::issue_type::social)) {
+			condition = ref.index() > current.index() ? state.world.ideology_get_add_social_reform(iid) : state.world.ideology_get_remove_social_reform(iid);
+		}
+		auto upperhouse_weight = 0.01f * state.world.nation_get_upper_house(state.local_player_nation, iid);
+
+		float party_special_issues_support_total = 0.0f;
+		float count_found = 0.0f;
+
+		for(int32_t i = start; i < end; i++) {
+			auto pid = dcon::political_party_id(dcon::political_party_id::value_base_t(i));
+			if(politics::political_party_is_active(state, state.local_player_nation, pid)
+				&& (state.world.nation_get_government_type(state.local_player_nation).get_ideologies_allowed() & culture::to_bits(state.world.political_party_get_ideology(pid))) != 0
+				&& state.world.political_party_get_ideology(pid) == iid) {
+
+				if(auto special_opt = state.world.political_party_get_party_issues(pid, parent); special_opt) {
+					if(special_opt == ref
+							|| (state.world.issue_get_is_next_step_only(parent.id)
+								&& ((special_opt.id.index() > current.index() && ref.index() > current.index())
+									|| (special_opt.id.index() < current.index() && ref.index() < current.index())
+									)
+								)
+					) {
+						party_special_issues_support_total = upperhouse_weight;
+					} else {
+						party_special_issues_support_total = 0.0f;
+					}
+					count_found = 1.0f;
+				} else {
+					for(uint32_t j = 0; j < count_party_issues; ++j) {
+						auto popt = state.world.political_party_get_party_issues(pid, dcon::issue_id{ dcon::issue_id::value_base_t(j) });
+						auto opt_mod = state.world.issue_option_get_support_modifiers(popt, ref);
+
+						if(opt_mod) {
+							party_special_issues_support_total += upperhouse_weight * trigger::evaluate_additive_modifier(state, opt_mod, trigger::to_generic(state.local_player_nation), trigger::to_generic(state.local_player_nation), 0);
+							count_found += 1.0f;
+						}
+					}
+				}
+
+				break; // only look at one active party per ideology
+			}
+		}
+
+		if(count_found > 0.0f) {
+			auto result = std::clamp(party_special_issues_support_total / count_found, -1.0f, 1.0f);
+			if(abs(result) >= 0.01) {
+				auto box = text::open_layout_box(contents, 10);
+				text::add_to_layout_box(state, contents, box, state.world.ideology_get_name(iid));
+				text::add_space_to_layout_box(state, contents, box);
+				text::add_to_layout_box(state, contents, box, text::fp_percentage{ result }, result > 0 ? text::text_color::green : text::text_color::red);
+				text::close_layout_box(contents, box);
+				some_support_shown = true;
+			}
+		} else if(condition && upperhouse_weight > 0.0f) {
+			auto result = upperhouse_weight * std::clamp(trigger::evaluate_additive_modifier(state, condition, trigger::to_generic(state.local_player_nation), trigger::to_generic(state.local_player_nation), 0), -1.0f, 1.0f);
+			if(abs(result) >= 0.01) {
+				auto box = text::open_layout_box(contents, 10);
+				text::add_to_layout_box(state, contents, box, state.world.ideology_get_name(iid));
+				text::add_space_to_layout_box(state, contents, box);
+				text::add_to_layout_box(state, contents, box, text::fp_percentage{ result }, result > 0 ? text::text_color::green : text::text_color::red);
+				text::close_layout_box(contents, box);
+				some_support_shown = true;
+			}
+		}
+	}
+
+	if(!some_support_shown) {
+		text::add_line(state, contents, "alice_no_current_support");
+	}
 }
 
 class reforms_reform_button : public button_element_base {
 public:
+	sound::audio_instance& get_click_sound(sys::state& state) noexcept override {
+		return sound::get_enact_sound(state);
+	}
+
 	void button_action(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::issue_option_id>(state, parent);
 		command::enact_issue(state, state.local_player_nation, content);
@@ -222,16 +327,13 @@ public:
 	void on_update(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::issue_id>(state, parent);
 		auto color = multiline_text_element_base::black_text ? text::text_color::black : text::text_color::white;
-		auto container = text::create_endless_layout(multiline_text_element_base::internal_layout,
+		auto container = text::create_endless_layout(state, multiline_text_element_base::internal_layout,
 				text::layout_parameters{ 0, 0, multiline_text_element_base::base_data.size.x,
 						multiline_text_element_base::base_data.size.y, multiline_text_element_base::base_data.data.text.font_handle, -4, text::alignment::left, color, false });
 		auto fat_id = dcon::fatten(state.world, content);
 		auto box = text::open_layout_box(container);
 		text::add_to_layout_box(state, container, box, fat_id.get_name(), text::substitution_map{});
 		text::close_layout_box(container, box);
-	}
-	message_result test_mouse(sys::state& state, int32_t x, int32_t y, mouse_probe_type type) noexcept override {
-		return message_result::unseen;
 	}
 };
 

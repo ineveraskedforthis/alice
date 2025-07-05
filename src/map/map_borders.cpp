@@ -102,6 +102,65 @@ bool extend_if_possible(uint32_t x, int32_t border_id, direction dir, std::vecto
 	return true;
 };
 
+void smooth_points(std::vector<glm::vec2>& vertices) {
+	std::vector<glm::vec2> vertices_copy = vertices;
+
+	bool wrap_around = false;
+	if(glm::distance(vertices.back(), vertices.front()) < 0.001f && vertices.size() > 2) {
+		wrap_around = true;
+	}
+
+	auto start = int(0);
+	auto end = start + int(vertices.size());
+
+	auto start_iteration = start + 1;
+	auto end_iteration = end - 1;
+
+	if(wrap_around) {
+		start_iteration = start;
+		end_iteration = end;
+	}
+
+	for(int i = start_iteration; i < end_iteration; i++) {
+		glm::vec2 new_position{ 0.f, 0.f };
+		float count = 0.f;
+		bool smooth = true;
+		for(int shift = -2; shift <= 2; shift++) {
+			auto shifted_index = i + shift;
+			if(wrap_around) {
+				if(shifted_index < start) {
+					shifted_index = end + shifted_index - start;
+				}
+				if(shifted_index >= end) {
+					shifted_index = start + shifted_index - end;
+				}
+			} else {
+				if(shifted_index < start) {
+					continue;
+				};
+				if(shifted_index >= end) {
+					continue;
+				};
+			}
+			auto weight = 1.f / (float(std::abs(shift)) + 1.f);
+
+			if(shift == 0) {
+				weight += 10.f / vertices.size() / vertices.size();
+			}
+
+			count += weight;
+			new_position += (vertices_copy[shifted_index]) * weight;
+		}
+		if((count > 0) && smooth) {
+			vertices[i] = new_position / count;
+		}		
+	}
+
+	if(wrap_around) {
+		vertices[0] = vertices.back();
+	}
+}
+
 // Get the index of the border from the province ids and create a new one if one doesn't exist
 int32_t get_border_index(uint16_t map_province_id1, uint16_t map_province_id2, parsers::scenario_building_context& context) {
 	auto province_id1 = province::from_map_id(map_province_id1);
@@ -236,7 +295,12 @@ void display_data::load_border_data(parsers::scenario_building_context& context)
 }
 
 bool is_river(uint8_t river_data) {
-	return river_data < 16;
+	return river_data < 250;
+}
+int32_t river_width(uint8_t river_data) {
+	auto result = 255 - (int32_t)(river_data) + 40;
+	assert(result >= 0);
+	return result;
 }
 bool is_river_source(uint8_t river_data) {
 	return river_data == 0;
@@ -274,14 +338,33 @@ bool order_indifferent_compare(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state, std::vector<bool>& visited, uint16_t prov_prim, uint16_t prov_sec, int32_t start_x, int32_t start_y) {
 	std::vector<glm::vec2> points;
 
-	auto add_next = [&](int32_t i, int32_t j, bool& next_found) {
+	auto add_next = [&](glm::ivec2 prev, glm::ivec2 shift, glm::ivec2 prev_shift, bool& next_found, bool corner_candidate) {
 		if(next_found)
 			return glm::ivec2(0, 0);
+
+		auto i = prev.x + shift.x;
+		auto j = prev.y + shift.y;
+		auto prev_i = prev.x;
+		auto prev_j = prev.y;
+
+		bool corner = corner_candidate && (shift.x != prev_shift.x) && (shift.y != prev_shift.y) && !(prev_shift.y == 0 && prev_shift.x == 0);
+
 		if(visited[i + j * dat.size_x])
 			return glm::ivec2(0, 0);
 		if(j % 2 == 0) {
 			if(order_indifferent_compare(prov_prim, prov_sec, dat.safe_get_province(glm::ivec2(i, j / 2)), dat.safe_get_province(glm::ivec2(i - 1, j / 2)))) {
 				visited[i + j * dat.size_x] = true;
+
+				if(corner) {
+					float prev_x = float(prev_i) + 0.5f;
+					float prev_y = 0.5f + float(prev_j) / 2.0f;
+
+					float next_x = float(i);
+					float next_y = 0.5f + float(j) / 2.0f;
+
+					points.push_back(glm::vec2((prev_x + next_x) / 2.f, prev_y));
+					points.push_back(glm::vec2(next_x, (prev_y + next_y) / 2.f));
+				}
 
 				points.push_back(glm::vec2(float(i), 0.5f + float(j) / 2.0f));
 				next_found = true;
@@ -290,6 +373,17 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 		} else {
 			if(order_indifferent_compare(prov_prim, prov_sec, dat.safe_get_province(glm::ivec2(i, j / 2)), dat.safe_get_province(glm::ivec2(i, j / 2 + 1)))) {
 				visited[i + j * dat.size_x] = true;
+
+				if(corner) {
+					float prev_x = float(prev_i);
+					float prev_y = 0.5f + float(prev_j) / 2.0f;
+
+					float next_x = float(i) + 0.5f;
+					float next_y = 0.5f + float(j) / 2.0f;
+
+					points.push_back(glm::vec2(prev_x, (prev_y + next_y) / 2.f));
+					points.push_back(glm::vec2((prev_x + next_x) / 2.f, next_y));
+				}
 
 				points.push_back(glm::vec2(float(i) + 0.5f, 0.5f + float(j) / 2.0f));
 				next_found = true;
@@ -304,8 +398,8 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 	points.push_back(glm::vec2(float(start_x) + (start_y % 2 == 0 ? 0.0f : 0.5f), 0.5f + float(start_y) / 2.0f));
 	visited[start_x + start_y * dat.size_x] = true;
 
-	int32_t cur_x = start_x;
-	int32_t cur_y = start_y;
+	glm::ivec2 current{ start_x, start_y };
+	glm::ivec2 prev_direction{ 0, 0 };
 
 	bool progress = false;
 	// clockwise
@@ -313,54 +407,56 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 		progress = false;
 		glm::ivec2 temp{ 0, 0 };
 
-		if(cur_y % 2 == 0) {
-			bool left_is_s = dat.safe_get_province(glm::ivec2(cur_x - 1, cur_y / 2)) == prov_sec;
+		if(current.y % 2 == 0) {
+			bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
 			if(left_is_s) {
-				temp += add_next(cur_x, cur_y + 1, progress);
-				temp += add_next(cur_x, cur_y + 2, progress);
-				temp += add_next(cur_x - 1, cur_y + 1, progress);
+				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
+				temp += add_next(current, { 0, 2 }, prev_direction, progress, false);
+				temp += add_next(current, { -1, 1 }, prev_direction, progress, true);
 			} else {
-				temp += add_next(cur_x - 1, cur_y - 1, progress);
-				temp += add_next(cur_x, cur_y - 2, progress);
-				temp += add_next(cur_x, cur_y - 1, progress);
+				temp += add_next(current, { -1, -1}, prev_direction, progress, true);
+				temp += add_next(current, { 0, -2}, prev_direction, progress, false);
+				temp += add_next(current, { 0, -1}, prev_direction, progress, true);
 			}
 		} else {
-			bool top_is_s = dat.safe_get_province(glm::ivec2(cur_x, cur_y / 2)) == prov_sec;
+			bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
 			if(top_is_s) {
-				temp += add_next(cur_x, cur_y + 1, progress);
-				temp += add_next(cur_x - 1, cur_y, progress);
-				temp += add_next(cur_x, cur_y - 1, progress);
+				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
+				temp += add_next(current, { -1, 0 }, prev_direction, progress, false);
+				temp += add_next(current, { 0, -1}, prev_direction, progress, true);
 			} else {
-				temp += add_next(cur_x + 1, cur_y - 1, progress);
-				temp += add_next(cur_x + 1, cur_y, progress);
-				temp += add_next(cur_x + 1, cur_y + 1, progress);
+				temp += add_next(current, { +1, -1}, prev_direction, progress, true);
+				temp += add_next(current, { +1, 0}, prev_direction, progress, false);
+				temp += add_next(current, { +1, +1}, prev_direction, progress, true);
 			}
 		}
 		if(progress) {
-			cur_x = temp.x;
-			cur_y = temp.y;
+			prev_direction = temp - current;
+			current = temp;
 		}
 	} while(progress);
 
 	//terminal point
-	if(cur_y % 2 == 0) {
-		bool left_is_s = dat.safe_get_province(glm::ivec2(cur_x - 1, cur_y / 2)) == prov_sec;
+	if(current.y % 2 == 0) {
+		bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
 		if(left_is_s) {
-			points.push_back(glm::vec2(float(cur_x), 1.0f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 1.0f + float(current.y) / 2.0f));
 		} else {
-			points.push_back(glm::vec2(float(cur_x), 0.0f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 0.0f + float(current.y) / 2.0f));
 		}
 	} else {
-		bool top_is_s = dat.safe_get_province(glm::ivec2(cur_x, cur_y / 2)) == prov_sec;
+		bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
 		if(top_is_s) {
-			points.push_back(glm::vec2(float(cur_x), 0.5f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 0.5f + float(current.y) / 2.0f));
 		} else {
-			points.push_back(glm::vec2(1.0f + float(cur_x), 0.5f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(1.0f + float(current.x), 0.5f + float(current.y) / 2.0f));
 		}
 	}
 
-	cur_x = start_x;
-	cur_y = start_y;
+	current.x = start_x;
+	current.y = start_y;
+	prev_direction.x = 0;
+	prev_direction.y = 0;
 
 	std::reverse(points.begin(), points.end());
 	//counter clockwise
@@ -369,115 +465,237 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 		progress = false;
 		glm::ivec2 temp{ 0, 0 };
 
-		if(cur_y % 2 == 0) {
-			bool left_is_s = dat.safe_get_province(glm::ivec2(cur_x - 1, cur_y / 2)) == prov_sec;
+		if(current.y % 2 == 0) {
+			bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
 			if(!left_is_s) {
-				temp += add_next(cur_x, cur_y + 1, progress);
-				temp += add_next(cur_x, cur_y + 2, progress);
-				temp += add_next(cur_x - 1, cur_y + 1, progress);
+				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
+				temp += add_next(current, { 0, 2 }, prev_direction, progress, false);
+				temp += add_next(current, { -1, 1 }, prev_direction, progress, true);
 			} else {
-				temp += add_next(cur_x - 1, cur_y - 1, progress);
-				temp += add_next(cur_x, cur_y - 2, progress);
-				temp += add_next(cur_x, cur_y - 1, progress);
+				temp += add_next(current, { -1, -1 }, prev_direction, progress, true);
+				temp += add_next(current, { 0, -2 }, prev_direction, progress, false);
+				temp += add_next(current, { 0, -1 }, prev_direction, progress, true);
 			}
 		} else {
-			bool top_is_s = dat.safe_get_province(glm::ivec2(cur_x, cur_y / 2)) == prov_sec;
+			bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
 			if(!top_is_s) {
-				temp += add_next(cur_x, cur_y + 1, progress);
-				temp += add_next(cur_x - 1, cur_y, progress);
-				temp += add_next(cur_x, cur_y - 1, progress);
+				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
+				temp += add_next(current, { -1, 0 }, prev_direction, progress, false);
+				temp += add_next(current, { 0, -1 }, prev_direction, progress, true);
 			} else {
-				temp += add_next(cur_x + 1, cur_y - 1, progress);
-				temp += add_next(cur_x + 1, cur_y, progress);
-				temp += add_next(cur_x + 1, cur_y + 1, progress);
+				temp += add_next(current, { +1, -1 }, prev_direction, progress, true);
+				temp += add_next(current, { +1, 0 }, prev_direction, progress, false);
+				temp += add_next(current, { +1, +1 }, prev_direction, progress, true);
 			}
 		}
 		if(progress) {
-			cur_x = temp.x;
-			cur_y = temp.y;
+			prev_direction = temp - current;
+			current = temp;
 		}
 	} while(progress);
 
 	//terminal point
-	if(cur_y % 2 == 0) {
-		bool left_is_s = dat.safe_get_province(glm::ivec2(cur_x - 1, cur_y / 2)) == prov_sec;
+	if(current.y % 2 == 0) {
+		bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
 		if(!left_is_s) {
-			points.push_back(glm::vec2(float(cur_x), 1.0f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 1.0f + float(current.y) / 2.0f));
 		} else {
-			points.push_back(glm::vec2(float(cur_x), 0.0f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 0.0f + float(current.y) / 2.0f));
 		}
 	} else {
-		bool top_is_s = dat.safe_get_province(glm::ivec2(cur_x, cur_y / 2)) == prov_sec;
+		bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
 		if(!top_is_s) {
-			points.push_back(glm::vec2(float(cur_x), 0.5f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(float(current.x), 0.5f + float(current.y) / 2.0f));
 		} else {
-			points.push_back(glm::vec2(1.0f + float(cur_x), 0.5f + float(cur_y) / 2.0f));
+			points.push_back(glm::vec2(1.0f + float(current.x), 0.5f + float(current.y) / 2.0f));
 		}
 	}
 
 	return points;
 }
 
-void add_border_segment_vertices(display_data& dat, std::vector<glm::vec2> const& points) {
+void add_border_segment_vertices(display_data& dat, std::vector<glm::vec2> const& points, uint16_t province_A, uint16_t province_B) {
 	if(points.size() < 3)
 		return;
 
-	auto first = dat.border_vertices.size();
-
-	glm::vec2 current_pos = glm::vec2(points.back().x, points.back().y);
-	glm::vec2 next_pos = put_in_local(glm::vec2(points[points.size() - 2].x, points[points.size() - 2].y), current_pos, float(dat.size_x));
-
-	float distance = 0.0f;
-	glm::vec2 old_pos;
-	glm::vec2 raw_dist;
-	auto norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
-
-	{
-		old_pos = 2.0f * current_pos - next_pos;
-
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y), 0.0f, distance });
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, next_pos / glm::vec2(dat.size_x, dat.size_y), old_pos / glm::vec2(dat.size_x, dat.size_y), 1.0f, distance });
-
-		raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
-		raw_dist.x *= 2.0f;
-		distance += 0.5f * glm::length(raw_dist);
+	bool wrap_around = false;
+	if(glm::length(points.back() - points[0]) < 0.1f) {
+		wrap_around = true;
 	}
 
-	for(auto i = points.size() - 1; i-- > 1; ) {
-		old_pos = current_pos;
-		current_pos = glm::vec2(points[i].x, points[i].y);
-		old_pos = put_in_local(old_pos, current_pos, float(dat.size_x));
-		next_pos = put_in_local(glm::vec2(points[i - 1].x, points[i - 1].y), current_pos, float(dat.size_x));
-		auto next_direction = glm::normalize(next_pos - current_pos);
+	{
+		auto first = dat.border_vertices.size();
 
-		norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+		glm::vec2 current_pos = glm::vec2(points.back().x, points.back().y);
+		glm::vec2 next_pos = put_in_local(glm::vec2(points[points.size() - 2].x, points[points.size() - 2].y), current_pos, float(dat.size_x));
 
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y), 0.0f, distance });
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, next_pos / glm::vec2(dat.size_x, dat.size_y), old_pos / glm::vec2(dat.size_x, dat.size_y), 1.0f, distance });
+		float distance = 0.0f;
+		glm::vec2 old_pos;
+		glm::vec2 raw_dist;
+		auto norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
 
-		raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
-		raw_dist.x *= 2.0f;
-		distance += 0.5f * glm::length(raw_dist);
+		{
+			if(wrap_around) {
+				old_pos = current_pos; //put_in_local(glm::vec2(points[1].x, points[1].y), current_pos, float(dat.size_x));
+			} else {
+				old_pos = current_pos; //2.0f * current_pos - next_pos;
+			}
+
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_A,
+				0.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_A,
+				-1.0f, distance
+			});
+
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+		}
+
+		for(auto i = points.size() - 1; i-- > 1; ) {
+			old_pos = current_pos;
+			current_pos = glm::vec2(points[i].x, points[i].y);
+			old_pos = put_in_local(old_pos, current_pos, float(dat.size_x));
+			next_pos = put_in_local(glm::vec2(points[i - 1].x, points[i - 1].y), current_pos, float(dat.size_x));
+			auto next_direction = glm::normalize(next_pos - current_pos);
+
+			norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_A,
+				0.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_A,
+				-1.0f, distance
+			});
+
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+		}
+
+		{ // case i == 0
+			old_pos = current_pos;
+			current_pos = glm::vec2(points[0].x, points[0].y);
+
+			if(wrap_around) {
+				next_pos = current_pos; // put_in_local(glm::vec2(points[points.size() - 2].x, points[points.size() - 2].y), current_pos, float(dat.size_x));
+			} else {
+				next_pos = current_pos; //2.0f * current_pos - old_pos;
+			}
+
+			auto next_direction = glm::normalize(next_pos - current_pos);
+
+			norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y), province_A, 0.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y), province_A, -1.0f, distance
+			});
+
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+		}
 	}
 
-	// case i == 0
 	{
-		old_pos = current_pos;
-		current_pos = glm::vec2(points[0].x, points[0].y);
+		auto first = dat.border_vertices.size();
 
-		next_pos = 2.0f * current_pos - old_pos;
+		glm::vec2 current_pos = glm::vec2(points.back().x, points.back().y);
+		glm::vec2 next_pos = put_in_local(glm::vec2(points[points.size() - 2].x, points[points.size() - 2].y), current_pos, float(dat.size_x));
 
-		auto next_direction = glm::normalize(next_pos - current_pos);
+		float distance = 0.0f;
+		glm::vec2 old_pos;
+		glm::vec2 raw_dist;
+		auto norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
 
-		norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+		{
+			if(wrap_around) {
+				old_pos = current_pos; //put_in_local(glm::vec2(points[1].x, points[1].y), current_pos, float(dat.size_x));
+			} else {
+				old_pos = current_pos; // 2.0f * current_pos - next_pos;
+			}
 
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y), 0.0f, distance });
-		dat.border_vertices.emplace_back(textured_line_vertex_b{ norm_pos, next_pos / glm::vec2(dat.size_x, dat.size_y), old_pos / glm::vec2(dat.size_x, dat.size_y), 1.0f, distance });
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B,
+				1.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B,
+				0.0f, distance
+			});
 
-		raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
-		raw_dist.x *= 2.0f;
-		distance += 0.5f * glm::length(raw_dist);
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+		}
 
+		for(auto i = points.size() - 1; i-- > 1; ) {
+			old_pos = current_pos;
+			current_pos = glm::vec2(points[i].x, points[i].y);
+			old_pos = put_in_local(old_pos, current_pos, float(dat.size_x));
+			next_pos = put_in_local(glm::vec2(points[i - 1].x, points[i - 1].y), current_pos, float(dat.size_x));
+			auto next_direction = glm::normalize(next_pos - current_pos);
+
+			norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B,
+				1.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B,
+				0.0f, distance
+			});
+
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+		}
+
+		{ // case i == 0
+			old_pos = current_pos;
+			current_pos = glm::vec2(points[0].x, points[0].y);
+
+			if(wrap_around) {
+				next_pos = current_pos; //put_in_local(glm::vec2(points[points.size() - 2].x, points[points.size() - 2].y), current_pos, float(dat.size_x));
+			} else {
+				next_pos = current_pos; //2.0f * current_pos - old_pos;
+			}
+
+			auto next_direction = glm::normalize(next_pos - current_pos);
+
+			norm_pos = current_pos / glm::vec2(dat.size_x, dat.size_y);
+
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B, 1.0f, distance
+			});
+			dat.border_vertices.emplace_back(textured_line_vertex_b_enriched_with_province_index{
+				norm_pos, old_pos / glm::vec2(dat.size_x, dat.size_y), next_pos / glm::vec2(dat.size_x, dat.size_y),
+				province_B, 0.0f, distance
+			});
+
+			raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
+			raw_dist.x *= 2.0f;
+			distance += 0.5f * glm::length(raw_dist);
+
+		}
 	}
 }
 
@@ -497,21 +715,33 @@ void display_data::make_borders(sys::state& state, std::vector<bool>& visited) {
 				auto prim = province::from_map_id(safe_get_province(glm::ivec2(i, j)));
 				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i - 1, j)));
 
-				if(!was_visited && prim != sec && prim && sec) {
-					auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
-					assert(adj);
-					int32_t border_index = adj.index();
-					if(borders[border_index].count != 0) {
+				bool fake_border = false;
+				if(!prim || !sec) {
+					fake_border = true;
+				}
+
+				if(!was_visited && prim != sec) {
+					int32_t border_index;
+					if(!fake_border) {
+						auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
+						assert(adj);
+						border_index = adj.index();
+						if(borders[border_index].count != 0) {
+							border_index = int32_t(borders.size());
+							borders.emplace_back();
+							borders.back().adj = adj;
+						}
+						
+					} else {
 						border_index = int32_t(borders.size());
 						borders.emplace_back();
-						borders.back().adj = adj;
+						borders.back().adj = { };
 					}
 
-					borders[border_index].start_index = int32_t(border_vertices.size());
-				
+					borders[border_index].start_index = int32_t(border_vertices.size());				
 					auto res = make_border_section(*this, state, visited, province::to_map_id(prim), province::to_map_id(sec), i, j * 2);
-					add_border_segment_vertices(*this, res);
-
+					smooth_points(res);
+					add_border_segment_vertices(*this, res, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i - 1, j)));
 					borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
 				}
 			}
@@ -522,21 +752,33 @@ void display_data::make_borders(sys::state& state, std::vector<bool>& visited) {
 				auto prim = province::from_map_id(safe_get_province(glm::ivec2(i, j)));
 				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i, j + 1)));
 
+				bool fake_border = false;
+				if(!prim || !sec) {
+					fake_border = true;
+				}
+
 				if(!was_visited && prim != sec && prim && sec) {
-					auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
-					assert(adj);
-					int32_t border_index = adj.index();
-					if(borders[border_index].count != 0) {
+					int32_t border_index;
+
+					if(!fake_border) {
+						auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
+						assert(adj);
+						border_index = adj.index();
+						if(borders[border_index].count != 0) {
+							border_index = int32_t(borders.size());
+							borders.emplace_back();
+							borders.back().adj = adj;
+						}
+					} else {
 						border_index = int32_t(borders.size());
 						borders.emplace_back();
-						borders.back().adj = adj;
+						borders.back().adj = { };
 					}
 
 					borders[border_index].start_index = int32_t(border_vertices.size());
-
 					auto res = make_border_section(*this, state, visited, province::to_map_id(prim), province::to_map_id(sec), i, j * 2 + 1);
-					add_border_segment_vertices(*this, res);
-
+					smooth_points(res);
+					add_border_segment_vertices(*this, res, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i, j + 1)));
 					borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
 				}
 			}
@@ -550,7 +792,7 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 	int32_t dropped_points_counter = 0;
 	constexpr int32_t dropped_points_max = 64;
 
-	auto add_next = [&](int32_t i, int32_t j, bool& next_found) {
+	auto add_next = [&](int32_t i, int32_t j, bool& next_found, int32_t prev_i, int32_t prev_j, bool corner) {
 		if(next_found)
 			return glm::ivec2(0, 0);
 		if(visited[i + j  * dat.size_x])
@@ -562,7 +804,7 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 				// test for colinearity
 				// this works, but it can result in the border textures being "slanted" because the normals are carried over between two corners
 	
-				if(points.size() > 2) {
+				if(points.size() > 2 && !corner) {
 					auto l = points[points.size() - 1];
 					auto n = points[points.size() - 2];
 					if(dropped_points_counter < dropped_points_max &&
@@ -573,6 +815,17 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 					} else {
 						dropped_points_counter = 0;
 					}
+				}
+
+				if(corner) {
+					float prev_x = float(prev_i) + 0.5f;
+					float prev_y = 0.5f + float(prev_j) / 2.0f;
+
+					float next_x = float(i);
+					float next_y = 0.5f + float(j) / 2.0f;
+
+					points.push_back(glm::vec2((prev_x + next_x) / 2.f, prev_y));
+					points.push_back(glm::vec2(next_x, (prev_y + next_y) / 2.f));
 				}
 				
 				points.push_back(glm::vec2(float(i), 0.5f + float(j) / 2.0f));
@@ -586,7 +839,7 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 				// test for colinearity
 				// this works, but it can result in the border textures being "slanted" because the normals are carried over between two corners
 				
-				if(points.size() > 2) {
+				if(points.size() > 2 && !corner) {
 					auto l = points[points.size() - 1];
 					auto n = points[points.size() - 2];
 					if(dropped_points_counter < dropped_points_max &&
@@ -597,6 +850,17 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 					} else {
 						dropped_points_counter = 0;
 					}
+				}
+
+				if(corner) {
+					float prev_x = float(prev_i);
+					float prev_y = 0.5f + float(prev_j) / 2.0f;
+
+					float next_x = float(i) + 0.5f;
+					float next_y = 0.5f + float(j) / 2.0f;
+
+					points.push_back(glm::vec2(prev_x, (prev_y + next_y) / 2.f));
+					points.push_back(glm::vec2((prev_x + next_x) / 2.f, next_y));
 				}
 				
 				points.push_back(glm::vec2(float(i) + 0.5f, 0.5f + float(j) / 2.0f));
@@ -619,24 +883,24 @@ std::vector<glm::vec2> make_coastal_loop(display_data& dat, sys::state& state, s
 		if(start_y % 2 == 0) {
 			bool left_is_sea = dat.safe_get_province(glm::ivec2(start_x - 1, start_y / 2)) == 0 || province::from_map_id(dat.safe_get_province(glm::ivec2(start_x - 1, start_y / 2))).index() >= state.province_definitions.first_sea_province.index();
 			if(left_is_sea) {
-				temp += add_next(start_x, start_y + 1, progress);
-				temp += add_next(start_x, start_y + 2, progress);
-				temp += add_next(start_x - 1, start_y + 1, progress);
+				temp += add_next(start_x, start_y + 1, progress, start_x, start_y, true);
+				temp += add_next(start_x, start_y + 2, progress, start_x, start_y, false);
+				temp += add_next(start_x - 1, start_y + 1, progress, start_x, start_y, true);
 			} else {
-				temp += add_next(start_x - 1, start_y - 1, progress);
-				temp += add_next(start_x, start_y - 2, progress);
-				temp += add_next(start_x, start_y - 1, progress);
+				temp += add_next(start_x - 1, start_y - 1, progress, start_x, start_y, true);
+				temp += add_next(start_x, start_y - 2, progress, start_x, start_y, false);
+				temp += add_next(start_x, start_y - 1, progress, start_x, start_y, true);
 			}
 		} else {
 			bool top_is_sea = dat.safe_get_province(glm::ivec2(start_x, start_y / 2)) == 0 || province::from_map_id(dat.safe_get_province(glm::ivec2(start_x, start_y / 2))).index() >= state.province_definitions.first_sea_province.index();
 			if(top_is_sea) {
-				temp += add_next(start_x, start_y + 1, progress);
-				temp += add_next(start_x - 1, start_y, progress);
-				temp += add_next(start_x, start_y - 1, progress);
+				temp += add_next(start_x, start_y + 1, progress, start_x, start_y, true);
+				temp += add_next(start_x - 1, start_y, progress, start_x, start_y, false);
+				temp += add_next(start_x, start_y - 1, progress, start_x, start_y, true);
 			} else {
-				temp += add_next(start_x + 1, start_y - 1, progress);
-				temp += add_next(start_x + 1, start_y, progress);
-				temp += add_next(start_x + 1, start_y + 1, progress);
+				temp += add_next(start_x + 1, start_y - 1, progress, start_x, start_y, true);
+				temp += add_next(start_x + 1, start_y, progress, start_x, start_y, false);
+				temp += add_next(start_x + 1, start_y + 1, progress, start_x, start_y, true);
 			}
 		}
 		if(progress) {
@@ -703,7 +967,6 @@ void add_coastal_loop_vertices(display_data& dat, std::vector<glm::vec2> const& 
 		raw_dist = (current_pos - next_pos) / glm::vec2(dat.size_x, dat.size_y);
 		raw_dist.x *= 2.0f;
 		distance += glm::length(raw_dist);
-
 	}
 
 	// wrap-around
@@ -735,6 +998,7 @@ void display_data::make_coastal_borders(sys::state& state, std::vector<bool>& vi
 				bool was_visited = visited[i + (j * 2) * size_x];
 				if(!was_visited && coastal_point(state, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i - 1, j)))) {
 					auto res = make_coastal_loop(*this, state, visited, i, j * 2);
+					smooth_points(res);
 					add_coastal_loop_vertices(*this, res);
 				}
 			}
@@ -744,6 +1008,7 @@ void display_data::make_coastal_borders(sys::state& state, std::vector<bool>& vi
 				bool was_visited = visited[i + (j * 2 + 1) * size_x];
 				if(!was_visited && coastal_point(state, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i, j + 1)))) {
 					auto res = make_coastal_loop(*this, state, visited, i, j * 2 + 1);
+					smooth_points(res);
 					add_coastal_loop_vertices(*this, res);
 				}
 			}
@@ -820,15 +1085,103 @@ void load_river_crossings(parsers::scenario_building_context& context, std::vect
 struct river_vertex {
 	float x = 0.0f;
 	float y = 0.0f;
-	bool keep = false;
+	float width = 0.0f;
+	std::vector<river_vertex*> parents = { };
+	std::vector<river_vertex*> children = { };
+	bool visited = false;
+	bool skip_visited = false;
+
+	bool operator==(const river_vertex& other) {
+		return x == other.x && y == other.y;
+	}
 };
 
-std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vector<std::vector<river_vertex>>& rivers, std::vector<uint8_t> const& river_data, std::vector<uint8_t> const& terrain_data, std::vector<bool>& marked, glm::ivec2 size, int32_t old_x = -1, int32_t old_y = -1) {
 
-	std::vector<river_vertex> constructed;
+struct river_runner {
+	river_vertex* position;
+	uint32_t x;
+	uint32_t y;
+	bool waiting_for_merge;
+	bool done;
+};
+
+bool check_for_child(river_vertex* vertex, uint32_t x, uint32_t y) {
+	for(uint8_t index = 0; index < vertex->children.size(); index++) {
+		auto child = vertex->children[index];
+		if((child->x - float(x) - 0.5f) > 0.1f) {
+			continue;
+		}
+		if((child->y - float(y) - 0.5f) > 0.1f) {
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
+bool check_for_parent(river_vertex* vertex, uint32_t x, uint32_t y) {
+	for(uint8_t index = 0; index < vertex->parents.size(); index++) {
+		auto parent = vertex->parents[index];
+		if(abs(parent->x - float(x) - 0.5f) > 0.1f) {
+			continue;
+		}
+		if(abs(parent->y - float(y) - 0.5f) > 0.1f) {
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
+bool check_for_river(std::vector<uint8_t> const& river_data, river_runner& runner, int32_t x, int32_t y, glm::ivec2 size) {
+	if(x < 0) {
+		return false;
+	}
+	if(x >= size.x) {
+		return false;
+	}
+	if(y < 0) {
+		return false;
+	}
+	if(y >= size.y) {
+		return false;
+	}
+
+	if(is_river(river_data[x + y * size.x])) {
+		if(!check_for_parent(runner.position, x, y)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+std::vector<glm::ivec2> check_for_potential_child(std::vector<uint8_t> const& river_data, river_runner& runner, glm::ivec2 size) {
+	std::vector<glm::ivec2> results;
+	if(check_for_river(river_data, runner, runner.x + 1, runner.y, size)) {
+		results.push_back({ runner.x + 1, runner.y });
+	}
+	if(check_for_river(river_data, runner, runner.x - 1, runner.y, size)) {
+		results.push_back({ runner.x - 1, runner.y });
+	}
+	if(check_for_river(river_data, runner, runner.x, runner.y + 1, size)) {
+		results.push_back({ runner.x, runner.y + 1 });
+	}
+	if(check_for_river(river_data, runner, runner.x, runner.y - 1, size)) {
+		results.push_back({ runner.x, runner.y - 1});
+	}
+
+	return results;
+}
+
+//static std::vector<std::vector<river_vertex>> pool_of_constructed_rivers;
+/*
+std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vector<std::vector<river_vertex>>& rivers, std::vector<uint8_t> const& river_data, std::vector<uint8_t> const& terrain_data, std::vector<bool>& marked, glm::ivec2 size, int32_t old_x = -1, int32_t old_y = -1, int32_t width = 1, int32_t old_width = 1) {
+	//auto available_index = pool_of_constructed_rivers.size();
+	//pool_of_constructed_rivers.push_back({ });
+	std::vector<river_vertex> constructed = {};// pool_of_constructed_rivers[available_index];
 
 	if(old_x != -1 && old_y != -1) {
-		constructed.push_back(river_vertex{ float(old_x + 0.5f), float(old_y + 0.5f), false });
+		constructed.push_back(river_vertex{ float(old_x + 0.5f), float(old_y + 0.5f), (float)width, false });
 	}
 
 	marked[x + y * size.x] = true;
@@ -836,15 +1189,16 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 		if(xin >= 0 && yin >= 0 && xin < size.x && yin < size.y && (xin != old_x || yin != old_y) && is_river(river_data[xin + yin * size.x]) && !marked[xin + yin * size.x] && !is_river_merge(river_data[xin + yin * size.x]) && !is_river_source(river_data[xin + yin * size.x])) {
 
 			marked[xin + yin * size.x] = true;
+			auto local_width = river_width(river_data[xin + yin * size.x]);
 			if(!forward_found) {
 				forward_found = true;
-				return glm::ivec2{xin, yin};
+				return glm::ivec3{xin, yin, local_width };
 			} else {
 				constructed.back().keep = true;
-				rivers.emplace_back(make_directional_river(xin, yin, rivers, river_data, terrain_data, marked, size, x, y));
+				rivers.emplace_back(make_directional_river(xin, yin, rivers, river_data, terrain_data, marked, size, x, y, local_width));
 			}
 		}
-		return glm::ivec2{ 0, 0 };
+		return glm::ivec3{ 0, 0, 0 };
 	};
 	auto process_merge = [&](int32_t xin, int32_t yin, bool& merge_found) {
 		if(merge_found)
@@ -862,10 +1216,10 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 		if(xin >= 0 && yin >= 0 && xin < size.x && yin < size.y && (xin != old_x || yin != old_y) && is_river(river_data[xin + yin * size.x]) && !is_river_merge(river_data[xin + yin * size.x]) && !is_river_source(river_data[xin + yin * size.x])) {
 			if(!forward_found) {
 				forward_found = true;
-				return glm::ivec2{ xin, yin };
+				return glm::ivec3{ xin, yin, river_width(river_data[xin + yin * size.x]) };
 			}
 		}
-		return glm::ivec2{ 0, 0 };
+		return glm::ivec3{ 0, 0, 0 };
 	};
 	auto process_sea_extend = [&](int32_t xin, int32_t yin, bool& merge_found) {
 		if(merge_found)
@@ -881,7 +1235,7 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 	bool forward_progress = false;
 	do {
 		forward_progress = false;
-		constructed.push_back(river_vertex{ float(x + 0.5f), float(y + 0.5f), false });
+		constructed.push_back(river_vertex{ float(x + 0.5f), float(y + 0.5f), (float)width, false });
 
 		auto res = process_non_merge(x - 1, y, forward_progress);
 		res += process_non_merge(x + 1, y, forward_progress);
@@ -891,8 +1245,10 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 		if(forward_progress) {
 			old_x = x;
 			old_y = y;
+			old_width = width;
 			x = res.x;
 			y = res.y;
+			width = res.z;
 		}
 
 	} while(forward_progress);
@@ -904,7 +1260,7 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 	resb += process_merge(x, y + 1, merge_found);
 
 	if(merge_found) {
-		constructed.push_back(river_vertex{ float(resb.x + 0.5f), float(resb.y + 0.5f), false });
+		constructed.push_back(river_vertex{ float(resb.x + 0.5f), float(resb.y + 0.5f), (float)width, false });
 
 		old_x = x;
 		old_y = y;
@@ -918,7 +1274,7 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 		resc += process_post_merge(x, y + 1, post_progress);
 
 		if(post_progress) {
-			constructed.push_back(river_vertex{ float(resc.x + 0.5f), float(resc.y + 0.5f), false });
+			constructed.push_back(river_vertex{ float(resc.x + 0.5f), float(resc.y + 0.5f), (float)resc.z, false });
 		}
 	} else if(terrain_data[x + y * size.x] != 255) {
 		bool post_progress = false;
@@ -928,7 +1284,7 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 		resc += process_sea_extend(x, y + 1, post_progress);
 
 		if(post_progress) {
-			constructed.push_back(river_vertex{ float(resc.x + 0.5f), float(resc.y + 0.5f), false });
+			constructed.push_back(river_vertex{ float(resc.x + 0.5f), float(resc.y + 0.5f), (float)width, false });
 		}
 	}
 	if(!constructed.empty()) {
@@ -937,19 +1293,198 @@ std::vector<river_vertex> make_directional_river(int32_t x, int32_t y, std::vect
 	}
 	return constructed;
 }
+*/
+
 
 void display_data::create_curved_river_vertices(parsers::scenario_building_context & context, std::vector<uint8_t> const& river_data, std::vector<uint8_t> const& terrain_data) {
 
-	std::vector<std::vector<river_vertex>> rivers;
+	std::vector<river_vertex> rivers;
+
 
 	std::vector<bool> marked(size_x * size_y, false);
 
+	std::vector<river_vertex*> sources;
+	std::vector<river_vertex*> mouths;
+	std::map<uint32_t, river_vertex*> vertex_by_pixel_index = {};
+	std::vector<river_runner> runners;
+	std::vector<river_runner> new_runners;
+
+
+	auto size = glm::ivec2(int32_t(size_x), int32_t(size_y));
+
+
+
+	for(uint32_t y = 0; y < size_y; y++) {
+		for(uint32_t x = 0; x < size_x; x++) {
+			auto index = x + y * size_x;
+			if(is_river_source(river_data[index])) {
+				river_vertex * source = new river_vertex { float(x) + 0.5f, float(y) + 0.5f, 40.f };
+				sources.push_back(source);
+				vertex_by_pixel_index[index] = source;
+				river_runner r = { source, x, y, false, false };
+				runners.push_back(r);
+			}
+		}
+	}
+
+
+	bool exists_running_runner = true;
+
+	
+
+	while(exists_running_runner) {
+		exists_running_runner = false;
+
+		for(auto & item : new_runners) {
+			runners.push_back(item);
+		}
+		new_runners.clear();
+
+
+		for(auto & runner : runners) {
+			if(runner.done) {
+				continue;
+			}
+
+			auto potential_children = check_for_potential_child(river_data, runner, size);
+
+			if(potential_children.size() == 0) {
+				// extend to the sea:
+
+				for(int32_t i = -1; i <= 1; i++) {
+					for(int32_t j = -1; j <= 1; j++) {
+						auto x = (int32_t)runner.x + i;
+						auto y = (int32_t)runner.y + j;
+						if(x < 0) {
+							continue;
+						}
+						if(y < 0) {
+							continue;
+						}
+						if(x >= size.x) {
+							continue;
+						}
+						if(y >= size.y) {
+							continue;
+						}
+						auto index = uint32_t(x) + uint32_t(y) * size_x;
+
+						bool is_sea = terrain_data[index] == 255;
+						if(!is_sea) {
+							continue;
+						}
+
+						if(!vertex_by_pixel_index.contains(index)) {
+							river_vertex* new_river_vertex = new river_vertex{
+								float(x) + 0.5f,
+								float(y) + 0.5f,
+								runner.position->width * 2.f
+							};
+							vertex_by_pixel_index[index] = new_river_vertex;
+							new_river_vertex->parents.push_back(runner.position);
+							runner.position->children.push_back(new_river_vertex);
+
+							i = 3;
+							j = 3;
+							break;
+						}
+					}
+				}
+
+				runner.done = true;
+				mouths.push_back(runner.position);
+			} else if(runner.waiting_for_merge) {
+				for(auto target_coord : potential_children) {
+					auto target_index = target_coord.x + target_coord.y * size_x;
+					if(vertex_by_pixel_index.contains(target_index)) {
+						auto target_vertex = vertex_by_pixel_index[target_index];
+						target_vertex->parents.push_back(runner.position);
+						runner.position->children.push_back(target_vertex);
+						runner.waiting_for_merge = false;
+						runner.done = true;
+					}
+				}
+			} else {				
+				if(is_river_merge(river_data[runner.x + runner.y * size_x])) {
+					exists_running_runner = true;
+					runner.waiting_for_merge = true;
+				} else {
+					bool first_child = true;
+					uint32_t next_x = 0;
+					uint32_t next_y = 0;
+					river_vertex* next_position = nullptr;
+
+					for(auto candidate : potential_children) {
+						auto x = (uint32_t)candidate.x;
+						auto y = (uint32_t)candidate.y;
+						auto index = x + y * size_x;
+						auto width = float(river_width(river_data[index]));
+
+						if(is_river_merge(river_data[index])) {
+							if(potential_children.size() > 1) {
+								continue;
+							}
+							width = runner.position->width;
+						}
+
+						exists_running_runner = true;
+
+						river_vertex* new_river_vertex = nullptr;
+
+						bool we_will_move_forward = false;
+
+						if(vertex_by_pixel_index.contains(index)) {
+							new_river_vertex = vertex_by_pixel_index[index];
+						} else {
+							new_river_vertex = new river_vertex{
+								float(x) + 0.5f,
+								float(y) + 0.5f,
+								width
+							};
+							vertex_by_pixel_index[index] = new_river_vertex;
+							we_will_move_forward = true;
+						}							
+
+						new_river_vertex->parents.push_back(runner.position);
+						runner.position->children.push_back(new_river_vertex);
+
+						if(we_will_move_forward) {
+							if(first_child) {
+								next_x = x;
+								next_y = y;
+								next_position = new_river_vertex;
+								first_child = false;
+							} else {
+								river_runner r = { new_river_vertex, x, y, false, false };
+								new_runners.push_back(r);
+							}
+						} else {
+							runner.done = true;
+						}
+					}
+
+					if(next_position != nullptr) {
+						exists_running_runner = true;
+						runner.x = next_x;
+						runner.y = next_y;
+						runner.position = next_position;
+					}
+				}
+			}
+		}
+	}
+
+
+
+	/*
 	for(uint32_t y = 0; y < size_y; y++) {
 		for(uint32_t x = 0; x < size_x; x++) {
 			if(is_river_source(river_data[x + y * size_x]))
 				rivers.emplace_back(make_directional_river(x, y, rivers, river_data, terrain_data, marked, glm::ivec2(int32_t(size_x), int32_t(size_y))));
 		}
 	}
+	
+
 	// remove empty rivers or rivers with 1 vertex
 	for(auto i = rivers.size(); i-- > 0; ) {
 		if(rivers[i].size() <= 1) {
@@ -977,50 +1512,502 @@ void display_data::create_curved_river_vertices(parsers::scenario_building_conte
 		}
 	}
 
+	
+
 	for(const auto& river : rivers) {
 		river_starts.push_back(GLint(river_vertices.size()));
 
 		glm::vec2 current_pos = glm::vec2(river.back().x, river.back().y);
 		glm::vec2 next_pos = put_in_local(glm::vec2(river[river.size() - 2].x, river[river.size() - 2].y), current_pos, float(size_x));
-		glm::vec2 prev_perpendicular = glm::normalize(next_pos - current_pos);
+
+		float current_width = river.back().width;
+		float next_width = river[river.size() - 2].width;
+
+		glm::vec2 tangent_prev = glm::normalize(next_pos - current_pos);
 		float distance = 0.0f;
 
-		auto start_normal = glm::vec2(-prev_perpendicular.y, prev_perpendicular.x);
+		auto start_normal = glm::vec2(-tangent_prev.y, tangent_prev.x);
 		auto norm_pos = current_pos / glm::vec2(size_x, size_y);
-		river_vertices.emplace_back(textured_line_vertex{ norm_pos, +start_normal, 0.0f, distance });//C
-		river_vertices.emplace_back(textured_line_vertex{ norm_pos, -start_normal, 1.0f, distance });//D
+		river_vertices.emplace_back(textured_line_with_width_vertex{ norm_pos, +start_normal, 0.0f, distance, river.back().width });//C
+		river_vertices.emplace_back(textured_line_with_width_vertex{ norm_pos, -start_normal, 1.0f, distance, river.back().width });//D
 
 		for(auto i = river.size() - 1; i-- > 0;) {
-			if(!river[i].keep && i % 3 != 0) {
-				continue; // skip
-			}
-			glm::vec2 next_perpendicular{ 0.0f, 0.0f };
+			//if(!river[i].keep && i % 3 != 0) {
+			//	continue; // skip
+			//}
+			glm::vec2 tangent_next{ 0.0f, 0.0f };
 			next_pos = put_in_local(glm::vec2(river[i].x, river[i].y), current_pos, float(size_x));
+
+			current_width = river[i].width;
 			if(i > 0) {
 				auto nexti = i - 1;
-				while(!river[nexti].keep && nexti % 3 != 0) {
-					nexti--;
-				}
+				//while(!river[nexti].keep && nexti % 3 != 0) {
+				//	nexti--;
+				//}
+
 				glm::vec2 next_next_pos = put_in_local(glm::vec2(river[nexti].x, river[nexti].y), next_pos, float(size_x));
-				glm::vec2 a_per = glm::normalize(next_pos - current_pos);
-				glm::vec2 b_per = glm::normalize(next_pos - next_next_pos);
-				glm::vec2 temp = a_per + b_per;
-				if(glm::length(temp) < 0.00001f) {
-					next_perpendicular = -a_per;
-				} else {
-					next_perpendicular = glm::normalize(glm::vec2{ -temp.y, temp.x });
-					if(glm::dot(a_per, -next_perpendicular) < glm::dot(a_per, next_perpendicular)) {
-						next_perpendicular *= -1.0f;
-					}
-				}
+
+
+				glm::vec2 tangent_current_to_next = glm::normalize(next_pos - current_pos);
+				glm::vec2 tangent_next_to_next_next = glm::normalize(next_next_pos - next_pos);
+				tangent_next = glm::normalize(tangent_current_to_next + tangent_next_to_next_next);
+				next_width = river[nexti].width;
 			} else {
-				next_perpendicular = glm::normalize(current_pos - next_pos);
+				tangent_next = glm::normalize(next_pos - current_pos);
+				next_width = current_width;
 			}
-			add_tl_bezier_to_buffer(river_vertices, current_pos, next_pos, prev_perpendicular, next_perpendicular, 0.0f, false, float(size_x), float(size_y), 4, distance);
-			prev_perpendicular = -1.0f * next_perpendicular;
+			float save_distance = distance;
+			add_tl_bezier_to_buffer(river_vertices, current_pos, next_pos, tangent_prev, tangent_next, 0.0f, false, float(size_x), float(size_y), 4, distance, current_width, next_width);
+			assert(abs((distance - save_distance) * size_x) > 0.5);
+			assert(abs((distance - save_distance) * size_x) < 4.0);
+			tangent_prev = tangent_next;
 			current_pos = glm::vec2(river[i].x, river[i].y);
 		}
 		river_counts.push_back(GLsizei(river_vertices.size() - river_starts.back()));
+	}
+
+	*/
+
+	std::vector<river_vertex*> current_path = { };
+	std::vector<river_vertex*> nodes_to_skip = { };
+
+	current_path.clear();
+
+	uint32_t skip_nodes_counter = 0;
+
+
+	// to avoid "squareness" we walk around the graph and "forget" some of nodes:
+	// optimally, we want to forget a few nodes before nodes with multiple parents
+	// to create smooth "confluence"
+	for(auto source : sources) {
+		//skip one pixel rivers
+		if(source->children.size() == 0) {
+			continue;
+		}
+
+		current_path.push_back(source);
+		
+
+		// walk around to find a confluence
+		while(current_path.size() > 0) {
+			auto current_node = current_path.back();
+			current_node->skip_visited = true;
+
+			// check if one of our child is a confluence:
+			bool has_confluence_further = false;
+
+			for(auto potential_confluence : current_node->children) {
+				if(
+					potential_confluence->parents.size() > 1
+					&& potential_confluence->children.size() > 0
+				) {
+					has_confluence_further = true;
+				}
+			}
+
+			if(has_confluence_further) {
+				// we found a confluence!
+				// backtrack and mark a few nodes for removal
+				auto backrunner = current_path[current_path.size() - 1];
+				for(int steps = 0; steps < 2; steps++) {
+					if(current_path.size() - 1 - steps <= 0) {
+						break;
+					}
+					if(backrunner->parents.size() == 0) {
+						break;
+					}					
+					nodes_to_skip.push_back(backrunner);
+					backrunner = current_path[current_path.size() - 1 - steps];
+				}
+			}
+
+			if(current_path.size() > 2) {
+				auto prev_node = current_path[current_path.size() - 2];
+
+				if(current_node->parents.size() > 1 && current_node->children.size() > 0) {
+					// we are the confluence!
+					// skip three nodes
+					skip_nodes_counter = 2;
+					//nodes_to_skip.push_back(current_node);
+				} else {
+					// we are not at special node
+					bool node_was_skipped = false;
+					if(current_node->children.size() == 1)
+						if(current_node->parents.size() == 1)
+							if(current_node->children[0]->parents.size() == 1)
+								if(current_node->parents[0]->children.size() == 1) {
+									assert(current_node->children[0]->parents[0] == current_node);
+									assert(current_node->parents[0]->children[0] == current_node);
+									if(current_path.size() % 3 == 0) {
+										nodes_to_skip.push_back(current_node);
+										node_was_skipped = true;
+										if(skip_nodes_counter > 0) {
+											skip_nodes_counter -= 1;
+										}
+									};
+								}
+					if(current_node->children.size() > 0)
+						if(current_node->parents.size() > 0)
+							if(!node_was_skipped && skip_nodes_counter > 0)  {
+								//nodes_to_skip.push_back(current_node);
+								skip_nodes_counter -= 1;
+							}
+				}
+			}
+			bool pop_back = true;
+			for(auto candidate : current_node->children) {
+				if(!candidate->skip_visited) {
+					current_path.push_back(candidate);
+					pop_back = false;
+				}
+			}
+
+			if(pop_back) {
+				current_path.pop_back();
+			}
+		}
+	}
+
+	
+	std::vector<river_vertex*> parents;
+	std::vector<river_vertex*> children;
+	std::vector<river_vertex*> temp;
+	for(auto item : nodes_to_skip) {
+		parents.clear();
+		children.clear();
+
+		// collect all children:
+		for(auto child : item->children) {
+			children.push_back(child);
+		}
+		// collect all parents:
+		for(auto parent : item->parents) {
+			parents.push_back(parent);
+		}
+
+		// attach children to parents:
+		for(auto parent : parents) {
+			temp.clear();
+
+			// save old children to temp
+			for(auto parent_child : parent->children) {
+				if(parent_child->x == item->x)
+					if(parent_child->y == item->y)
+						continue;
+				temp.push_back(parent_child);
+			}
+
+			for(auto child_to_attach : children) {
+				// check that they don't have this child already
+				bool skip_child = false;
+				for(auto parent_child : parent->children) {
+					if(parent_child->x == child_to_attach->x)
+						if(parent_child->y == child_to_attach->y) {
+							skip_child = true;
+							break;
+						}
+				}
+
+				if(skip_child) {
+					continue;
+				} else {
+					temp.push_back(child_to_attach);
+				}
+			}
+
+			parent->children.clear();
+
+			for(auto saved_item : temp) {
+				parent->children.push_back(saved_item);
+			}
+		}
+
+		// attach parents to children
+		for(auto child : children) {
+			temp.clear();
+
+			// save old parents to temp
+			for(auto child_parent : child->parents) {
+				if(child_parent->x == item->x)
+					if(child_parent->y == item->y)
+						continue;
+				temp.push_back(child_parent);
+			}
+
+			for(auto parent_to_attach : parents) {
+				// check that they don't have this child already
+				bool skip_parent = false;
+				for(auto child_parent : child->parents) {
+					if(child_parent->x == parent_to_attach->x)
+						if(child_parent->y == parent_to_attach->y) {
+							skip_parent = true;
+							break;
+						}
+				}
+
+				if(skip_parent) {
+					continue;
+				} else {
+					temp.push_back(parent_to_attach);
+				}
+			}
+
+			child->parents.clear();
+
+			for(auto saved_item : temp) {
+				//assert(saved_item->children[0] == child);
+				child->parents.push_back(saved_item);
+			}
+		}
+
+		item->children.clear();
+		item->parents.clear();
+	}
+	
+
+	// now we generate quads for rivers:
+	// basic idea is to proceed from sources to children
+	// every segment is a bezier curve with control points being the tangent vectors of rivers
+	// in result, segments should share tangent lines at the merge/split points
+	// we assume that "main" child is always at index 0
+
+	current_path.clear();
+	std::vector<glm::vec2> vertex_stabilized_history;
+	vertex_stabilized_history.clear();
+
+	for(auto source : sources) {
+		//skip one pixel rivers
+		if(source->children.size() == 0) {
+			continue;
+		}
+
+		current_path.push_back(source);
+		vertex_stabilized_history.push_back({ source->x, source->y });
+
+		// we explore current river and create paths along it
+		// until we explore all downstream nodes
+		while(current_path.size() > 0) {
+			// we start by tracking back along the river until we find
+			// a node with not visited child
+			bool can_start_here = false;
+
+
+			river_vertex* runner = current_path.back();
+			if(!runner->visited) {
+				can_start_here = true;
+			}
+
+			while(!can_start_here) {
+				if(current_path.size() == 0) {
+					break;
+				}
+
+				runner = current_path.back();
+				current_path.pop_back();
+				vertex_stabilized_history.pop_back();
+
+				for(auto child : runner->children) {
+					if(child->visited) {
+						continue;
+					}
+
+					can_start_here = true;
+				}
+			}
+
+			if(!can_start_here) {
+				break;
+			}
+
+			// we start running along the river
+			// to create a new path and save it in a buffer			
+
+			// save current offset
+			river_starts.push_back(GLint(river_vertices.size()));
+
+			//init distance from the source
+			float distance = 0.0f;
+			// it will store distance local to current source
+			// which will lead to incontinuities in distances in river basins
+			// these problems should be probably solved in a separate pass ?
+
+			glm::vec2 vertex = { runner->x, runner->y };
+			glm::vec2 vertex_stabilized = vertex;
+			if(vertex_stabilized_history.size() > 0) {
+				vertex_stabilized = vertex_stabilized_history.back();
+			}
+			glm::vec2 vertex_stabilized_speed = { 0.f, 0.f };
+			float friction = 0.932f;
+			uint8_t steps = 8;
+			float weight = 0.005f;
+
+			uint8_t count_back = 16;
+
+			bool can_continue = true;
+			while(can_continue) {
+				runner->visited = true;
+
+				can_continue = false;
+				bool stop = true;
+
+				river_vertex* next_node = nullptr;
+
+				for(auto candidate : runner->children) {
+					if(candidate->visited) {
+						can_continue = true;
+						next_node = candidate;
+						continue;
+					} else {
+						next_node = candidate;
+						can_continue = true;
+						stop = false;
+						break;
+					}
+				}
+
+				if(!can_continue) {
+					// no children at all: give up
+					break;
+				}
+				// otherwise we have an already visited children
+				// which we could use to finish the curve
+
+				// we care about mouths:
+				if(next_node->children.size() == 0) {
+					can_continue = false;
+					next_node->visited = true;
+
+					auto current_point = glm::vec2(runner->x, runner->y);
+					auto next_point = glm::vec2(next_node->x, next_node->y);
+
+					auto current_tangent = glm::normalize(next_point - current_point);
+					next_point = next_point + current_tangent * 5.f;
+					auto current_normal = glm::vec2{ -current_tangent.y, current_tangent.x };
+					auto next_tangent = glm::normalize(current_tangent);
+
+					for(uint8_t step = 0; step <= steps; step++) {
+						auto t = (float(step) / float(steps));
+						vertex =
+							t * next_point
+							+ (1.f - t) * current_point;
+						auto width = t * next_node->width + (1.f - t) * runner->width;
+
+						auto current_weight = weight * width;
+
+						auto acceleration = (vertex - vertex_stabilized) / current_weight;
+						vertex_stabilized_speed += acceleration;
+						vertex_stabilized_speed *= (1.f - friction * 0.9f);
+
+						auto vertex_old_opengl_coords = vertex_stabilized / glm::vec2(size_x, size_y);
+						vertex_stabilized = vertex_stabilized + vertex_stabilized_speed;
+						auto vertex_opengl_coords = vertex_stabilized / glm::vec2(size_x, size_y);
+						auto speed_opengl_coords = vertex_opengl_coords - vertex_old_opengl_coords;
+						auto normal_opengl_coords = glm::normalize(glm::vec2{ -speed_opengl_coords.y, speed_opengl_coords.x });
+						distance += glm::length(speed_opengl_coords);
+
+						river_vertices.emplace_back(textured_line_with_width_vertex{ vertex_opengl_coords, +normal_opengl_coords, 0.0f, distance, width });//C
+						river_vertices.emplace_back(textured_line_with_width_vertex{ vertex_opengl_coords, -normal_opengl_coords, 1.0f, distance, width });//D
+					}
+
+					/*
+					add_tl_bezier_to_buffer(
+						river_vertices,
+						current_point,
+						next_point,
+						current_tangent,
+						next_tangent,
+						0.0f,
+						false,
+						float(size_x),
+						float(size_y),
+						8,
+						distance,
+						runner->width,
+						next_node->width
+					);
+					*/
+
+					break;
+				}
+
+				// backtrack for a while to connect to previous parent?
+
+				river_vertex* next_next_node = next_node->children[0];
+
+				auto current_point = glm::vec2(runner->x, runner->y);
+				auto next_point = glm::vec2(next_node->x, next_node->y);
+				auto next_next_point = glm::vec2(next_next_node->x, next_next_node->y);
+
+				auto current_tangent = next_point - current_point;
+				auto next_tangent = next_next_point - next_point;
+
+				for(uint8_t step = 0; step <= steps; step++) {
+					auto t = (float(step) / float(steps));
+					vertex =
+						t * next_point
+						+ (1.f - t) * current_point;
+					auto width = t * next_node->width + (1.f - t) * runner->width;
+
+					auto current_weight = weight * width;
+
+					auto acceleration = (vertex - vertex_stabilized) / current_weight;
+					vertex_stabilized_speed += acceleration;
+					vertex_stabilized_speed *= (1.f - friction);
+
+					auto vertex_old_opengl_coords = vertex_stabilized / glm::vec2(size_x, size_y);
+					vertex_stabilized = vertex_stabilized + vertex_stabilized_speed;
+					auto vertex_opengl_coords = vertex_stabilized / glm::vec2(size_x, size_y);
+					auto speed_opengl_coords = vertex_opengl_coords - vertex_old_opengl_coords;
+					auto normal_opengl_coords = glm::normalize(glm::vec2{ -speed_opengl_coords.y, speed_opengl_coords.x });
+					distance += glm::length(speed_opengl_coords);
+
+					river_vertices.emplace_back(textured_line_with_width_vertex{ vertex_opengl_coords, +normal_opengl_coords, 0.0f, distance, width });//C
+					river_vertices.emplace_back(textured_line_with_width_vertex{ vertex_opengl_coords, -normal_opengl_coords, 1.0f, distance, width });//D
+				}
+
+				/*
+				add_tl_bezier_to_buffer(
+					river_vertices,
+					current_point,
+					next_point,
+					current_tangent,
+					next_tangent,
+					0.0f,
+					false,
+					float(size_x),
+					float(size_y),
+					8,
+					distance,
+					runner->width,
+					next_node->width
+				);
+				*/
+
+				if(stop) {
+					count_back -= 1;
+				}
+
+				if(count_back == 0) {
+					// we already visited the next node
+					// and used it only to have a smooth merge
+					break;
+				}
+
+				runner = next_node;
+				current_path.push_back(runner);
+				vertex_stabilized_history.push_back( vertex_stabilized );
+			}
+
+			// save count of vertices in current batch
+			river_counts.push_back(GLsizei(river_vertices.size() - river_starts.back()));
+		}
+
+		glm::vec2 current_pos = glm::vec2(source->x, source->y);
+		glm::vec2 next_pos = glm::vec2(0, 0);
+
+
+
+		
 	}
 }
 

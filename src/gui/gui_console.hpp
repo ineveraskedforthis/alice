@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_element_types.hpp"
+#include "fif.hpp"
 
 namespace ui {
 
@@ -8,8 +9,6 @@ class console_edit : public edit_box_element_base {
 protected:
 	// Vector list of last commands
 	std::vector<std::string> command_history;
-	std::string lhs_suggestion;
-	std::string rhs_suggestion;
 	// Index of the current command in the history
 	int history_index = 0;
 
@@ -18,12 +17,9 @@ public:
 	void edit_box_update(sys::state& state, std::string_view s) noexcept override;
 	void edit_box_tab(sys::state& state, std::string_view s) noexcept override;
 	void edit_box_enter(sys::state& state, std::string_view s) noexcept override;
-	void edit_box_esc(sys::state& state) noexcept override {
-		state.ui_state.console_window->set_visible(state, false);
-	}
-	void edit_box_backtick(sys::state& state) noexcept override {
-		state.ui_state.console_window->set_visible(state, false);
-	}
+	void edit_box_esc(sys::state& state) noexcept override;
+	void edit_box_backtick(sys::state& state) noexcept override;
+	void edit_box_back_slash(sys::state& state) noexcept override;
 	void edit_box_up(sys::state& state) noexcept override;
 	void edit_box_down(sys::state& state) noexcept override;
 	void add_to_history(sys::state& state, std::string s) noexcept {
@@ -55,40 +51,33 @@ public:
 	}
 };
 
-class console_text : public simple_text_element_base {
+class console_list : public scrollable_text {
 public:
-	void render(sys::state& state, int32_t x, int32_t y) noexcept override;
-};
-
-class console_list_entry : public listbox_row_element_base<std::string> {
-private:
-	simple_text_element_base* entry_text_box = nullptr;
-
-public:
-	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
-		if(name == "console_text") {
-			auto ptr = make_element_by_type<console_text>(state, id);
-			entry_text_box = ptr.get();
-			entry_text_box->set_text(state, "");
-			return ptr;
-		} else {
-			return nullptr;
-		}
-	}
+	std::string raw_text;
+	bool text_pending = false;
 
 	void on_update(sys::state& state) noexcept override {
-		entry_text_box->set_text(state, content);
-	}
-};
-
-class console_list : public listbox_element_base<console_list_entry, std::string> {
-protected:
-	std::string_view get_row_element_name() override {
-		return "console_entry_wnd";
-	}
-
-	bool is_reversed() override {
-		return false;
+		std::string new_content;
+		{
+			std::lock_guard lg{ state.lock_console_strings };
+			new_content = state.console_command_result;
+			state.console_command_result.clear();
+		}
+		if(new_content.size() > 0) {
+			raw_text += new_content;
+			text_pending = true;
+		}
+		if(text_pending) {
+			text_pending = false;
+			auto contents = text::create_endless_layout(state, delegate->internal_layout,
+				text::layout_parameters{ 10, 10, int16_t(base_data.size.x), int16_t(base_data.size.y),
+				base_data.data.text.font_handle, 0, text::alignment::left,
+				text::is_black_from_font_id(base_data.data.text.font_handle) ? text::text_color::black : text::text_color::white, false });
+			auto box = text::open_layout_box(contents);
+			text::add_unparsed_text_to_layout_box(state, contents, box, raw_text);
+			text::close_layout_box(contents, box);
+			calibrate_scrollbar(state);
+		}
 	}
 };
 
@@ -96,8 +85,12 @@ class console_window : public window_element_base {
 private:
 	console_list* console_output_list = nullptr;
 	console_edit* edit_box = nullptr;
-
 public:
+	void on_create(sys::state& state) noexcept override {
+		window_element_base::on_create(state);
+		set_visible(state, false);
+	}
+
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
 		if(name == "console_list") {
 			auto ptr = make_element_by_type<console_list>(state, id);
@@ -115,11 +108,12 @@ public:
 	message_result get(sys::state& state, Cyto::Any& payload) noexcept override {
 		if(payload.holds_type<std::string>()) {
 			auto entry = any_cast<std::string>(payload);
-			console_output_list->row_contents.push_back(entry);
-			console_output_list->update(state);
+			console_output_list->raw_text += entry + "\\n";
+			console_output_list->text_pending = true;
+			console_output_list->impl_on_update(state);
 			return message_result::consumed;
 		} else if(payload.holds_type<console_edit*>()) {
-			console_output_list->scroll_to_bottom(state);
+			//console_output_list->scroll_to_bottom(state);
 			return message_result::consumed;
 		} else {
 			return message_result::unseen;
@@ -127,18 +121,22 @@ public:
 	}
 
 	void clear_list(sys::state& state) noexcept {
-		console_output_list->row_contents.clear();
-		console_output_list->update(state);
+		console_output_list->raw_text.clear();
+		console_output_list->impl_on_update(state);
 	}
 
 	static void show_toggle(sys::state& state);
 
 	void on_visible(sys::state& state) noexcept override {
-		console_output_list->scroll_to_bottom(state);
+		//console_output_list->scroll_to_bottom(state);
 		state.ui_state.edit_target = edit_box;
 	}
 	void on_hide(sys::state& state) noexcept override {
 		state.ui_state.edit_target = nullptr;
 	}
 };
+
+void initialize_console_fif_environment(sys::state& state);
+std::string format_fif_value(sys::state& state, int64_t data, int32_t type);
+
 } // namespace ui

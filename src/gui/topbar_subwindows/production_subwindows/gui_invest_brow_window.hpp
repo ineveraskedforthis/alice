@@ -7,10 +7,6 @@ namespace ui {
 
 class production_investment_country_select : public button_element_base {
 public:
-	message_result on_scroll(sys::state& state, int32_t x, int32_t y, float amount, sys::key_modifiers mods) noexcept override {
-		return parent->impl_on_scroll(state, x, y, amount, mods);
-	}
-
 	void on_update(sys::state& state) noexcept override {
 		auto for_nation = retrieve<dcon::nation_id>(state, parent);
 
@@ -109,22 +105,7 @@ protected:
 		row_contents.clear();
 		state.world.for_each_nation([&](dcon::nation_id id) {
 			if(state.world.nation_get_owned_province_count(id) != 0) {
-				bool passes_filter = [&]() {
-					switch(current_filter.general_category) {
-					case country_list_filter::all:
-						return true;
-					case country_list_filter::allies:
-						return nations::are_allied(state, id, state.local_player_nation);
-					case country_list_filter::enemies:
-						return military::are_at_war(state, state.local_player_nation, id);
-					case country_list_filter::sphere:
-						return state.world.nation_get_in_sphere_of(id) == state.local_player_nation;
-					case country_list_filter::neighbors:
-						return bool(state.world.get_nation_adjacency_by_nation_adjacency_pair(state.local_player_nation, id));
-					default:
-						return true;
-					}
-				}();
+				bool passes_filter = country_category_filter_check(state, current_filter.general_category, state.local_player_nation, id);
 				bool right_continent = !current_filter.continent || state.world.nation_get_capital(id).get_continent() == current_filter.continent;
 
 				if(passes_filter && right_continent)
@@ -138,22 +119,15 @@ protected:
 
 class production_sort_nation_gp_flag : public nation_gp_flag {
 public:
-	message_result test_mouse(sys::state& state, int32_t x, int32_t y, mouse_probe_type type) noexcept override {
-		return type == mouse_probe_type::tooltip ? message_result::consumed : message_result::unseen;
+	void button_action(sys::state& state) noexcept override {
+		send(state, parent, element_selection_wrapper<country_list_sort>{country_list_sort(uint8_t(country_list_sort::gp_investment) | rank)});
 	}
-	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
-		return tooltip_behavior::variable_tooltip;
-	}
-	void button_action(sys::state& state) noexcept override { }
 };
 
 class production_sort_my_nation_flag : public flag_button {
 public:
 	dcon::national_identity_id get_current_nation(sys::state& state) noexcept override {
 		return state.world.nation_get_identity_from_identity_holder(state.local_player_nation);
-	}
-	message_result test_mouse(sys::state& state, int32_t x, int32_t y, mouse_probe_type type) noexcept override {
-		return type == mouse_probe_type::tooltip ? message_result::consumed : message_result::unseen;
 	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
 		return tooltip_behavior::variable_tooltip;
@@ -232,9 +206,10 @@ public:
 		} else if(name.length() >= 7 && name.substr(0, 7) == "filter_") {
 			auto const filter_name = name.substr(7);
 			auto ptr = make_element_by_type<continent_filter_button>(state, id);
-			if(auto it = state.key_to_text_sequence.find(filter_name); it != state.key_to_text_sequence.end()) {
+			auto k = state.lookup_key(name);
+			if(k) {
 				for(auto m : state.world.in_modifier) {
-					if(m.get_name() == it->second) {
+					if(m.get_name() == k) {
 						ptr->continent = m;
 						break;
 					}

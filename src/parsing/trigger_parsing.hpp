@@ -10,6 +10,7 @@
 #include "script_constants.hpp"
 #include "nations.hpp"
 #include "container_types.hpp"
+#include "text.hpp"
 
 namespace economy {
 dcon::modifier_id get_province_selector_modifier(sys::state& state);
@@ -286,6 +287,39 @@ struct tr_work_available {
 	void finish(trigger_building_context&) { }
 };
 
+struct tr_party_name {
+	dcon::ideology_id ideology_;
+	dcon::text_key name_;
+	void ideology(association_type t, std::string_view v, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(is_fixed_token_ci(v.data(), v.data() + v.length(), "ruling_party")) {
+			// leave invalid
+		} else if(auto it = context.outer_context.map_of_ideologies.find(std::string(v)); it != context.outer_context.map_of_ideologies.end()) {
+			ideology_ = it->second.id;
+		} else {
+			err.accumulated_errors += "Invalid ideology " + std::string(v) + " (" + err.file_name + " line " + std::to_string(line) + ")\n";
+		}
+	}
+	void name(association_type t, std::string_view v, error_handler& err, int32_t line, trigger_building_context& context) {
+		name_ = text::find_or_add_key(context.outer_context.state, v, false);
+	}
+	void finish(trigger_building_context&) { }
+};
+struct tr_party_position {
+	dcon::ideology_id ideology_;
+	dcon::issue_option_id opt_;
+	void ideology(association_type t, std::string_view v, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(is_fixed_token_ci(v.data(), v.data() + v.length(), "ruling_party")) {
+			// leave invalid
+		} else if(auto it = context.outer_context.map_of_ideologies.find(std::string(v)); it != context.outer_context.map_of_ideologies.end()) {
+			ideology_ = it->second.id;
+		} else {
+			err.accumulated_errors += "Invalid ideology " + std::string(v) + " (" + err.file_name + " line " + std::to_string(line) + ")\n";
+		}
+	}
+	void position(association_type t, std::string_view v, error_handler& err, int32_t line, trigger_building_context& context);
+	void finish(trigger_building_context&) { }
+};
+
 inline bool is_from(std::string_view value) {
 	return is_fixed_token_ci(value.data(), value.data() + value.length(), "from");
 }
@@ -531,7 +565,7 @@ struct trigger_body {
 						uint16_t(trigger::is_releasable_vassal_from | trigger::no_payload | association_to_bool_code(a)));
 			else {
 				err.accumulated_errors += "is_releasable_vassal trigger used in an incorrect scope type " +
-																	slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
+																	slot_contents_to_string(context.from_slot) + " (" + err.file_name + ", line " +
 																	std::to_string(line) + ")\n";
 				return;
 			}
@@ -541,7 +575,7 @@ struct trigger_body {
 																										association_to_bool_code(a, parse_bool(value, line, err))));
 			else {
 				err.accumulated_errors += "is_releasable_vassal trigger used in an incorrect scope type " +
-																	slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
+																	slot_contents_to_string(context.from_slot) + " (" + err.file_name + ", line " +
 																	std::to_string(line) + ")\n";
 				return;
 			}
@@ -2621,6 +2655,16 @@ struct trigger_body {
 		}
 		context.add_float_to_payload(value);
 	}
+	void diplo_points(association_type a, float value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(context.main_slot == trigger::slot_contents::nation) {
+			context.compiled_trigger.push_back(uint16_t(trigger::diplo_points | association_to_trigger_code(a)));
+		} else {
+			err.accumulated_errors += "diplo_points trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) +
+				"(" + err.file_name + ", line " + std::to_string(line) + ")\n";
+			return;
+		}
+		context.add_float_to_payload(value);
+	}
 	void owns(association_type a, std::string_view v, error_handler& err, int32_t line, trigger_building_context& context) {
 		if(is_integer(v.data(), v.data() + v.length())) {
 			auto value = parse_int(v, line, err);
@@ -3884,9 +3928,33 @@ struct trigger_body {
 			context.compiled_trigger.push_back(
 					uint16_t(trigger::unit_in_battle | trigger::no_payload | association_to_bool_code(a, value)));
 		} else {
-			err.accumulated_errors += "unit_in_battle trigger used in an incorrect scope type " +
-																slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
-																std::to_string(line) + ")\n";
+			err.accumulated_errors += "unit_in_battle trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " + std::to_string(line) + ")\n";
+			return;
+		}
+	}
+	void unit_has_leader(association_type a, bool value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(context.main_slot == trigger::slot_contents::province) {
+			context.compiled_trigger.push_back(uint16_t(trigger::unit_has_leader | trigger::no_payload | association_to_bool_code(a, value)));
+		} else {
+			err.accumulated_errors += "unit_has_leader trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " + std::to_string(line) + ")\n";
+			return;
+		}
+	}
+	void has_national_focus(association_type a, std::string_view value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(auto it = context.outer_context.map_of_national_focuses.find(std::string(value));
+			it != context.outer_context.map_of_national_focuses.end()) {
+			if(context.main_slot == trigger::slot_contents::state) {
+				context.compiled_trigger.push_back(uint16_t(trigger::has_national_focus_state | trigger::no_payload | association_to_trigger_code(a)));
+				context.compiled_trigger.push_back(trigger::payload(it->second).value);
+			} else if(context.main_slot == trigger::slot_contents::province) {
+				context.compiled_trigger.push_back(uint16_t(trigger::has_national_focus_province | trigger::no_payload | association_to_trigger_code(a)));
+				context.compiled_trigger.push_back(trigger::payload(it->second).value);
+			} else {
+				err.accumulated_errors += "has_national_focus trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " + std::to_string(line) + ")\n";
+				return;
+			}
+		} else {
+			err.accumulated_errors += "has_national_focus given an invalid focus '" + std::string(value) + "' (" + err.file_name + ", line " + std::to_string(line) + ")\n";
 			return;
 		}
 	}
@@ -3910,6 +3978,16 @@ struct trigger_body {
 		} else {
 			err.accumulated_errors += "money trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) +
 																"(" + err.file_name + ", line " + std::to_string(line) + ")\n";
+			return;
+		}
+		context.add_float_to_payload(value);
+	}
+	void suppression_points(association_type a, float value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(context.main_slot == trigger::slot_contents::nation) {
+			context.compiled_trigger.push_back(uint16_t(trigger::suppression_points | association_to_trigger_code(a)));
+		} else {
+			err.accumulated_errors += "suppression_points trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) +
+				"(" + err.file_name + ", line " + std::to_string(line) + ")\n";
 			return;
 		}
 		context.add_float_to_payload(value);
@@ -5719,7 +5797,30 @@ struct trigger_body {
 		}
 		context.compiled_trigger.push_back(trigger::payload(value.pop_type_list[0]).value);
 	}
-
+	void party_name(tr_party_name const& value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(context.main_slot != trigger::slot_contents::nation) {
+			err.accumulated_errors += "party_name effect used in an incorrect scope type " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
+				std::to_string(line) + ")\n";
+			return;
+		}
+		context.compiled_trigger.push_back(trigger::party_name);
+		context.compiled_trigger.push_back(trigger::payload(value.ideology_).value);
+		context.add_int32_t_to_payload(value.name_.index());
+	}
+	void party_position(tr_party_position const& value, error_handler& err, int32_t line, trigger_building_context& context) {
+		if(context.main_slot != trigger::slot_contents::nation) {
+			err.accumulated_errors += "party_position trigger used in an incorrect scope type " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
+				std::to_string(line) + ")\n";
+			return;
+		} else if(!value.opt_) {
+			err.accumulated_errors += "party_position trigger used without a valid position " + slot_contents_to_string(context.main_slot) + " (" + err.file_name + ", line " +
+				std::to_string(line) + ")\n";
+			return;
+		}
+		context.compiled_trigger.push_back(trigger::party_position);
+		context.compiled_trigger.push_back(trigger::payload(value.ideology_).value);
+		context.compiled_trigger.push_back(trigger::payload(value.opt_).value);
+	}
 	void any_value(std::string_view label, association_type a, std::string_view value, error_handler& err, int32_t line,
 			trigger_building_context& context) {
 		std::string str_label{label};
@@ -5880,6 +5981,7 @@ void tr_scope_not(token_generator& gen, error_handler& err, trigger_building_con
 void tr_scope_any_neighbor_province(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_any_neighbor_country(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_war_countries(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_war_countries(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_any_greater_power(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_any_owned_province(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_any_core(token_generator& gen, error_handler& err, trigger_building_context& context);
@@ -5904,7 +6006,14 @@ void tr_flashpoint_tag_scope(token_generator& gen, error_handler& err, trigger_b
 void tr_crisis_state_scope(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_state_scope(token_generator& gen, error_handler& err, trigger_building_context& context);
 void tr_scope_variable(std::string_view name, token_generator& gen, error_handler& err, trigger_building_context& context);
+//extensions
 void tr_scope_any_country(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_state(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_substate(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_sphere_member(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_pop(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_all_greater_power(token_generator& gen, error_handler& err, trigger_building_context& context);
+void tr_scope_every_country(token_generator& gen, error_handler& err, trigger_building_context& context);
 
 void invert_trigger(uint16_t* source);
 bool scope_is_empty(uint16_t const* source);

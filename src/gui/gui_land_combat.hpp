@@ -3,6 +3,7 @@
 #include "gui_element_types.hpp"
 #include "gui_province_window.hpp"
 #include "military.hpp"
+#include <gui_modifier_tooltips.hpp>
 
 namespace ui {
 
@@ -43,11 +44,10 @@ class lc_attacker_leader_img : public image_element_base {
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto b = retrieve<dcon::land_battle_id>(state, parent);
 		auto lid = state.world.land_battle_get_general_from_attacking_general(b);
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class lc_defending_leader_img : public image_element_base {
@@ -86,11 +86,10 @@ class lc_defending_leader_img : public image_element_base {
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto b = retrieve<dcon::land_battle_id>(state, parent);
 		auto lid = state.world.land_battle_get_general_from_defending_general(b);
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 
@@ -104,7 +103,7 @@ public:
 			auto name = state.to_string_view(state.world.leader_get_name(lid));
 			set_text(state, std::string(name));
 		} else {
-			set_text(state, "");
+			set_text(state, text::produce_simple_string(state, "no_leader"));
 		}
 	}
 };
@@ -118,7 +117,7 @@ public:
 			auto name = state.to_string_view(state.world.leader_get_name(lid));
 			set_text(state, std::string(name));
 		} else {
-			set_text(state, "");
+			set_text(state, text::produce_simple_string(state, "no_leader"));
 		}
 	}
 };
@@ -138,8 +137,9 @@ public:
 			auto mask_handle = ogl::get_texture_handle(state, dcon::texture_id(gfx_def.type_dependent - 1), true);
 			auto& mask_tex = state.open_gl.asset_textures[dcon::texture_id(gfx_def.type_dependent - 1)];
 			ogl::render_masked_rect(state, get_color_modification(this == state.ui_state.under_mouse, disabled, interactable), float(x),
-					float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
-					gfx_def.is_vertically_flipped());
+				float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
+				gfx_def.is_vertically_flipped(),
+				false);
 		}
 		image_element_base::render(state, x, y);
 	}
@@ -169,8 +169,9 @@ public:
 			auto mask_handle = ogl::get_texture_handle(state, dcon::texture_id(gfx_def.type_dependent - 1), true);
 			auto& mask_tex = state.open_gl.asset_textures[dcon::texture_id(gfx_def.type_dependent - 1)];
 			ogl::render_masked_rect(state, get_color_modification(this == state.ui_state.under_mouse, disabled, interactable), float(x),
-					float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
-					gfx_def.is_vertically_flipped());
+				float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
+				gfx_def.is_vertically_flipped(),
+				false);
 		}
 		image_element_base::render(state, x, y);
 	}
@@ -398,6 +399,13 @@ public:
 	}
 };
 
+class lc_reinforcement_icon : public image_element_base {
+public:
+	void on_create(sys::state& state) noexcept override {
+		frame = state.world.pop_type_get_sprite(state.culture_definitions.soldiers) - 1;
+	}
+};
+
 template<bool IsAttacker, military::unit_type Type>
 class lc_unit_strength_txt : public multiline_text_element_base {
 public:
@@ -437,7 +445,7 @@ public:
 				color = text::text_color::black;
 			}
 		}
-		auto contents = text::create_endless_layout(internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::right, text::text_color::white, true });
+		auto contents = text::create_endless_layout(state, internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::right, text::text_color::white, true });
 		auto box = text::open_layout_box(contents);
 		text::add_to_layout_box(state, contents, box, text::prettify(uint64_t(total * state.defines.pop_size_per_regiment)), color);
 		text::close_layout_box(contents, box);
@@ -475,6 +483,8 @@ public:
 			case lc_mod_type::gas:
 				frame = 5;
 				break;
+			default:
+				break;
 		}
 	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -501,6 +511,8 @@ public:
 				break;
 			case lc_mod_type::gas:
 				text::add_line(state, contents, "combat_gas");
+				break;
+			default:
 				break;
 		}
 	}
@@ -548,8 +560,7 @@ class defender_combat_modifiers : public overlapping_listbox_element_base<lc_mod
 
 		auto b = retrieve<dcon::land_battle_id>(state, parent);
 		auto both_dice = state.world.land_battle_get_dice_rolls(b);
-		auto defender_mods = state.world.land_battle_get_defender_bonus(b);
-		auto dig_in_value = defender_mods & military::defender_bonus_dig_in_mask;
+		auto dig_in_value = military::get_effective_battle_dig_in(state, b);
 
 		auto attacking_nation = military::get_land_battle_lead_attacker(state, b);
 		auto defending_nation = military::get_land_battle_lead_defender(state, b);
@@ -562,8 +573,8 @@ class defender_combat_modifiers : public overlapping_listbox_element_base<lc_mod
 		auto location = state.world.land_battle_get_location_from_land_battle_location(b);
 		auto terrain_bonus = state.world.province_get_modifier_values(location, sys::provincial_mod_offsets::defense);
 
-		auto defender_per = state.world.leader_get_personality(state.world.land_battle_get_general_from_attacking_general(b));
-		auto defender_bg = state.world.leader_get_background(state.world.land_battle_get_general_from_attacking_general(b));
+		auto defender_per = military::get_leader_personality_wrapper(state, state.world.land_battle_get_general_from_defending_general(b));
+		auto defender_bg = military::get_leader_background_wrapper(state, state.world.land_battle_get_general_from_defending_general(b));
 
 		auto defence_bonus =
 			int32_t(state.world.leader_trait_get_defense(defender_per) + state.world.leader_trait_get_defense(defender_bg));
@@ -609,8 +620,8 @@ class attacker_combat_modifiers : public overlapping_listbox_element_base<lc_mod
 
 		auto attacker_dice = both_dice & 0x0F;
 
-		auto attacker_per = state.world.leader_get_personality(state.world.land_battle_get_general_from_attacking_general(b));
-		auto attacker_bg = state.world.leader_get_background(state.world.land_battle_get_general_from_attacking_general(b));
+		auto attacker_per = military::get_leader_personality_wrapper(state, state.world.land_battle_get_general_from_attacking_general(b));
+		auto attacker_bg = military::get_leader_background_wrapper(state, state.world.land_battle_get_general_from_attacking_general(b));
 
 		auto attack_bonus =
 			int32_t(state.world.leader_trait_get_attack(attacker_per) + state.world.leader_trait_get_attack(attacker_bg));
@@ -626,6 +637,129 @@ class attacker_combat_modifiers : public overlapping_listbox_element_base<lc_mod
 		update(state);
 	}
 };
+
+
+class lc_attacker_reinforcement_text : public multiline_text_element_base{
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		float total = military::calculate_battle_reinforcement(state, b, true);
+
+		auto color = text::text_color::dark_green;
+		if(total <= 0.0f) {
+			color = text::text_color::dark_red;
+		} 
+		
+
+		auto contents = text::create_endless_layout(state, internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::left, text::text_color::white, true });
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, "+" + text::prettify(int64_t(total)), color);
+		text::close_layout_box(contents, box);
+		//set_text(state, "+" + text::format_float(total, 0));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		float reinf = military::calculate_battle_reinforcement(state, b, true);
+		if(reinf > 0.0f) {
+			text::add_line(state, contents, "alice_reinforce_rate_battle_attacker", text::variable_type::x, int64_t(reinf));
+		}
+		else {
+			text::add_line(state, contents, "alice_reinforce_rate_battle_attacker_none");
+		}
+		text::add_line(state, contents, "alice_reinforce_battle_only_reserve");
+
+		display_battle_reinforcement_modifiers(state, b, contents, 0, true);
+	}
+};
+
+
+class lc_defender_reinforcement_text : public multiline_text_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		float total = military::calculate_battle_reinforcement(state, b, false);
+
+		auto color = text::text_color::dark_green;
+		if(total <= 0.0f) {
+			color = text::text_color::dark_red;
+		}
+
+
+		auto contents = text::create_endless_layout(state, internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::left, text::text_color::white, true });
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, "+" + text::prettify(int64_t(total)), color);
+		text::close_layout_box(contents, box);
+		//set_text(state, "+" + text::format_float(total, 0));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		float reinf = military::calculate_battle_reinforcement(state, b, false);
+		if(reinf > 0.0f) {
+			text::add_line(state, contents, "alice_reinforce_rate_battle_defender", text::variable_type::x, int64_t(reinf));
+		} else {
+			text::add_line(state, contents, "alice_reinforce_rate_battle_defender_none");
+		}
+		text::add_line(state, contents, "alice_reinforce_battle_only_reserve");
+
+		display_battle_reinforcement_modifiers(state, b, contents, 0, false);
+	}
+};
+
+class lc_attacker_reserve_text : public multiline_text_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		uint32_t reserve_regs = military::get_reserves_count_by_side(state, b, true);
+
+
+		auto contents = text::create_endless_layout(state, internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::left, text::text_color::white, true });
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, text::prettify(int64_t(reserve_regs)), text::text_color::black);
+		text::close_layout_box(contents, box);
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		uint32_t reserve_regs = military::get_reserves_count_by_side(state, b, true);
+		text::add_line(state, contents, "alice_reserve_reg_count", text::variable_type::x, "Attackers", text::variable_type::y, text::format_wholenum(reserve_regs));
+	}
+};
+
+class lc_defender_reserve_text : public multiline_text_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		uint32_t reserve_regs = military::get_reserves_count_by_side(state, b, false);
+
+
+		auto contents = text::create_endless_layout(state, internal_layout, text::layout_parameters{ 0, 0, static_cast<int16_t>(base_data.size.x), static_cast<int16_t>(base_data.size.y), base_data.data.text.font_handle, 0, text::alignment::left, text::text_color::white, true });
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, text::prettify(int64_t(reserve_regs)), text::text_color::black);
+		text::close_layout_box(contents, box);
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto b = retrieve<dcon::land_battle_id>(state, parent);
+		uint32_t reserve_regs = military::get_reserves_count_by_side(state, b, false);
+		text::add_line(state, contents, "alice_reserve_reg_count", text::variable_type::x, "Defenders", text::variable_type::y, text::format_wholenum(reserve_regs));
+	}
+};
+
+
 
 class land_combat_defender_window : public window_element_base {
 public:
@@ -662,6 +796,12 @@ public:
 			return make_element_by_type<lc_unit_strength_txt<false, military::unit_type::support>>(state, id);
 		} else if(name == "modifiers") {
 			return make_element_by_type<defender_combat_modifiers>(state, id);
+		} else if(name == "reinforcement_info_txt") {
+			return make_element_by_type<lc_defender_reinforcement_text>(state, id);
+		} else if(name == "reserve_icon") {
+			return make_element_by_type<lc_static_icon<0>>(state, id);
+		} else if(name == "reserve_reg_info") {
+			return make_element_by_type<lc_defender_reserve_text>(state, id);
 		} else {
 			return nullptr;
 		}
@@ -702,10 +842,16 @@ public:
 		} else if(name == "unit_type_3_value") {
 			return make_element_by_type<lc_unit_strength_txt<true, military::unit_type::support>>(state, id);
 		} else if(name == "modifiers") {
-			return make_element_by_type<attacker_combat_modifiers>(state, id);
+			return make_element_by_type<attacker_combat_modifiers>(state, id);		
+		} else if(name == "reinforcement_info_txt") {
+			return make_element_by_type<lc_attacker_reinforcement_text>(state, id);
+		} else if(name == "reserve_icon") {
+			return make_element_by_type<lc_static_icon<0>>(state, id);
+		} else if(name == "reserve_reg_info") {
+			return make_element_by_type<lc_attacker_reserve_text>(state, id);
 		} else {
 			return nullptr;
-		}
+		} 
 	}
 };
 
@@ -859,6 +1005,8 @@ public:
 				}
 			}
 				break;
+			default:
+				break;
 		}
 	}
 
@@ -871,22 +1019,35 @@ public:
 		return tooltip_behavior::variable_tooltip;
 	}
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		dcon::regiment_id target;
 		auto b = retrieve<dcon::land_battle_id>(state, parent);
 		dcon::regiment_id reg{};
 		switch(rank) {
 		case regiment_rank::attacker_front:
 			reg = state.world.land_battle_get_attacker_front_line(b).at(slot);
+			target = military::get_land_combat_target(state, reg, slot, state.world.land_battle_get_defender_front_line(b));
 			break;
 		case regiment_rank::attacker_back:
 			reg = state.world.land_battle_get_attacker_back_line(b).at(slot);
+			target = military::get_land_combat_target(state, reg, slot, state.world.land_battle_get_defender_front_line(b));
 			break;
 		case regiment_rank::defender_front:
 			reg = state.world.land_battle_get_defender_front_line(b).at(slot);
+			target = military::get_land_combat_target(state, reg, slot, state.world.land_battle_get_attacker_front_line(b));
 			break;
 		case regiment_rank::defender_back:
 			reg = state.world.land_battle_get_defender_back_line(b).at(slot);
+			target = military::get_land_combat_target(state, reg, slot, state.world.land_battle_get_attacker_front_line(b));
+			break;
+		default:
 			break;
 		}
+		std::string_view target_display = "";
+		if(target) {
+			dcon::unit_type_id target_type = state.world.regiment_get_type(target);
+			target_display = state.to_string_view( state.military_definitions.unit_base_definitions[target_type].name);
+		}
+		auto target_type = state.world.regiment_get_type(target);
 		auto utid = state.world.regiment_get_type(reg);
 		if(reg && utid) {
 			auto p = state.world.land_battle_get_location_from_land_battle_location(b);
@@ -897,14 +1058,14 @@ public:
 			std::string tag_str = "";
 			if(bool(n)) {
 				tag_str = std::string("@") + nations::int_to_tag(dcon::fatten(state.world, n).get_identity_from_identity_holder().get_identifying_int());
-				tag_str += " " + text::produce_simple_string(state, state.world.nation_get_name(n));
+				tag_str += " " + text::produce_simple_string(state, text::get_name(state, n));
 				text::add_to_substitution_map(sub, text::variable_type::m, std::string_view{ tag_str });
 			} else {
 				auto rf = state.world.army_get_controller_from_army_rebel_control(state.world.regiment_get_army_from_army_membership(reg));
 				if(bool(rf)) {
 					n = state.world.rebellion_within_get_ruler(state.world.rebel_faction_get_rebellion_within(rf));
 					if(!bool(n))
-						n = state.national_definitions.rebel_id;
+						n = state.world.national_identity_get_nation_from_identity_holder(state.national_definitions.rebel_id);
 				}
 				tag_str = std::string("@") + nations::int_to_tag(dcon::fatten(state.world, n).get_identity_from_identity_holder().get_identifying_int());
 				tag_str += " " + rebel::rebel_name(state, rf);
@@ -918,21 +1079,22 @@ public:
 			text::close_layout_box(contents, box);
 
 			if(state.world.nation_get_unit_stats(n, utid).reconnaissance_or_fire_range > 0) {
-				text::add_line(state, contents, "alice_recon", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).reconnaissance_or_fire_range, 2));
+				text::add_line(state, contents, "unit_recon", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).reconnaissance_or_fire_range, 2));
 			}
 			if(state.world.nation_get_unit_stats(n, utid).siege_or_torpedo_attack > 0) {
-				text::add_line(state, contents, "alice_siege", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).siege_or_torpedo_attack, 2));
+				text::add_line(state, contents, "unit_siege", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).siege_or_torpedo_attack, 2));
 			}
-			text::add_line(state, contents, "alice_attack", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).attack_or_gun_power, 2));
-			text::add_line(state, contents, "alice_defence", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).defence_or_hull, 2));
-			text::add_line(state, contents, "alice_discipline", text::variable_type::x, text::format_float(state.military_definitions.unit_base_definitions[utid].discipline_or_evasion * 100, 0));
+			text::add_line(state, contents, "unit_attack", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).attack_or_gun_power, 2));
+			text::add_line(state, contents, "unit_defence", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).defence_or_hull, 2));
+			text::add_line(state, contents, "unit_discipline", text::variable_type::x, text::format_percentage(state.military_definitions.unit_base_definitions[utid].discipline_or_evasion, 0));
 			if(state.military_definitions.unit_base_definitions[utid].support > 0) {
-				text::add_line(state, contents, "alice_support", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).support, 0));
+				text::add_line(state, contents, "unit_support", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).support, 0));
 			}
-			text::add_line(state, contents, "alice_maneuver", text::variable_type::x, text::format_float(state.military_definitions.unit_base_definitions[utid].maneuver, 0));
-			text::add_line(state, contents, "alice_maximum_speed", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).maximum_speed, 2));
-			text::add_line(state, contents, "alice_supply_consumption", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).supply_consumption * 100, 0));
-
+			text::add_line(state, contents, "unit_maneuver", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).maneuver, 0));
+			text::add_line(state, contents, "unit_max_speed", text::variable_type::x, text::format_float(state.world.nation_get_unit_stats(n, utid).maximum_speed, 2));
+			text::add_line(state, contents, "unit_supply_consumption", text::variable_type::x, text::format_percentage(state.world.nation_get_unit_stats(n, utid).supply_consumption, 0));
+			text::add_line(state, contents, "alice_unit_target", text::variable_type::x, target_display);
+			
 		}
 	}
 };
@@ -945,7 +1107,7 @@ public:
 		window_element_base::on_create(state);
 		state.ui_state.army_combat_window = this;
 
-		auto def = state.ui_state.defs_by_name.find("counter")->second.definition;
+		auto def = state.ui_state.defs_by_name.find(state.lookup_key("counter"))->second.definition;
 		for(int32_t i = 0; i < 30; ++i) {
 			int32_t s = (i < 15) ? 28 - i * 2 : (i - 15) * 2 + 1;
 			{
@@ -1090,11 +1252,10 @@ class lc_our_leader_img : public image_element_base {
 		military::land_battle_report* report = retrieve< military::land_battle_report*>(state, parent);
 		bool we_are_attacker = (report->attacker_won == report->player_on_winning_side);
 		dcon::leader_id lid = we_are_attacker ? report->attacking_general : report->defending_general;
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class lc_our_leader_name : public simple_text_element_base {
@@ -1150,11 +1311,10 @@ class lc_their_leader_img : public image_element_base {
 		military::land_battle_report* report = retrieve< military::land_battle_report*>(state, parent);
 		bool we_are_attacker = (report->attacker_won == report->player_on_winning_side);
 		dcon::leader_id lid = !we_are_attacker ? report->attacking_general : report->defending_general;
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class lc_their_leader_name : public simple_text_element_base {
@@ -1404,18 +1564,12 @@ class lc_goto_location_button : public button_element_base {
 	void button_action(sys::state& state) noexcept override {
 		military::land_battle_report* report = retrieve< military::land_battle_report*>(state, parent);
 		auto prov = report->location;
-		if(prov) {
+		if(prov && prov.value < state.province_definitions.first_sea_province.value) {
 			state.map_state.set_selected_province(prov);
 			static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, prov);
-
-			if(state.map_state.get_zoom() < 8)
-				state.map_state.zoom = 8.0f;
-
-			auto map_pos = state.world.province_get_mid_point(prov);
-			map_pos.x /= float(state.map_state.map_data.size_x);
-			map_pos.y /= float(state.map_state.map_data.size_y);
-			map_pos.y = 1.0f - map_pos.y;
-			state.map_state.set_pos(map_pos);
+			if(state.map_state.get_zoom() < map::zoom_very_close)
+				state.map_state.zoom = map::zoom_very_close;
+			state.map_state.center_map_on_province(state, prov);
 		}
 	}
 };
@@ -1459,9 +1613,9 @@ public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override;
 };
 
-std::vector<std::unique_ptr<ui::land_combat_end_popup>> land_combat_end_popup::land_reports_pool;
+inline std::vector<std::unique_ptr<ui::land_combat_end_popup>> land_combat_end_popup::land_reports_pool;
 
-message_result land_combat_end_popup::get(sys::state& state, Cyto::Any& payload) noexcept {
+inline message_result land_combat_end_popup::get(sys::state& state, Cyto::Any& payload) noexcept {
 	if(payload.holds_type<military::land_battle_report*>()) {
 		payload.emplace<military::land_battle_report*>(&report);
 		return message_result::consumed;
@@ -1469,7 +1623,7 @@ message_result land_combat_end_popup::get(sys::state& state, Cyto::Any& payload)
 	return window_element_base::get(state, payload);
 }
 
-void land_combat_end_popup::make_new_report(sys::state& state, military::land_battle_report const& r) {
+inline void land_combat_end_popup::make_new_report(sys::state& state, military::land_battle_report const& r) {
 	if(land_reports_pool.empty()) {
 		auto new_elm = ui::make_element_by_type<ui::land_combat_end_popup>(state, "endoflandcombatpopup");
 		auto ptr = new_elm.get();
@@ -1486,7 +1640,7 @@ void land_combat_end_popup::make_new_report(sys::state& state, military::land_ba
 	}
 }
 
-std::unique_ptr<element_base> land_combat_end_popup::make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept {
+inline std::unique_ptr<element_base> land_combat_end_popup::make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept {
 	if(name == "background") {
 		return make_element_by_type<draggable_target>(state, id);
 	} else if(name == "combat_end_land_lost") {
@@ -1593,7 +1747,7 @@ std::unique_ptr<element_base> land_combat_end_popup::make_child(sys::state& stat
 	}
 }
 
-void lc_close_button::button_action(sys::state& state) noexcept  {
+inline void lc_close_button::button_action(sys::state& state) noexcept  {
 	parent->set_visible(state, false);
 	auto uptr = state.ui_state.root->remove_child(parent);
 	assert(uptr);

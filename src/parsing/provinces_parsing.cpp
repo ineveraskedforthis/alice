@@ -24,7 +24,7 @@ void default_map_file::finish(scenario_building_context& context) {
 		context.original_id_to_prov_id_map[old_id] = id;
 
 		auto name = std::string("PROV") + std::to_string(old_id);
-		auto name_id = text::find_or_add_key(context.state, name);
+		auto name_id = text::find_or_add_key(context.state, name, false);
 
 		context.state.world.province_set_name(id, name_id);
 	}
@@ -89,6 +89,13 @@ void read_map_adjacency(char const* start, char const* end, error_handler& err, 
 					if(is_fixed_token_ci(ttex.data(), ttex.data() + ttex.length(), "sea")) {
 						auto new_rel = context.state.world.force_create_province_adjacency(province_id_a, province_id_b);
 						context.state.world.province_adjacency_set_type(new_rel, province::border::non_adjacent_bit);
+						// parse prov id of sea province to be blockaded to block adjacency
+						auto blockade_prov_text = parsers::remove_surrounding_whitespace(values[3]);
+						auto blockade_prov_value = parsers::parse_int(blockade_prov_text, 0, err);
+						if(blockade_prov_value > 0) {
+							auto blockadeable_prov = context.original_id_to_prov_id_map[blockade_prov_value];
+							context.state.world.province_adjacency_set_sea_adj_prov( new_rel, dcon::province_id{ blockadeable_prov });
+						}
 					} else if(is_fixed_token_ci(ttex.data(), ttex.data() + ttex.length(), "impassable")) {
 						auto new_rel = context.state.world.force_create_province_adjacency(province_id_a, province_id_b);
 						context.state.world.province_adjacency_set_type(new_rel, province::border::impassible_bit);
@@ -99,16 +106,20 @@ void read_map_adjacency(char const* start, char const* end, error_handler& err, 
 
 						auto canal_id = parsers::parse_uint(parsers::remove_surrounding_whitespace(values[4]), 0, err);
 
-						if(context.state.province_definitions.canals.size() < canal_id) {
-							context.state.province_definitions.canals.resize(canal_id);
-						}
-						context.state.province_definitions.canals[canal_id - 1] = new_rel;
+						if(canal_id > 0) {
+							if(context.state.province_definitions.canals.size() < canal_id) {
+								context.state.province_definitions.canals.resize(canal_id);
+							}
+							context.state.province_definitions.canals[canal_id - 1] = new_rel;
 
-						auto canal_province_id = parsers::parse_uint(parsers::remove_surrounding_whitespace(values[3]), 0, err);
-						if(context.state.province_definitions.canal_provinces.size() < canal_id) {
-							context.state.province_definitions.canal_provinces.resize(canal_id);
+							auto canal_province_id = parsers::parse_uint(parsers::remove_surrounding_whitespace(values[3]), 0, err);
+							if(context.state.province_definitions.canal_provinces.size() < canal_id) {
+								context.state.province_definitions.canal_provinces.resize(canal_id);
+							}
+							context.state.province_definitions.canal_provinces[canal_id - 1] = context.original_id_to_prov_id_map[canal_province_id];
+						} else {
+							err.accumulated_errors += "Canal in " + std::to_string(first_value) + " is invalid (" + err.file_name + ")\n";
 						}
-						context.state.province_definitions.canal_provinces[canal_id - 1] = context.original_id_to_prov_id_map[canal_province_id];
 					}
 				}
 			}
@@ -135,7 +146,7 @@ void palette_definition::finish(scenario_building_context& context) {
 }
 
 void make_terrain_modifier(std::string_view name, token_generator& gen, error_handler& err, scenario_building_context& context) {
-	auto name_id = text::find_or_add_key(context.state, name);
+	auto name_id = text::find_or_add_key(context.state, name, false);
 
 	auto parsed_modifier = parse_terrain_modifier(gen, err, context);
 
@@ -148,6 +159,7 @@ void make_terrain_modifier(std::string_view name, token_generator& gen, error_ha
 
 	context.state.world.modifier_set_icon(new_modifier, uint8_t(parsed_modifier.icon_index));
 	context.state.world.modifier_set_name(new_modifier, name_id);
+	context.state.world.modifier_set_desc(new_modifier, text::find_or_add_key(context.state, std::string(name) + "_desc", false));
 
 	context.state.world.modifier_set_province_values(new_modifier, parsed_modifier.peek_province_mod());
 	context.state.world.modifier_set_national_values(new_modifier, parsed_modifier.peek_national_mod());
@@ -157,37 +169,73 @@ void make_terrain_modifier(std::string_view name, token_generator& gen, error_ha
 }
 
 void make_state_definition(std::string_view name, token_generator& gen, error_handler& err, scenario_building_context& context) {
-	auto name_id = text::find_key(context.state, name);
-	auto state_id = context.state.world.create_state_definition();
-
-	context.map_of_state_names.insert_or_assign(std::string(name), state_id);
-	context.state.world.state_definition_set_name(state_id, name_id);
-
-	state_def_building_context new_context{context, state_id};
-
+	auto name_id = text::find_or_add_key(context.state, name, false);
+	state_def_building_context new_context{ context, std::vector<dcon::province_id>{} };
 	parsers::parse_state_definition(gen, err, new_context);
-}
-void make_region_definition(std::string_view name, token_generator& gen, error_handler& err, scenario_building_context& context) {
-	auto name_id = text::find_or_add_key(context.state, name);
-	auto rid = context.state.world.create_region();
+	if(new_context.provinces.empty()) {
+		auto rdef = context.state.world.create_region();
+		context.map_of_region_names.insert_or_assign(std::string(name), rdef);
+		context.state.world.region_set_name(rdef, name_id);
+		return; //empty, tooltip metaregions
+	}
 
-	context.map_of_region_names.insert_or_assign(std::string(name), rid);
-	context.state.world.region_set_name(rid, name_id);
+	bool is_state = false;
+	bool is_region = false;
+	for(const auto prov : new_context.provinces) {
+		if(context.state.world.province_get_state_from_abstract_state_membership(prov)) {
+			is_region = true;
+		} else {
+			is_state = true;
+		}
+	}
+	if(is_state && is_region) {
+		err.accumulated_warnings += "State " + std::string(name) + " mixes assigned and unassigned provinces (" + err.file_name + ")\n";
+		for(const auto prov : new_context.provinces) {
+			if(context.state.world.province_get_state_from_abstract_state_membership(prov)) {
+				err.accumulated_warnings += "Province " + std::to_string(context.prov_id_to_original_id_map[prov].id) + " on state " + std::string(name) + " is already assigned to a state (" + err.file_name + ")\n";
+			}
+		}
 
-	region_building_context new_context{ context, rid };
-
-	parsers::parse_region_definition(gen, err, new_context);
+		//mixed - state and region
+		auto sdef = context.state.world.create_state_definition();
+		context.map_of_state_names.insert_or_assign(std::string(name), sdef);
+		auto rdef = context.state.world.create_region();
+		context.map_of_region_names.insert_or_assign(std::string(name), rdef);
+		for(const auto prov : new_context.provinces) {
+			context.state.world.force_create_region_membership(prov, rdef); //include first, regions take priority over states!
+			if(!context.state.world.province_get_state_from_abstract_state_membership(prov)) {
+				context.state.world.force_create_abstract_state_membership(prov, sdef); //new assignment
+			}
+		}
+		context.state.world.state_definition_set_name(sdef, name_id);
+		context.state.world.region_set_name(rdef, name_id);
+	} else if(is_region) {
+		auto rdef = context.state.world.create_region();
+		context.map_of_region_names.insert_or_assign(std::string(name), rdef);
+		for(const auto prov : new_context.provinces) {
+			context.state.world.force_create_region_membership(prov, rdef);
+		}
+		context.state.world.region_set_name(rdef, name_id);
+	} else if(is_state) {
+		auto sdef = context.state.world.create_state_definition();
+		context.map_of_state_names.insert_or_assign(std::string(name), sdef);
+		for(const auto prov : new_context.provinces) {
+			context.state.world.force_create_abstract_state_membership(prov, sdef);
+		}
+		context.state.world.state_definition_set_name(sdef, name_id);
+	}
 }
 
 void make_continent_definition(std::string_view name, token_generator& gen, error_handler& err,
 		scenario_building_context& context) {
-	auto name_id = text::find_or_add_key(context.state, name);
+	auto name_id = text::find_or_add_key(context.state, name, false);
 	auto new_modifier = context.state.world.create_modifier();
 
 	context.map_of_modifiers.insert_or_assign(std::string(name), new_modifier);
 
 	continent_building_context new_context{context, new_modifier};
 	context.state.world.modifier_set_name(new_modifier, name_id);
+	context.state.world.modifier_set_desc(new_modifier, text::find_or_add_key(context.state, std::string(name) + "_desc", false));
 
 	auto continent = parse_continent_definition(gen, err, new_context);
 
@@ -214,7 +262,7 @@ void make_continent_definition(std::string_view name, token_generator& gen, erro
 
 void make_climate_definition(std::string_view name, token_generator& gen, error_handler& err,
 		scenario_building_context& context) {
-	auto name_id = text::find_or_add_key(context.state, name);
+	auto name_id = text::find_or_add_key(context.state, name, false);
 
 	auto new_modifier = [&]() {
 		if(auto it = context.map_of_modifiers.find(std::string(name)); it != context.map_of_modifiers.end())
@@ -223,6 +271,7 @@ void make_climate_definition(std::string_view name, token_generator& gen, error_
 		auto new_id = context.state.world.create_modifier();
 		context.map_of_modifiers.insert_or_assign(std::string(name), new_id);
 		context.state.world.modifier_set_name(new_id, name_id);
+		context.state.world.modifier_set_desc(new_id, text::find_or_add_key(context.state, std::string(name) + "_desc", false));
 		return new_id;
 	}();
 
@@ -241,8 +290,7 @@ void make_climate_definition(std::string_view name, token_generator& gen, error_
 
 void enter_dated_block(std::string_view name, token_generator& gen, error_handler& err, province_file_context& context) {
 	auto ymd = parse_date(name, 0, err);
-	auto block_date = sys::date(ymd, context.outer_context.state.start_date);
-	if(block_date.to_raw_value() > 1) { // is after the start date
+	if(sys::date(ymd, context.outer_context.state.start_date) > context.outer_context.state.current_date) { // is after the start date
 		gen.discard_group();
 	} else {
 		parse_province_history_file(gen, err, context);
@@ -282,6 +330,18 @@ void province_history_file::trade_goods(association_type, std::string_view text,
 	}
 }
 
+void province_history_file::rgo_distribution(province_rgo_ext const& value, error_handler& err, int32_t line, province_file_context& context) {
+	return;
+}
+
+void province_history_file::rgo_distribution_add(province_rgo_ext_2 const& value, error_handler& err, int32_t line, province_file_context& context) {
+	return;
+}
+
+void province_history_file::factory_limit(province_factory_limit const& value, error_handler& err, int32_t line, province_file_context& context) {
+	return;
+}
+
 void province_history_file::owner(association_type, uint32_t value, error_handler& err, int32_t line,
 		province_file_context& context) {
 	if(auto it = context.outer_context.map_of_ident_names.find(value); it != context.outer_context.map_of_ident_names.end()) {
@@ -293,7 +353,9 @@ void province_history_file::owner(association_type, uint32_t value, error_handle
 }
 void province_history_file::controller(association_type, uint32_t value, error_handler& err, int32_t line,
 		province_file_context& context) {
-	if(auto it = context.outer_context.map_of_ident_names.find(value); it != context.outer_context.map_of_ident_names.end()) {
+	if(value == nations::tag_to_int('R', 'E', 'B')) {
+		// context.outer_context.state.world.province_set_nation_from_province_control(context.id, dcon::nation_id{});
+	} else if(auto it = context.outer_context.map_of_ident_names.find(value); it != context.outer_context.map_of_ident_names.end()) {
 		auto holder = prov_parse_force_tag_owner(it->second, context.outer_context.state.world);
 		context.outer_context.state.world.force_create_province_control(context.id, holder);
 	} else {
@@ -307,8 +369,7 @@ void province_history_file::terrain(association_type, std::string_view text, err
 			it != context.outer_context.map_of_terrain_types.end()) {
 		context.outer_context.state.world.province_set_terrain(context.id, it->second.id);
 	} else {
-		err.accumulated_errors +=
-				std::string(text) + " is not a valid commodity name (" + err.file_name + " line " + std::to_string(line) + ")\n";
+		err.accumulated_errors += "Invalid terrain '" + std::string(text) + "' (" + err.file_name + " line " + std::to_string(line) + ")\n";
 	}
 }
 
@@ -325,7 +386,11 @@ void province_history_file::remove_core(association_type, uint32_t value, error_
 		province_file_context& context) {
 	if(auto it = context.outer_context.map_of_ident_names.find(value); it != context.outer_context.map_of_ident_names.end()) {
 		auto core = context.outer_context.state.world.get_core_by_prov_tag_key(context.id, it->second);
-		context.outer_context.state.world.delete_core(core);
+		if(core) {
+			context.outer_context.state.world.delete_core(core);
+		} else {
+			err.accumulated_errors += "Tried to remove a non-existent core " + nations::int_to_tag(value) + " (" + err.file_name + " line " + std::to_string(line) + ")\n";
+		}
 	} else {
 		err.accumulated_errors += "Invalid tag " + nations::int_to_tag(value) + " (" + err.file_name + " line " + std::to_string(line) + ")\n";
 	}
@@ -342,8 +407,14 @@ void province_history_file::state_building(pv_state_building const& value, error
 		province_file_context& context) {
 	if(value.id) {
 		auto new_fac = context.outer_context.state.world.create_factory();
+		auto base_size = 10'000.f;
+
+		assert(std::isfinite(value.level));
+		assert(value.level > 0);
+
 		context.outer_context.state.world.factory_set_building_type(new_fac, value.id);
-		context.outer_context.state.world.factory_set_level(new_fac, uint8_t(value.level));
+		context.outer_context.state.world.factory_set_size(new_fac, (float)value.level * base_size);
+		context.outer_context.state.world.factory_set_unqualified_employment(new_fac, base_size * 0.1f);
 		context.outer_context.state.world.force_create_factory_location(new_fac, context.id);
 	}
 }
@@ -357,11 +428,90 @@ void province_history_file::any_value(std::string_view name, association_type, u
 			province_file_context& context) {
 	for(auto t = economy::province_building_type::railroad; t != economy::province_building_type::last; t = economy::province_building_type(uint8_t(t) + 1)) {
 		if(name == economy::province_building_type_get_name(t)) {
-			context.outer_context.state.world.province_set_building_level(context.id, t, uint8_t(value));
+			context.outer_context.state.world.province_set_building_level(context.id, uint8_t(t), uint8_t(value));
 			return;
 		}
 	}
 	err.accumulated_errors += "unknown province history key " + std::string(name) + " (" + err.file_name + " line " + std::to_string(line) + ")\n";//err.unhandled_association_key();
+}
+
+void province_rgo_ext_desc::max_employment(association_type, uint32_t value, error_handler& err, int32_t line, province_file_context& context) {
+	max_employment_value = float(value);
+}
+
+void province_rgo_ext_desc::trade_good(association_type, std::string_view text, error_handler& err, int32_t line, province_file_context& context) {
+	if(auto it = context.outer_context.map_of_commodity_names.find(std::string(text));
+			it != context.outer_context.map_of_commodity_names.end()) {
+		trade_good_id = it->second;
+	} else {
+		err.accumulated_errors +=
+			std::string(text) + " is not a valid commodity name (" + err.file_name + " line " + std::to_string(line) + ")\n";
+	}
+}
+
+void province_rgo_ext_desc::finish(province_file_context& context) {
+	
+};
+
+void province_rgo_ext::entry(province_rgo_ext_desc const& value, error_handler& err, int32_t line, province_file_context& context) {
+	if(value.trade_good_id) {
+		auto p = context.id;
+		context.outer_context.state.world.province_set_rgo_size(p, value.trade_good_id, value.max_employment_value);
+		context.outer_context.state.world.province_set_rgo_potential(p, value.trade_good_id, value.max_employment_value);
+		context.outer_context.state.world.province_set_rgo_was_set_during_scenario_creation(p, true);
+	}
+}
+
+void province_rgo_ext_2_desc::max_employment(association_type, uint32_t value, error_handler& err, int32_t line, province_file_context& context) {
+	max_employment_value = float(value);
+}
+
+void province_rgo_ext_2_desc::trade_good(association_type, std::string_view text, error_handler& err, int32_t line, province_file_context& context) {
+	if(auto it = context.outer_context.map_of_commodity_names.find(std::string(text));
+			it != context.outer_context.map_of_commodity_names.end()) {
+		trade_good_id = it->second;
+	} else {
+		err.accumulated_errors +=
+			std::string(text) + " is not a valid commodity name (" + err.file_name + " line " + std::to_string(line) + ")\n";
+	}
+}
+
+void province_rgo_ext_2_desc::finish(province_file_context& context) {
+
+};
+
+void province_rgo_ext_2::entry(province_rgo_ext_2_desc const& value, error_handler& err, int32_t line, province_file_context& context) {
+	if(value.trade_good_id) {
+		auto p = context.id;
+		context.outer_context.state.world.province_set_rgo_size(p, value.trade_good_id, value.max_employment_value);
+		context.outer_context.state.world.province_set_rgo_potential(p, value.trade_good_id, value.max_employment_value);
+	}
+}
+
+void province_factory_limit_desc::max_level(association_type, uint32_t value, error_handler& err, int32_t line, province_file_context& context) {
+	max_level_value = int8_t(value);
+}
+
+void province_factory_limit_desc::trade_good(association_type, std::string_view text, error_handler& err, int32_t line, province_file_context& context) {
+	if(auto it = context.outer_context.map_of_commodity_names.find(std::string(text));
+			it != context.outer_context.map_of_commodity_names.end()) {
+		trade_good_id = it->second;
+	} else {
+		err.accumulated_errors +=
+			std::string(text) + " is not a valid commodity name (" + err.file_name + " line " + std::to_string(line) + ")\n";
+	}
+}
+
+void province_factory_limit_desc::finish(province_file_context& context) {
+
+};
+
+void province_factory_limit::entry(province_factory_limit_desc const& value, error_handler& err, int32_t line, province_file_context& context) {
+	if(value.trade_good_id) {
+		auto p = context.id;
+		context.outer_context.state.world.province_set_factory_max_size(p, value.trade_good_id, value.max_level_value * 10'000.f);
+		context.outer_context.state.world.province_set_factory_limit_was_set_during_scenario_creation(p, true);
+	}
 }
 
 void make_pop_province_list(std::string_view name, token_generator& gen, error_handler& err, scenario_building_context& context) {
@@ -410,19 +560,59 @@ void parse_csv_pop_history_file(sys::state& state, const char* start, const char
 				err.accumulated_errors += "Unspecified type (" + err.file_name + ")\n";
 				return;
 			}
-			if(rebel_text.empty()) {
-				err.accumulated_errors += "Unspecified rebel faction (" + err.file_name + ")\n";
-				return;
-			}
 			auto p = context.original_id_to_prov_id_map[parsers::parse_int(provid_text, 0, err)];
 			pop_history_province_context pop_context{context, p};
 			def.culture(parsers::association_type::eq_default, culture_text, err, 0, pop_context);
 			def.religion(parsers::association_type::eq_default, religion_text , err, 0, pop_context);
-			def.rebel_type(parsers::association_type::eq_default, rebel_text, err, 0, pop_context);
+			if(!rebel_text.empty()) {
+				def.rebel_type(parsers::association_type::eq_default, rebel_text, err, 0, pop_context);
+			}
 			def.size = parsers::parse_int(size_text, 0, err);
 			//def.rebel_type(parsers::association_type::eq_default, culture_text, err, 0, pop_context);
 			ppl.any_group(type_text, def, err, 0, pop_context);
 			ppl.finish(pop_context);
+		});
+	}
+}
+
+void parse_csv_province_history_file(sys::state& state, const char* start, const char* end, error_handler& err, scenario_building_context& context) {
+	province_history_file f;
+
+	auto cpos = start;
+	while(cpos < end) {
+		// province-id;owner;controller;core;trade_goods;life_rating;colonial;slave
+		cpos = parsers::parse_fixed_amount_csv_values<8>(cpos, end, ';', [&](std::string_view const* values) {
+			auto provid_text = parsers::remove_surrounding_whitespace(values[0]);
+			auto owner_text = parsers::remove_surrounding_whitespace(values[1]);
+			auto controller_text = parsers::remove_surrounding_whitespace(values[2]);
+			auto core_text = parsers::remove_surrounding_whitespace(values[3]);
+			auto trade_goods_text = parsers::remove_surrounding_whitespace(values[4]);
+			auto life_rating_text = parsers::remove_surrounding_whitespace(values[5]);
+			auto is_colonial_text = parsers::remove_surrounding_whitespace(values[6]);
+			auto is_slave_text = parsers::remove_surrounding_whitespace(values[7]);
+			if(provid_text.empty()) {
+				err.accumulated_errors += "Unspecified province id (" + err.file_name + ")\n";
+				return;
+			}
+			if(trade_goods_text.empty()) {
+				err.accumulated_errors += "Unspecified trade_goods (" + err.file_name + ")\n";
+				return;
+			}
+			auto p = context.original_id_to_prov_id_map[parsers::parse_int(provid_text, 0, err)];
+			province_file_context province_context{ context, p };
+			if(!owner_text.empty()) {
+				f.owner(parsers::association_type::eq_default, parsers::parse_tag(owner_text, 0, err), err, 0, province_context);
+			}
+			if(!controller_text.empty()) {
+				f.controller(parsers::association_type::eq_default, parsers::parse_tag(controller_text, 0, err), err, 0, province_context);
+			}
+			if(!core_text.empty()) {
+				f.add_core(parsers::association_type::eq_default, parsers::parse_tag(core_text, 0, err), err, 0, province_context);
+			}
+			f.trade_goods(parsers::association_type::eq_default, trade_goods_text, err, 0, province_context);
+			f.life_rating(parsers::association_type::eq_default, parsers::parse_int(life_rating_text, 0, err), err, 0, province_context);
+			f.colony(parsers::association_type::eq_default, parsers::parse_int(is_colonial_text, 0, err), err, 0, province_context);
+			f.is_slave(parsers::association_type::eq_default, parsers::parse_int(is_slave_text, 0, err), err, 0, province_context);
 		});
 	}
 }

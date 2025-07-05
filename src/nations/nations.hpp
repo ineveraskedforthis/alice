@@ -3,7 +3,14 @@
 #include "culture.hpp"
 #include "military.hpp"
 
+namespace sys {
+enum class crisis_state : uint32_t;
+}
+
 namespace nations {
+
+inline float naval_base_level_to_market_attractiveness = 0.25f;
+
 inline uint32_t tag_to_int(char first, char second, char third) {
 	return (uint32_t(first) << 16) | (uint32_t(second) << 8) | (uint32_t(third) << 0);
 }
@@ -18,14 +25,23 @@ struct triggered_modifier {
 };
 
 struct fixed_event {
-	int16_t chance;
-	dcon::national_event_id id;
-	dcon::trigger_key condition;
+	int16_t chance; //0,2
+	dcon::national_event_id id; //2,2
+	dcon::trigger_key condition; //4,2
+	uint16_t padding = 0; //6,2
+};
+struct fixed_election_event {
+	int16_t chance; //0,2
+	dcon::national_event_id id; //2,2
+	dcon::trigger_key condition; //4,2
+	dcon::issue_id issue_group; //6,1
+	uint8_t padding = 0; //7,1
 };
 struct fixed_province_event {
-	int16_t chance;
-	dcon::provincial_event_id id;
-	dcon::trigger_key condition;
+	int16_t chance; //0,2
+	dcon::provincial_event_id id; //2,2
+	dcon::trigger_key condition; //4,2
+	uint16_t padding = 0; //6,2
 };
 
 enum class focus_type : uint8_t {
@@ -35,7 +51,23 @@ enum class focus_type : uint8_t {
 	diplomatic_focus = 3,
 	promotion_focus = 4,
 	production_focus = 5,
-	party_loyalty_focus = 6
+	party_loyalty_focus = 6,
+	//non-vanilla
+	policy_focus = 7,
+	tier_1_focus = 8,
+	tier_2_focus = 9,
+	tier_3_focus = 10,
+	tier_4_focus = 11,
+	tier_5_focus = 12,
+	tier_6_focus = 13,
+	tier_7_focus = 14,
+	tier_8_focus = 15,
+	building_focus = 16,
+	population_focus = 17,
+	heavy_industry_focus = 18,
+	consumer_goods_focus = 19,
+	military_goods_focus = 20,
+	immigration_colonization_focus = 21,
 };
 
 struct global_national_state {
@@ -43,11 +75,11 @@ struct global_national_state {
 	std::vector<dcon::bitfield_type> global_flag_variables;
 	std::vector<dcon::nation_id> nations_by_rank;
 
-	tagged_vector<dcon::text_sequence_id, dcon::national_flag_id> flag_variable_names;
-	tagged_vector<dcon::text_sequence_id, dcon::global_flag_id> global_flag_variable_names;
-	tagged_vector<dcon::text_sequence_id, dcon::national_variable_id> variable_names;
+	tagged_vector<dcon::text_key, dcon::national_flag_id> flag_variable_names;
+	tagged_vector<dcon::text_key, dcon::global_flag_id> global_flag_variable_names;
+	tagged_vector<dcon::text_key, dcon::national_variable_id> variable_names;
 
-	dcon::nation_id rebel_id;
+	dcon::national_identity_id rebel_id;
 
 	dcon::modifier_id very_easy_player;
 	dcon::modifier_id easy_player;
@@ -114,7 +146,7 @@ struct global_national_state {
 	std::vector<fixed_event> on_surrender;
 	std::vector<fixed_event> on_new_great_nation;
 	std::vector<fixed_event> on_lost_great_nation;
-	std::vector<fixed_event> on_election_tick;
+	std::vector<fixed_election_event> on_election_tick;
 	std::vector<fixed_event> on_colony_to_state;
 	std::vector<fixed_event> on_state_conquest;
 	std::vector<fixed_event> on_colony_to_state_free_slaves;
@@ -124,6 +156,8 @@ struct global_national_state {
 	std::vector<fixed_event> on_civilize;
 	std::vector<fixed_event> on_my_factories_nationalized;
 	std::vector<fixed_event> on_crisis_declare_interest;
+	std::vector<fixed_event> on_election_started;
+	std::vector<fixed_event> on_election_finished;
 
 	bool gc_pending = false;
 
@@ -226,6 +260,8 @@ int32_t get_level(sys::state& state, dcon::nation_id gp, dcon::nation_id target)
 
 } // namespace influence
 
+std::vector<dcon::nation_id> nation_get_subjects(sys::state& state, dcon::nation_id n);
+
 dcon::nation_id get_nth_great_power(sys::state const& state, uint16_t n);
 
 dcon::nation_id owner_of_pop(sys::state const& state, dcon::pop_id pop_ids);
@@ -237,11 +273,18 @@ dcon::nation_id get_relationship_partner(sys::state const& state, dcon::diplomat
 void update_cached_values(sys::state& state);
 void restore_unsaved_values(sys::state& state);
 void restore_state_instances(sys::state& state);
+void generate_initial_trade_routes(sys::state& state);
 void generate_initial_state_instances(sys::state& state);
+void generate_sea_trade_routes(sys::state& state);
+void recalculate_markets_distance(sys::state& state);
 
-dcon::text_sequence_id name_from_tag(sys::state const& state, dcon::national_identity_id tag);
+dcon::text_key name_from_tag(sys::state& state, dcon::national_identity_id tag);
 
 void update_administrative_efficiency(sys::state& state);
+void update_national_administrative_efficiency(sys::state& state);
+
+float priority_national(sys::state& state, dcon::nation_id n, dcon::factory_type_id ftid);
+float priority_private(sys::state& state, dcon::nation_id n, dcon::factory_type_id ftid);
 
 float daily_research_points(sys::state& state, dcon::nation_id n);
 void update_research_points(sys::state& state);
@@ -268,7 +311,7 @@ float leadership_points(sys::state const& state, dcon::nation_id n);
 float get_treasury(sys::state& state, dcon::nation_id n);
 float get_bank_funds(sys::state& state, dcon::nation_id n);
 float get_debt(sys::state& state, dcon::nation_id n);
-float tariff_efficiency(sys::state& state, dcon::nation_id n);
+float tariff_efficiency(sys::state& state, dcon::nation_id n, dcon::market_id m);
 float tax_efficiency(sys::state& state, dcon::nation_id n);
 float colonial_points_from_naval_bases(sys::state& state, dcon::nation_id n);
 float colonial_points_from_ships(sys::state& state, dcon::nation_id n);
@@ -289,16 +332,14 @@ bool is_losing_colonial_race(sys::state& state, dcon::nation_id n);
 bool sphereing_progress_is_possible(sys::state& state, dcon::nation_id n); // can increase opinion or add to sphere
 bool is_involved_in_crisis(sys::state const& state, dcon::nation_id n);
 bool is_committed_in_crisis(sys::state const& state, dcon::nation_id n);
+void switch_all_players(sys::state& state, dcon::nation_id new_n, dcon::nation_id old_n); // switches all players who are on one country to another. Can be called in either SP or MP
 bool can_put_flashpoint_focus_in_state(sys::state& state, dcon::state_instance_id s, dcon::nation_id fp_nation);
 int64_t get_monthly_pop_increase_of_nation(sys::state& state, dcon::nation_id n);
 bool can_accumulate_influence_with(sys::state& state, dcon::nation_id gp, dcon::nation_id target, dcon::gp_relationship_id rel);
 bool are_allied(sys::state& state, dcon::nation_id a, dcon::nation_id b);
+bool is_landlocked(sys::state& state, dcon::nation_id n);
 
-bool nth_crisis_war_goal_is_for_attacker(sys::state& state, int32_t index);
-military::full_wg get_nth_crisis_war_goal(sys::state& state, int32_t index);
-int32_t num_crisis_wargoals(sys::state& state);
-
-std::vector<dcon::political_party_id> get_active_political_parties(sys::state& state, dcon::nation_id n);
+void get_active_political_parties(sys::state& state, dcon::nation_id n, std::vector<dcon::political_party_id>& parties);
 
 void update_monthly_points(sys::state& state);
 
@@ -323,16 +364,31 @@ void adjust_foreign_investment(sys::state& state, dcon::nation_id great_power, d
 void enact_issue(sys::state& state, dcon::nation_id source, dcon::issue_option_id i);
 void enact_reform(sys::state& state, dcon::nation_id source, dcon::reform_option_id i);
 
+float get_foreign_investment(sys::state& state, dcon::nation_id n);
+float get_foreign_investment_as_gp(sys::state& state, dcon::nation_id n);
+float get_base_shares(sys::state& state, dcon::gp_relationship_id gp, float total_gain, int32_t total_influence_shares);
+bool has_sphere_neighbour(sys::state& state, dcon::nation_id n, dcon::nation_id target);
+
+float get_avg_non_colonial_literacy(sys::state& state, dcon::nation_id n);
+float get_avg_total_literacy(sys::state& state, dcon::nation_id n);
+
 void update_great_powers(sys::state& state);
 void update_influence(sys::state& state);
 void update_revanchism(sys::state& state);
 
 void monthly_flashpoint_update(sys::state& state);
+void update_flashpoint_tags(sys::state& state);
 void daily_update_flashpoint_tension(sys::state& state);
+void crisis_state_transition(sys::state& state, sys::crisis_state new_state);
 void update_crisis(sys::state& state);
+void crisis_add_wargoal(std::vector<sys::full_wg>& list, sys::full_wg wg);
 
 void add_as_primary_crisis_defender(sys::state& state, dcon::nation_id n);
 void add_as_primary_crisis_attacker(sys::state& state, dcon::nation_id n);
+
+void ask_to_attack_in_crisis(sys::state& state, dcon::nation_id n);
+void ask_to_defend_in_crisis(sys::state & state, dcon::nation_id n);
+
 void reject_crisis_participation(sys::state& state);
 void cleanup_crisis(sys::state& state);
 void cleanup_crisis_peace_offer(sys::state& state, dcon::peace_offer_id peace);

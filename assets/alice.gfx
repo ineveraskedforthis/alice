@@ -58,12 +58,12 @@ spriteTypes = {
 		noOfFrames = 8
 	}
 	spriteType = {
-		name = "GFX_alice_siege_frame"
+		name = "GFX_unit_siege_frame"
 		texturefile = "assets\\siegeframe.png"
 		noOfFrames = 1
 	}
 	progressbartype = {
-		name = "GFX_alice_siege_bar"
+		name = "GFX_unit_siege_bar"
 		textureFile1 = "assets\\siege_top.png"
 		textureFile2 = "assets\\siege_bottom.png"
 		size = { 64 11 }
@@ -141,6 +141,11 @@ spriteTypes = {
 		noOfFrames = 1
 	}
 	spriteType = {
+		name = "GFX_alice_election_event_auto"
+		texturefile = "assets\\election_event_auto.png"
+		noOfFrames = 1
+	}
+	spriteType = {
 		name = "GFX_alice_frontend_campaign_entry"
 		texturefile = "assets\\alice_save_entry.png"
 		noOfFrames = 2
@@ -183,8 +188,8 @@ spriteTypes = {
 
 	spriteType = {
 		name = "GFX_legend_gradient"
-		texturefile = "assets\\gradient.dds"
-		noOfFrames = 4
+		texturefile = "assets\\gradient.png"
+		noOfFrames = 6
 		size = { 180 30 }
 	}
 	spriteType = {
@@ -253,6 +258,66 @@ spriteTypes = {
 		texturefile = "assets\\mapmode_growth.png"
 		noOfFrames = 2
 	}
+	spriteType = {
+		name = "GFX_mapmode_players"
+		texturefile = "assets\\mapmode_players.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_lf"
+		texturefile = "assets\\mapmode_lf.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_ev"
+		texturefile = "assets\\mapmode_ev.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_lx"
+		texturefile = "assets\\mapmode_lx.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_officers"
+		texturefile = "assets\\mapmode_officers.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_ratio"
+		texturefile = "assets\\mapmode_ratio.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_life_rating"
+		texturefile = "assets\\mapmode_life_rating.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_crime"
+		texturefile = "assets\\mapmode_crime.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_rally"
+		texturefile = "assets\\mapmode_rally.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_workforce"
+		texturefile = "assets\\mapmode_workforce.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_mapmode_mob"
+		texturefile = "assets\\mapmode_mob.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "new-minimap-bg"
+		texturefile = "assets\\sub-minimap.dds"
+		noOfFrames = 1
+  }
 	spriteType = {
 		name = "GFX_mapmode_naval.n"
 		texturefile = "assets\\mapmode_naval.n.png"
@@ -388,5 +453,204 @@ spriteTypes = {
 	spriteType = {
 		name = "GFX_new_minimap_bg"
 		texturefile = "assets\\new_minimap_bg.dds"
+	}
+	spriteType = {
+		name = "GFX_button_macro"
+		texturefile = "assets\\button_macro.dds"
+		noOfFrames = 1
+		effectFile = "gfx\\FX\\buttonstate.fx"
+		transparencecheck = yes
+	}
+	spriteType = {
+		name = "GFX_button_console"
+		texturefile = "assets\\button_console.dds"
+		noOfFrames = 1
+		effectFile = "gfx\\FX\\buttonstate.fx"
+		transparencecheck = yes
+	}
+
+	spriteType = {
+		name = "GFX_alice_sun"
+		texturefile = "assets\\sun-button.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_alice_sun_pause"
+		texturefile = "assets\\sun-pause-button.png"
+		noOfFrames = 2
+	}
+	spriteType = {
+		name = "GFX_alice_economy_scene_button"
+		texturefile = "assets\\economy-scene-button.png"
+	}
+
+	spriteType = {
+		name = "GFX_move_capital"
+		texturefile = "assets\\move_cap.png"
+	}
+	spriteType = {
+		name = "GFX_take_province"
+		texturefile = "assets\\take_away_province_btn.png"
+	}
+    spriteType = {
+        name = "bg-310-410-border-gold-paper"
+        texturefile = "assets\\bg-310-410.png"
+    }
+    
+    spriteType = {
+        name = "bg-90-50-border-bronze-paper"
+        texturefile = "assets\\bg-90-50-bronze.png"
+    }
+    spriteType = {
+        name = "bg-90-50-border-bronze-paper-mirror"
+        texturefile = "assets\\bg-90-50-bronze-mirror.png"
+    }    
+    spriteType = {
+        name = "bg-90-50-border-gold-paper"
+        texturefile = "assets\\bg-90-50-gold.png"
+    }
+    spriteType = {
+        name = "shadow-90-50"
+        texturefile = "assets\\bg-90-50-shadow.png"
+    }    
+    spriteType = {
+        name = "bg-280-50-border-gold-paper"
+        texturefile = "assets\\bg-280-50.png"
+    }
+    
+    spriteType = {
+        name = "bg-1022-822"
+        texturefile = "assets\\bg-1022-822.png"
+    }
+    
+    spriteType = {
+        name = "bg-150-100"
+        texturefile = "assets\\bg-150-100.png"
+    }
+    
+    spriteType = {
+        name = "bg-100-60"
+        texturefile = "assets\\bg-100-60.png"
+    }
+    
+    spriteType = {
+        name = "bg-700-547"
+        texturefile = "assets\\bg-700-547.png"
+    }
+    
+    spriteType = {
+        name = "button-280-50-border-gold-paper"
+        texturefile = "assets\\button-280-50.png"
+        noOfFrames = 2
+    }    
+    spriteType = {
+        name = "button-40-40-cannon"
+        texturefile = "assets\\button-40-40-cannon.png"
+        noOfFrames = 2
+    }    
+    spriteType = {
+        name = "button-40-40-tower"
+        texturefile = "assets\\button-40-40-tower.png"
+        noOfFrames = 2
+    }
+
+    spriteType = {
+        name = "button-40-40-ship"
+        texturefile = "assets\\button-40-40-ship.png"
+        noOfFrames = 2
+    }
+
+	spriteType = {
+        name = "mapmodes_expand_button"
+        texturefile = "assets\\mapmodes_expand.dds"
+        noOfFrames = 2
+	}
+    
+    spriteType = {
+        name = "button-economy-province"
+        texturefile = "assets\\button-economy-province.png"
+        noOfFrames = 3
+    }
+    
+    spriteType = {
+        name = "3-width-header-line"
+        texturefile = "assets\\3-width-header-line.png"
+    }
+    spriteType = {
+        name = "6-width-header-line"
+        texturefile = "assets\\6-width-header-line.png"
+    }
+	spriteType = {
+		name = "GFX_unit_upgrade_button"
+		texturefile = "assets\\unit_upgrade_button.dds"
+	}
+	spriteType = {
+        name = "button-25-15"
+        texturefile = "assets\\button-25-15.png"
+        noOfFrames = 3
+	}
+    spriteType = {
+        name = "button-25-25"
+        texturefile = "assets\\button-25-25.png"
+        noOfFrames = 3
+	}
+    spriteType = {
+        name = "economy-item-selector"
+        texturefile = "assets\\economy-item-selector.png"
+        noOfFrames = 3
+	}
+    spriteType = {
+        name = "economy-close-button"
+        texturefile = "assets\\economy-close-button.png"
+        noOfFrames = 3
+	}
+    spriteType = {
+        name = "economy-top-bar-button"
+        texturefile = "assets\\economy-top-bar-button.png"
+        noOfFrames = 3
+	}
+    
+    spriteType = {
+        name = "bg-page-selector"
+        texturefile = "assets\\bg-page-selector.png"
+        noOfFrames = 1
+	}
+    spriteType = {
+        name = "bg-factory-type"
+        texturefile = "assets\\bg-factory-type.png"
+        noOfFrames = 1
+	}
+    spriteType = {
+        name = "bg-commodity"
+        texturefile = "assets\\bg-commodity.png"
+        noOfFrames = 1
+	}
+    
+    spriteType = {
+        name = "bg-factory-type-name"
+        texturefile = "assets\\bg-factory-type-name.png"
+        noOfFrames = 1
+	}
+    
+    spriteType = {
+        name = "bg-factory-type-priority-info"
+        texturefile = "assets\\bg-factory-type-priority-info.png"
+        noOfFrames = 1
+	}
+    spriteType = {
+        name = "map-label"
+        texturefile = "assets\\map-label.png"
+        noOfFrames = 1
+	}
+
+	spriteType = {
+        name = "provincetilesbg"
+        texturefile = "assets\\provincetilesbg.png"
+        noOfFrames = 1
+	}
+	spriteType = {
+        name = "provincetiles"
+        texturefile = "assets\\provincetiles.png"
+        noOfFrames = 22
 	}
 }

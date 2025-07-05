@@ -217,7 +217,7 @@ std::vector<unopened_file> list_files(directory const& dir, native_char const* e
 						continue;
 
 					// Check if the file is of the right extension
-					if(strlen(extension)) {
+					if(extension && extension[0] != 0) {
 						char* dot = strrchr(dir_ent->d_name, '.');
 						if(!dot || dot == dir_ent->d_name)
 							continue;
@@ -249,7 +249,7 @@ std::vector<unopened_file> list_files(directory const& dir, native_char const* e
 					continue;
 
 				// Check if the file is of the right extension
-				if(strlen(extension)) {
+				if(extension && extension[0] != 0) {
 					char* dot = strrchr(dir_ent->d_name, '.');
 					if(!dot || dot == dir_ent->d_name)
 						continue;
@@ -438,6 +438,28 @@ void write_file(directory const& dir, native_string_view file_name, char const* 
 	}
 }
 
+void append_file(directory const& dir, native_string_view file_name, char const* file_data, uint32_t file_size) {
+	if(dir.parent_system)
+		std::abort();
+
+	native_string full_path = dir.relative_path + NATIVE('/') + native_string(file_name);
+
+	mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+	int file_handle = open(full_path.c_str(), O_RDWR | O_CREAT | O_APPEND, mode);
+	if(file_handle != -1) {
+		ssize_t written = 0;
+		int64_t size_remaining = file_size;
+		do {
+			written = write(file_handle, file_data, size_t(size_remaining));
+			file_data += written;
+			size_remaining -= written;
+		} while(written >= 0 && size_remaining > 0);
+
+		fsync(file_handle);
+		close(file_handle);
+	}
+}
+
 file_contents view_contents(file const& f) {
 	return f.content;
 }
@@ -472,6 +494,13 @@ directory get_or_create_save_game_directory() {
 	return directory(nullptr, path);
 }
 
+directory get_or_create_root_documents() {
+	native_string path = native_string(getenv("HOME")) + "/.local/share/Alice/";
+	make_directories(path);
+
+	return directory(nullptr, path);
+}
+
 directory get_or_create_templates_directory() {
 	native_string path = native_string(getenv("HOME")) + "/.local/share/Alice/templates/";
 	make_directories(path);
@@ -481,6 +510,13 @@ directory get_or_create_templates_directory() {
 
 directory get_or_create_oos_directory() {
 	native_string path = native_string(getenv("HOME")) + "/.local/share/Alice/oos/";
+	make_directories(path);
+
+	return directory(nullptr, path);
+}
+
+directory get_or_create_data_dumps_directory() {
+	native_string path = native_string(getenv("HOME")) + "/.local/share/Alice/data_dumps/";
 	make_directories(path);
 
 	return directory(nullptr, path);

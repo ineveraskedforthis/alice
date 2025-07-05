@@ -1,21 +1,18 @@
 // Goes from 0 to 1
 layout (location = 0) in vec2 vertex_position;
-// layout (location = 1) in vec2 v_tex_coord;
-
 out vec2 tex_coord;
+out vec3 space_coords;
+
 // Camera position
-layout (location = 0) uniform vec2 offset;
-layout (location = 1) uniform float aspect_ratio;
+uniform vec2 offset;
+uniform float aspect_ratio;
 // Zoom: big numbers = close
-layout (location = 2) uniform float zoom;
+uniform float zoom;
 // The size of the map in pixels
-layout (location = 3) uniform vec2 map_size;
-layout (location = 5) uniform mat3 rotation;
+uniform vec2 map_size;
+uniform mat3 rotation;
+uniform uint subroutines_index;
 
-subroutine vec4 calc_gl_position_class();
-subroutine uniform calc_gl_position_class calc_gl_position;
-
-layout(index = 0) subroutine(calc_gl_position_class)
 vec4 globe_coords() {
 	vec3 new_world_pos;
 	float angle_x = 2 * vertex_position.x * PI;
@@ -39,7 +36,6 @@ vec4 globe_coords() {
 		1.0);
 }
 
-layout(index = 1) subroutine(calc_gl_position_class)
 vec4 flat_coords() {
 	vec2 world_pos = vertex_position + vec2(-offset.x, offset.y);
 	world_pos.x = mod(world_pos.x, 1.0f);
@@ -51,7 +47,6 @@ vec4 flat_coords() {
 		1.0);
 }
 
-layout(index = 2) subroutine(calc_gl_position_class)
 vec4 perspective_coords() {
 	vec3 new_world_pos;
 	float angle_x = 2 * vertex_position.x * PI;
@@ -87,7 +82,27 @@ vec4 perspective_coords() {
 	return vec4(new_world_pos, w);
 }
 
+vec4 calc_gl_position() {
+	switch(int(subroutines_index)) {
+case 0: return globe_coords();
+case 1: return perspective_coords();
+case 2: return flat_coords();
+default: break;
+	}
+	return vec4(0.f);
+}
+
 void main() {
 	gl_Position = calc_gl_position();
+
+	float angle_x = 2 * vertex_position.x * PI;
+	float x = cos(angle_x);
+	float y = sin(angle_x);
+	float angle_y = vertex_position.y * PI;
+	x *= sin(angle_y);
+	y *= sin(angle_y);
+	float z = cos(angle_y);
+	space_coords = vec3(x, y, z);
+
 	tex_coord = vertex_position;
 }

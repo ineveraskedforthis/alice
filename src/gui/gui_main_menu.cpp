@@ -5,25 +5,25 @@
 
 namespace ui {
 
-void show_main_menu(sys::state& state) {
-	if(state.mode == sys::game_mode_type::pick_nation) {
-		if(!state.ui_state.r_main_menu) {
-			auto new_mm = make_element_by_type<restricted_main_menu_window>(state, "alice_main_menu");
-			state.ui_state.r_main_menu = new_mm.get();
-			state.ui_state.nation_picker->add_child_to_front(std::move(new_mm));
-		} else {
-			state.ui_state.r_main_menu->set_visible(state, true);
-			state.ui_state.nation_picker->move_child_to_front(state.ui_state.r_main_menu);
-		}
-	} else if(state.mode == sys::game_mode_type::in_game) {
-		if(!state.ui_state.main_menu) {
-			auto new_mm = make_element_by_type<main_menu_window>(state, "alice_main_menu");
-			state.ui_state.main_menu = new_mm.get();
-			state.ui_state.root->add_child_to_front(std::move(new_mm));
-		} else {
-			state.ui_state.main_menu->set_visible(state, true);
-			state.ui_state.root->move_child_to_front(state.ui_state.main_menu);
-		}
+void show_main_menu_nation_picker(sys::state& state) {
+	if(!state.ui_state.r_main_menu) {
+		auto new_mm = make_element_by_type<restricted_main_menu_window>(state, "alice_main_menu");
+		state.ui_state.r_main_menu = new_mm.get();
+		state.ui_state.nation_picker->add_child_to_front(std::move(new_mm));
+	} else {
+		state.ui_state.r_main_menu->set_visible(state, true);
+		state.ui_state.nation_picker->move_child_to_front(state.ui_state.r_main_menu);
+	}
+}
+
+void show_main_menu_nation_basic(sys::state& state) {
+	if(!state.ui_state.main_menu) {
+		auto new_mm = make_element_by_type<main_menu_window>(state, "alice_main_menu");
+		state.ui_state.main_menu = new_mm.get();
+		state.ui_state.root->add_child_to_front(std::move(new_mm));
+	} else {
+		state.ui_state.main_menu->set_visible(state, true);
+		state.ui_state.root->move_child_to_front(state.ui_state.main_menu);
 	}
 }
 
@@ -103,6 +103,113 @@ void autosave_display::on_update(sys::state& state) noexcept {
 	}
 }
 
+void language_left::button_action(sys::state& state) noexcept {
+	window::change_cursor(state, window::cursor_type::busy);
+	dcon::locale_id new_locale;
+	if(state.world.locale_get_native_rtl(state.font_collection.get_current_locale()) == false) {
+		int32_t i = state.font_collection.get_current_locale().index() - 1;
+		if(i < 0) {
+			i = int32_t(state.world.locale_size()) - 1;
+		}
+		new_locale = dcon::locale_id{ dcon::locale_id::value_base_t(i) };
+	} else {
+		int32_t i = state.font_collection.get_current_locale().index() + 1;
+		if(i >= int32_t(state.world.locale_size())) {
+			i = 0;
+		}
+		new_locale = dcon::locale_id{ dcon::locale_id::value_base_t(i) };
+	}
+
+	if(state.user_settings.use_classic_fonts
+	&& state.world.locale_get_hb_script(new_locale) != HB_SCRIPT_LATIN) {
+		state.user_settings.use_classic_fonts = false;
+		state.font_collection.set_classic_fonts(state.user_settings.use_classic_fonts);
+	}
+	//
+
+	auto length = std::min(state.world.locale_get_locale_name(new_locale).size(), uint32_t(15));
+	std::memcpy(state.user_settings.locale, state.world.locale_get_locale_name(new_locale).begin(), length);
+	state.user_settings.locale[length] = 0;
+	state.font_collection.change_locale(state, new_locale);
+
+	//
+	if(state.ui_state.units_root)
+		state.ui_state.units_root->impl_on_reset_text(state);
+	if(state.ui_state.rgos_root)
+		state.ui_state.rgos_root->impl_on_reset_text(state);
+	if(state.ui_state.root)
+		state.ui_state.root->impl_on_reset_text(state);
+	if(state.ui_state.nation_picker)
+		state.ui_state.nation_picker->impl_on_reset_text(state);
+	if(state.ui_state.select_states_legend)
+		state.ui_state.select_states_legend->impl_on_reset_text(state);
+	if(state.ui_state.end_screen)
+		state.ui_state.end_screen->impl_on_reset_text(state);
+	state.province_ownership_changed.store(true, std::memory_order::release); //update map
+	state.game_state_updated.store(true, std::memory_order::release); //update ui
+	//
+	send(state, parent, notify_setting_update{});
+	window::change_cursor(state, window::cursor_type::normal);
+}
+void language_left::on_update(sys::state& state) noexcept {
+
+}
+void language_right::button_action(sys::state& state) noexcept {
+	window::change_cursor(state, window::cursor_type::busy);
+	dcon::locale_id new_locale;
+	if(state.world.locale_get_native_rtl(state.font_collection.get_current_locale()) == false) {
+		int32_t i = state.font_collection.get_current_locale().index() + 1;
+		if(i >= int32_t(state.world.locale_size())) {
+			i = 0;
+		}
+		new_locale = dcon::locale_id{ dcon::locale_id::value_base_t(i) };
+	} else {
+		int32_t i = state.font_collection.get_current_locale().index() - 1;
+		if(i < 0) {
+			i = int32_t(state.world.locale_size()) - 1;
+		}
+		new_locale = dcon::locale_id{ dcon::locale_id::value_base_t(i) };
+	}
+
+	if(state.user_settings.use_classic_fonts
+	&& state.world.locale_get_hb_script(new_locale) != HB_SCRIPT_LATIN) {
+		state.user_settings.use_classic_fonts = false;
+		state.font_collection.set_classic_fonts(state.user_settings.use_classic_fonts);
+	}
+
+	auto length = std::min(state.world.locale_get_locale_name(new_locale).size(), uint32_t(15));
+	std::memcpy(state.user_settings.locale, state.world.locale_get_locale_name(new_locale).begin(), length);
+	state.user_settings.locale[length] = 0;
+	state.font_collection.change_locale(state, new_locale);
+
+	//
+	if(state.ui_state.units_root)
+		state.ui_state.units_root->impl_on_reset_text(state);
+	if(state.ui_state.rgos_root)
+		state.ui_state.rgos_root->impl_on_reset_text(state);
+	if(state.ui_state.root)
+		state.ui_state.root->impl_on_reset_text(state);
+	if(state.ui_state.nation_picker)
+		state.ui_state.nation_picker->impl_on_reset_text(state);
+	if(state.ui_state.select_states_legend)
+		state.ui_state.select_states_legend->impl_on_reset_text(state);
+	if(state.ui_state.end_screen)
+		state.ui_state.end_screen->impl_on_reset_text(state);
+	state.province_ownership_changed.store(true, std::memory_order::release); //update map
+	state.game_state_updated.store(true, std::memory_order::release); //update ui
+	//
+	send(state, parent, notify_setting_update{});
+	window::change_cursor(state, window::cursor_type::normal);
+}
+void language_right::on_update(sys::state& state) noexcept {
+
+}
+void language_display::on_update(sys::state& state) noexcept {
+	auto ln = state.world.locale_get_display_name(state.font_collection.get_current_locale());
+	auto ln_sv = std::string_view{ (char const*)ln.begin(), ln.size() };
+	set_text(state, std::string{ ln_sv });
+}
+
 void map_zoom_mode_left::button_action(sys::state& state) noexcept {
 	auto scale_index = uint8_t(state.user_settings.zoom_mode);
 	if(scale_index > 0) {
@@ -116,14 +223,14 @@ void map_zoom_mode_left::on_update(sys::state& state) noexcept {
 }
 void map_zoom_mode_right::button_action(sys::state& state) noexcept {
 	auto scale_index = uint8_t(state.user_settings.zoom_mode);
-	if(scale_index < 2) {
+	if(scale_index < 4) {
 		state.user_settings.zoom_mode = sys::map_zoom_mode(scale_index + 1);
 		send(state, parent, notify_setting_update{});
 	}
 }
 void map_zoom_mode_right::on_update(sys::state& state) noexcept {
 	auto scale_index = uint8_t(state.user_settings.zoom_mode);
-	disabled = (scale_index >= 2);
+	disabled = (scale_index >= 4);
 }
 void map_zoom_mode_display::on_update(sys::state& state) noexcept {
 	switch(state.user_settings.zoom_mode) {
@@ -135,6 +242,12 @@ void map_zoom_mode_display::on_update(sys::state& state) noexcept {
 		break;
 	case sys::map_zoom_mode::centered:
 		set_text(state, text::produce_simple_string(state, "zoom_mode_centered"));
+		break;
+	case sys::map_zoom_mode::to_cursor:
+		set_text(state, text::produce_simple_string(state, "zoom_mode_to_cursor"));
+		break;
+	case sys::map_zoom_mode::away_from_cursor:
+		set_text(state, text::produce_simple_string(state, "zoom_mode_away_from_cursor"));
 		break;
 	default:
 		set_text(state, "???");
@@ -161,6 +274,34 @@ void spoilers_checkbox::button_action(sys::state& state) noexcept {
 }
 bool spoilers_checkbox::is_active(sys::state& state) noexcept {
 	return state.user_settings.spoilers;
+}
+void wasd_for_map_movement_checkbox::button_action(sys::state& state) noexcept {
+	state.user_settings.wasd_for_map_movement = !state.user_settings.wasd_for_map_movement;
+	send(state, parent, notify_setting_update{});
+}
+bool wasd_for_map_movement_checkbox::is_active(sys::state& state) noexcept {
+	return state.user_settings.wasd_for_map_movement;
+}
+void dm_popup_checkbox::button_action(sys::state& state) noexcept {
+	state.user_settings.diplomatic_message_popup = !state.user_settings.diplomatic_message_popup;
+	send(state, parent, notify_setting_update{});
+}
+bool dm_popup_checkbox::is_active(sys::state& state) noexcept {
+	return state.user_settings.diplomatic_message_popup;
+}
+void mute_on_focus_lost_checkbox::button_action(sys::state& state) noexcept {
+	state.user_settings.mute_on_focus_lost = !state.user_settings.mute_on_focus_lost;
+	send(state, parent, notify_setting_update{});
+}
+bool mute_on_focus_lost_checkbox::is_active(sys::state& state) noexcept {
+	return state.user_settings.mute_on_focus_lost;
+}
+void zoom_speed_scrollbar::on_value_change(sys::state& state, int32_t v) noexcept {
+	state.user_settings.zoom_speed = float(v);
+	send(state, parent, notify_setting_update{});
+}
+void zoom_speed_scrollbar::on_update(sys::state& state) noexcept {
+	update_raw_value(state, int32_t(state.user_settings.zoom_speed));
 }
 
 void fow_checkbox::on_create(sys::state& state) noexcept {
@@ -198,6 +339,7 @@ bool railroad_checkbox::is_active(sys::state& state) noexcept {
 void railroad_checkbox::button_action(sys::state& state) noexcept {
 	state.user_settings.railroads_enabled = !state.user_settings.railroads_enabled;
 	state.railroad_built.store(true, std::memory_order::release);
+	state.sprawl_update_requested.store(true, std::memory_order::release);
 	send(state, parent, notify_setting_update{});
 }
 
@@ -363,6 +505,88 @@ void vassal_color_display::on_update(sys::state& state) noexcept {
 	}
 }
 
+void color_blind_left::button_action(sys::state& state) noexcept {
+	auto index = uint8_t(state.user_settings.color_blind_mode);
+	if(index > 0) {
+		state.user_settings.color_blind_mode = sys::color_blind_mode(index - 1);
+		map_mode::update_map_mode(state);
+		state.ui_state.units_root->impl_on_update(state);
+		state.ui_state.rgos_root->impl_on_update(state);
+		state.ui_state.root->impl_on_update(state);
+		send(state, parent, notify_setting_update{});
+	}
+}
+void color_blind_left::on_update(sys::state& state) noexcept {
+	disabled = (uint8_t(state.user_settings.color_blind_mode) == 0);
+}
+void color_blind_right::button_action(sys::state& state) noexcept {
+	auto index = uint8_t(state.user_settings.color_blind_mode);
+	if(index < 4) {
+		state.user_settings.color_blind_mode = sys::color_blind_mode(index + 1);
+		map_mode::update_map_mode(state);
+		state.ui_state.units_root->impl_on_update(state);
+		state.ui_state.rgos_root->impl_on_update(state);
+		state.ui_state.root->impl_on_update(state);
+		send(state, parent, notify_setting_update{});
+	}
+}
+void color_blind_right::on_update(sys::state& state) noexcept {
+	disabled = (uint8_t(state.user_settings.color_blind_mode) >= 4);
+}
+void color_blind_display::on_update(sys::state& state) noexcept {
+	switch(state.user_settings.color_blind_mode) {
+	case sys::color_blind_mode::none:
+		set_text(state, text::produce_simple_string(state, "color_blind_mode_none"));
+		break;
+	case sys::color_blind_mode::deutan:
+		set_text(state, text::produce_simple_string(state, "color_blind_mode_deutan"));
+		break;
+	case sys::color_blind_mode::protan:
+		set_text(state, text::produce_simple_string(state, "color_blind_mode_protan"));
+		break;
+	case sys::color_blind_mode::tritan:
+		set_text(state, text::produce_simple_string(state, "color_blind_mode_tritan"));
+		break;
+	case sys::color_blind_mode::achroma:
+		set_text(state, text::produce_simple_string(state, "color_blind_mode_achroma"));
+		break;
+	default:
+		set_text(state, "???");
+		break;
+	}
+}
+
+void graphics_left::button_action(sys::state& state) noexcept {
+	auto index = uint8_t(state.user_settings.graphics_mode);
+	if(index > 0) {
+		state.user_settings.graphics_mode = sys::graphics_mode(index - 1);
+		send(state, parent, notify_setting_update{});
+	}
+}
+void graphics_right::button_action(sys::state& state) noexcept {
+	auto index = uint8_t(state.user_settings.graphics_mode);
+	if(index + 1 < (uint8_t)sys::graphics_mode::total) {
+		state.user_settings.graphics_mode = sys::graphics_mode(index + 1);
+		send(state, parent, notify_setting_update{});
+	}
+}
+void graphics_display::on_update(sys::state& state) noexcept {
+	switch(state.user_settings.graphics_mode) {
+	case sys::graphics_mode::ugly:
+		set_text(state, text::produce_simple_string(state, "graphics_details_0"));
+		break;
+	case sys::graphics_mode::classic:
+		set_text(state, text::produce_simple_string(state, "graphics_details_1"));
+		break;
+	case sys::graphics_mode::modern:
+		set_text(state, text::produce_simple_string(state, "graphics_details_2"));
+		break;
+	default:
+		set_text(state, "???");
+		break;
+	}
+}
+
 /*
 class autosave_left : public button_element_base {
 public:
@@ -426,22 +650,33 @@ void projection_mode_display::on_update(sys::state& state) noexcept {
 
 void fonts_mode_checkbox::button_action(sys::state& state) noexcept {
 	state.user_settings.use_classic_fonts = !state.user_settings.use_classic_fonts;
-	send(state, parent, notify_setting_update{});
-
-	state.ui_state.units_root->impl_on_reset_text(state);
-	state.ui_state.rgos_root->impl_on_reset_text(state);
-	state.ui_state.root->impl_on_reset_text(state);
+	state.font_collection.set_classic_fonts(state.user_settings.use_classic_fonts);
+	//
+	window::change_cursor(state, window::cursor_type::busy);
+	if(state.ui_state.units_root)
+		state.ui_state.units_root->impl_on_reset_text(state);
+	if(state.ui_state.rgos_root)
+		state.ui_state.rgos_root->impl_on_reset_text(state);
+	if(state.ui_state.root)
+		state.ui_state.root->impl_on_reset_text(state);
+	if(state.ui_state.nation_picker)
+		state.ui_state.nation_picker->impl_on_reset_text(state);
+	if(state.ui_state.select_states_legend)
+		state.ui_state.select_states_legend->impl_on_reset_text(state);
+	if(state.ui_state.end_screen)
+		state.ui_state.end_screen->impl_on_reset_text(state);
+	state.province_ownership_changed.store(true, std::memory_order::release); //update map
+	state.game_state_updated.store(true, std::memory_order::release); //update ui
 	state.ui_state.tooltip->set_visible(state, false);
 	state.ui_state.last_tooltip = nullptr;
-
-	if(state.user_settings.use_classic_fonts) {
-		state.ui_state.tooltip_font = text::name_into_font_id(state, "vic_18_black");
-	} else {
-		state.ui_state.tooltip_font = text::name_into_font_id(state, "ToolTip_Font");
-	}
+	send(state, parent, notify_setting_update{});
+	window::change_cursor(state, window::cursor_type::normal);
 }
 bool fonts_mode_checkbox::is_active(sys::state& state) noexcept {
 	return state.user_settings.use_classic_fonts;
+}
+void fonts_mode_checkbox::on_update(sys::state& state) noexcept {
+	disabled = state.world.locale_get_hb_script(state.font_collection.get_current_locale()) != HB_SCRIPT_LATIN;
 }
 
 void left_mouse_click_mode_checkbox::button_action(sys::state& state) noexcept {
@@ -513,13 +748,13 @@ void interface_volume::on_update(sys::state& state) noexcept {
 	update_raw_value(state, int32_t(state.user_settings.interface_volume * 128.0f));
 }
 
-
+ //TODO: Perhaps add a tooltip of which next song is going to be played, or the queue of songs
 void music_player_left::button_action(sys::state& state) noexcept {
-	sound::play_new_track(state);
+	sound::play_next_track(state);
 	send(state, parent, notify_setting_update{});
 }
 void music_player_right::button_action(sys::state& state) noexcept {
-	sound::play_new_track(state);
+	sound::play_previous_track(state);
 	send(state, parent, notify_setting_update{});
 }
 void music_player_display::on_update(sys::state& state) noexcept {

@@ -20,12 +20,12 @@ class release_play_as_button : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		const dcon::national_identity_id niid = retrieve<dcon::national_identity_id>(state, parent);
-		disabled = !command::can_release_and_play_as(state, state.local_player_nation, niid);
+		disabled = !command::can_release_and_play_as(state, state.local_player_nation, niid, state.network_state.nickname);
 	}
 
 	void button_action(sys::state& state) noexcept override {
 		const dcon::national_identity_id niid = retrieve<dcon::national_identity_id>(state, parent);
-		command::release_and_play_as(state, state.local_player_nation, niid);
+		command::release_and_play_as(state, state.local_player_nation, niid, state.network_state.nickname);
 		parent->set_visible(state, false);
 	}
 };
@@ -124,6 +124,14 @@ public:
 			if(nations::can_release_as_vassal(state, state.local_player_nation, ident)) {
 				row_contents.push_back(ident);
 			}
+		});
+		std::sort(row_contents.begin(), row_contents.end(), [&](dcon::national_identity_id a, dcon::national_identity_id b) {
+			auto av = text::produce_simple_string(state, state.world.national_identity_get_name(a));
+			auto bv = text::produce_simple_string(state, state.world.national_identity_get_name(b));
+			if(av != bv)
+				return av > bv;
+			else
+				return a.index() < b.index();
 		});
 		update(state);
 	}

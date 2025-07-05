@@ -39,11 +39,11 @@ struct outliner_rally_point {
 };
 
 using outliner_data = std::variant< outliner_filter, dcon::army_id, dcon::navy_id, dcon::gp_relationship_id,
-	dcon::state_building_construction_id, dcon::province_building_construction_id, dcon::province_land_construction_id,
+	dcon::factory_construction_id, dcon::province_building_construction_id, dcon::province_land_construction_id,
 	dcon::province_naval_construction_id, dcon::state_instance_id, outliner_rebel_occupation, outliner_hostile_siege, outliner_my_siege,
 	dcon::land_battle_id, dcon::naval_battle_id, outliner_rally_point>;
 
-class outliner_element_button : public shift_button_element_base {
+class outliner_element_button : public button_element_base {
 public:
 	bool visible = false;
 
@@ -53,7 +53,50 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto content = retrieve< outliner_data>(state, parent);
+		content = retrieve< outliner_data>(state, parent);
 
+
+		if(std::holds_alternative<dcon::gp_relationship_id>(content)) {
+
+			auto grid = std::get<dcon::gp_relationship_id>(content);
+			auto nid = state.world.gp_relationship_get_influence_target(grid);
+
+			for(auto n : state.world.in_nation) {
+				auto targettag = text::produce_simple_string(state, text::get_name(state, nid));
+				auto gptag = text::produce_simple_string(state, text::get_name(state, n));
+
+				if(!nations::is_great_power(state, n) || state.local_player_nation == n)
+					continue;
+
+				auto rel = state.world.get_gp_relationship_by_gp_influence_pair(nid, n);
+				auto influence = state.world.gp_relationship_get_influence(rel);
+
+				auto status = state.world.gp_relationship_get_status(rel);
+
+				if((status & nations::influence::priority_mask) == nations::influence::priority_zero)
+					continue;
+
+				auto nationname = text::produce_simple_string(state, text::get_name(state, n));
+				text::add_line(state, contents, nationname + " (" + text::get_influence_level_name(state, status) + ", " + text::format_float(influence, 0) + ")", 0);
+			}
+		} else if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
+			auto plcid = std::get<dcon::province_land_construction_id>(content);
+			economy::build_land_unit_construction_tooltip(
+				state,
+				contents,
+				plcid
+			);
+		} else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
+			auto pncid = std::get<dcon::province_naval_construction_id>(content);
+			economy::build_naval_unit_construction_tooltip(
+				state,
+				contents,
+				pncid
+			);
+		} else if(std::holds_alternative<dcon::factory_construction_id>(content)) {
+			auto fcid = std::get<dcon::factory_construction_id>(content);
+			factory_construction_tooltip(state, contents, fcid);
+		}
 	}
 	void on_update(sys::state& state) noexcept override {
 		auto content = retrieve< outliner_data>(state, parent);
@@ -62,7 +105,7 @@ public:
 	}
 	void render(sys::state& state, int32_t x, int32_t y) noexcept override {
 		if(visible)
-			shift_button_element_base::render(state, x, y);
+			button_element_base::render(state, x, y);
 	}
 	void button_action(sys::state& state) noexcept override {
 		if(!visible)
@@ -87,9 +130,9 @@ public:
 			auto nid = state.world.gp_relationship_get_influence_target(grid);
 
 			state.open_diplomacy(nid);
-		} else if(std::holds_alternative<dcon::state_building_construction_id>(content)) {
-			auto st_con = fatten(state.world, std::get<dcon::state_building_construction_id>(content));
-			auto p = st_con.get_state().get_capital().id;
+		} else if(std::holds_alternative<dcon::factory_construction_id>(content)) {
+			auto st_con = fatten(state.world, std::get<dcon::factory_construction_id>(content));
+			auto p = st_con.get_province();
 
 			static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, p);
 			state.map_state.center_map_on_province(state, p);
@@ -102,13 +145,13 @@ public:
 		} else if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
 			auto plcid = std::get<dcon::province_land_construction_id>(content);
 			auto p = state.world.pop_get_province_from_pop_location(state.world.province_land_construction_get_pop(plcid));
-			//static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, p);
-			//state.map_state.center_map_on_province(state, p);
+			static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, p);
+			state.map_state.center_map_on_province(state, p);
 		} else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
 			auto pncid = std::get<dcon::province_naval_construction_id>(content);
 			auto p = state.world.province_naval_construction_get_province(pncid);
-			//static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, p);
-			//state.map_state.center_map_on_province(state, p);
+			static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, p);
+			state.map_state.center_map_on_province(state, p);
 		} else if(std::holds_alternative<dcon::state_instance_id>(content)) {
 			auto siid = std::get<dcon::state_instance_id>(content);
 			auto fat_si = dcon::fatten(state.world, siid);
@@ -327,23 +370,35 @@ public:
 		auto content = retrieve< outliner_data>(state, parent);
 		if(std::holds_alternative<outliner_filter>(content)) {
 			set_text(state, "");
-		} else if(std::holds_alternative<dcon::army_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::army_id>(content)) {
 			auto army = fatten(state.world, std::get<dcon::army_id>(content));
-
-			color = bool(army.get_battle_from_army_battle_participation()) ? text::text_color::red : text::text_color::white;
+			color = bool(army.get_battle_from_army_battle_participation()) ? text::text_color::orange
+				: military::attrition_amount(state, army) > 0.f ? text::text_color::red
+				: text::text_color::white;
 			unitamounts amounts = calc_amounts_from_army(state, army);
 
 			text::substitution_map sub;
-			auto tag_str = std::string("@") + nations::int_to_tag(army.get_controller_from_army_control().get_identity_from_identity_holder().get_identifying_int()) + "\x03";
+			auto tag_str = std::string("@") + nations::int_to_tag(army.get_controller_from_army_control().get_identity_from_identity_holder().get_identifying_int()) + "@(A)";
 			text::add_to_substitution_map(sub, text::variable_type::m, std::string_view{ tag_str });
 			text::add_to_substitution_map(sub, text::variable_type::n, int64_t(amounts.type1));
 			text::add_to_substitution_map(sub, text::variable_type::x, int64_t(amounts.type2));
 			text::add_to_substitution_map(sub, text::variable_type::y, int64_t(amounts.type3));
 
-			auto base_str = text::resolve_string_substitution(state, "ol_unit_standing_text", sub);
+			std::string ctrl_str = "";
+			for(uint32_t i = 0; i < uint32_t(state.ctrl_armies.size()); i++) {
+				for(const auto e : state.ctrl_armies[i]) {
+					if(e == army.id) {
+						ctrl_str += "(" + std::to_string(i) + ")";
+						break;
+					}
+				}
+			}
+			auto base_str = ctrl_str + text::resolve_string_substitution(state, "ol_unit_standing_text", sub);
 			auto full_str = base_str + " (" + text::produce_simple_string(state, army.get_location_from_army_location().get_name()) + ")";
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::navy_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::navy_id>(content)) {
 
 			auto navy = fatten(state.world, std::get<dcon::navy_id>(content));
 
@@ -351,40 +406,49 @@ public:
 			unitamounts amounts = calc_amounts_from_navy(state, navy);
 
 			text::substitution_map sub;
-			auto tag_str = std::string("@") + nations::int_to_tag(navy.get_controller_from_navy_control().get_identity_from_identity_holder().get_identifying_int()) + "\x04";
+			auto tag_str = std::string("@") + nations::int_to_tag(navy.get_controller_from_navy_control().get_identity_from_identity_holder().get_identifying_int()) + "@(N)";
 			text::add_to_substitution_map(sub, text::variable_type::m, std::string_view{ tag_str });
 			text::add_to_substitution_map(sub, text::variable_type::n, int64_t(amounts.type1));
 			text::add_to_substitution_map(sub, text::variable_type::x, int64_t(amounts.type2));
 			text::add_to_substitution_map(sub, text::variable_type::y, int64_t(amounts.type3));
 
-			auto base_str = text::resolve_string_substitution(state, "ol_unit_standing_text", sub);
+			std::string ctrl_str = "";
+			for(uint32_t i = 0; i < uint32_t(state.ctrl_navies.size()); i++) {
+				for(const auto e : state.ctrl_navies[i]) {
+					if(e == navy.id) {
+						ctrl_str += "(" + std::to_string(i) + ")";
+						break;
+					}
+				}
+			}
+			auto base_str = ctrl_str + text::resolve_string_substitution(state, "ol_unit_standing_text", sub);
 			auto full_str = base_str + " (" + text::produce_simple_string(state, navy.get_location_from_navy_location().get_name()) + ")";
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::gp_relationship_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::gp_relationship_id>(content)) {
 			auto grid = std::get<dcon::gp_relationship_id>(content);
 			auto nid = state.world.gp_relationship_get_influence_target(grid);
 			auto status = state.world.gp_relationship_get_status(grid);
 			auto influence = state.world.gp_relationship_get_influence(grid);
 
-			auto full_str = text::produce_simple_string(state, state.world.nation_get_name(nid)) + " (" + text::get_influence_level_name(state, status) + ", " + text::format_float(influence, 0) + ")";
+			auto full_str = text::produce_simple_string(state, text::get_name(state, nid)) + " (" + text::get_influence_level_name(state, status) + ", " + text::format_float(influence, 0) + ")";
 
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::state_building_construction_id>(content)) {
-			auto st_con = fatten(state.world, std::get<dcon::state_building_construction_id>(content));
-			auto ftid = state.world.state_building_construction_get_type(st_con);
+		}
+		else if(std::holds_alternative<dcon::factory_construction_id>(content)) {
+			auto st_con = fatten(state.world, std::get<dcon::factory_construction_id>(content));
+			auto ftid = state.world.factory_construction_get_type(st_con);
 
 			float total = 0.0f;
 			float purchased = 0.0f;
 			auto& goods = state.world.factory_type_get_construction_costs(st_con.get_type());
 
-			float factory_mod = state.world.nation_get_modifier_values(st_con.get_nation(), sys::national_mod_offsets::factory_cost) + 1.0f;
-			float pop_factory_mod = std::max(0.1f, state.world.nation_get_modifier_values(st_con.get_nation(), sys::national_mod_offsets::factory_owner_cost));
-			auto admin_eff = st_con.get_nation().get_administrative_efficiency();
-			float admin_cost_factor = (st_con.get_is_pop_project() ? pop_factory_mod : (2.0f - admin_eff)) * factory_mod;
+			float factory_mod = economy::factory_build_cost_multiplier(state, st_con.get_nation(), st_con.get_province(), st_con.get_is_pop_project());
+			float refit_discount = (st_con.get_refit_target()) ? state.defines.alice_factory_refit_cost_modifier : 1.0f;
 
 			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-				total += goods.commodity_amounts[i] * admin_cost_factor;
+				total += goods.commodity_amounts[i] * factory_mod * refit_discount;
 				purchased += st_con.get_purchased_goods().commodity_amounts[i];
 			}
 			auto progress = total > 0.0f ? purchased / total : 0.0f;
@@ -393,7 +457,8 @@ public:
 
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::province_building_construction_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::province_building_construction_id>(content)) {
 			auto pbcid = std::get<dcon::province_building_construction_id>(content);
 			auto btid = state.world.province_building_construction_get_type(pbcid);
 			auto name = economy::province_building_type_get_name(economy::province_building_type(btid));
@@ -403,26 +468,42 @@ public:
 
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
 			auto plcid = std::get<dcon::province_land_construction_id>(content);
 			auto utid = state.world.province_land_construction_get_type(plcid);
-			auto name = utid ? state.military_definitions.unit_base_definitions[utid].name : dcon::text_sequence_id{};
+			auto unitname = utid ? state.military_definitions.unit_base_definitions[utid].name : dcon::text_key{};
 			float progress = economy::unit_construction_progress(state, plcid);
+			auto pop = state.world.province_land_construction_get_pop(plcid);
+			auto province = state.world.pop_get_province_from_pop_location(pop);
 
-			auto full_str = text::produce_simple_string(state, name) + " (" + text::format_percentage(progress, 0) + ")";
+			text::substitution_map sub;
+			text::add_to_substitution_map(sub, text::variable_type::x, unitname);
+			text::add_to_substitution_map(sub, text::variable_type::y, province);
+
+			std::string res = text::resolve_string_substitution(state, "x_in_y", sub);
+			auto full_str = res + " (" + text::format_percentage(progress, 0) + ")";
 
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
 			auto pncid = std::get<dcon::province_naval_construction_id>(content);
 			auto utid = state.world.province_naval_construction_get_type(pncid);
-			auto name = state.military_definitions.unit_base_definitions[utid].name;
+			auto unitname = state.military_definitions.unit_base_definitions[utid].name;
 			float progress = economy::unit_construction_progress(state, pncid);
+			auto province = state.world.province_naval_construction_get_province(pncid);
 
-			auto full_str = text::produce_simple_string(state, name) + " (" + text::format_percentage(progress, 0) + ")";
+			text::substitution_map sub;
+			text::add_to_substitution_map(sub, text::variable_type::x, unitname);
+			text::add_to_substitution_map(sub, text::variable_type::y, province);
+
+			std::string res = text::resolve_string_substitution(state, "x_in_y", sub);
+			auto full_str = res + " (" + text::format_percentage(progress, 0) + ")";
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::state_instance_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::state_instance_id>(content)) {
 			auto siid = std::get<dcon::state_instance_id>(content);
 			auto fat_si = dcon::fatten(state.world, siid);
 			auto fat_nf = dcon::fatten(state.world, siid).get_owner_focus();
@@ -437,10 +518,6 @@ public:
 					if((fat_si.get_demographics(demographics::to_key(state, fat_nf.get_promotion_type())) / fat_si.get_demographics(demographics::total)) > state.defines.max_clergy_for_literacy) {
 						color = text::text_color::red;
 					}
-				} else if(fat_nf.get_promotion_type() == state.culture_definitions.bureaucrat) {
-					if(province::state_admin_efficiency(state, fat_si.id) >= 1.f) {
-						color = text::text_color::red;
-					}
 				}
 				auto full_str = text::format_percentage(fat_si.get_demographics(demographics::to_key(state, fat_nf.get_promotion_type())) / fat_si.get_demographics(demographics::total)) + " " + text::produce_simple_string(state, fat_nf.get_name()) + " (" + text::get_dynamic_state_name(state, siid) + ")";
 				set_text(state, full_str);
@@ -449,37 +526,43 @@ public:
 				color = text::text_color::white;
 				set_text(state, full_str);
 			}
-		} else if(std::holds_alternative<outliner_rebel_occupation>(content)) {
+		}
+		else if(std::holds_alternative<outliner_rebel_occupation>(content)) {
 			auto p = std::get<outliner_rebel_occupation>(content).p;
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(p));
 			color = text::text_color::red;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<outliner_hostile_siege>(content)) {
+		}
+		else if(std::holds_alternative<outliner_hostile_siege>(content)) {
 			auto p = std::get<outliner_hostile_siege>(content).p;
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(p)) + " (" + text::format_percentage(state.world.province_get_siege_progress(p), 0) + ")";
 			color = text::text_color::red;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<outliner_my_siege>(content)) {
+		}
+		else if(std::holds_alternative<outliner_my_siege>(content)) {
 			auto p = std::get<outliner_my_siege>(content).p;
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(p)) + " (" + text::format_percentage(state.world.province_get_siege_progress(p), 0) + ")";
 			color = text::text_color::white;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::land_battle_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::land_battle_id>(content)) {
 			auto p = std::get<dcon::land_battle_id>(content);
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(state.world.land_battle_get_location_from_land_battle_location(p)));
 			color = text::text_color::red;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<dcon::naval_battle_id>(content)) {
+		}
+		else if(std::holds_alternative<dcon::naval_battle_id>(content)) {
 			auto p = std::get<dcon::naval_battle_id>(content);
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(state.world.naval_battle_get_location_from_naval_battle_location(p)));
 			color = text::text_color::red;
 			set_text(state, full_str);
-		} else if(std::holds_alternative<outliner_rally_point>(content)) {
+		}
+		else if(std::holds_alternative<outliner_rally_point>(content)) {
 			auto p = std::get<outliner_rally_point>(content).p;
 
 			auto full_str = text::produce_simple_string(state, state.world.province_get_name(p));
@@ -538,7 +621,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		listbox2_base<outliner_data>::on_create(state);
 
-		auto ptr = make_element_by_type<image_element_base>(state, state.ui_state.defs_by_name.find("outliner_bottom")->second.definition);
+		auto ptr = make_element_by_type<image_element_base>(state, state.ui_state.defs_by_name.find(state.lookup_key("outliner_bottom"))->second.definition);
 		ptr->set_visible(state, true);
 		bottom_image = ptr.get();
 		add_child_to_back(std::move(ptr));
@@ -646,8 +729,8 @@ public:
 		if(get_filter(state, outliner_filter::factories)) {
 			row_contents.push_back(outliner_filter::factories);
 			auto old_size = row_contents.size();
-			state.world.nation_for_each_state_building_construction(state.local_player_nation,
-					[&](dcon::state_building_construction_id sbcid) { row_contents.push_back(sbcid); });
+			state.world.nation_for_each_factory_construction(state.local_player_nation,
+					[&](dcon::factory_construction_id sbcid) { row_contents.push_back(sbcid); });
 			if(old_size == row_contents.size())
 				row_contents.pop_back();
 		}
@@ -678,8 +761,11 @@ public:
 		if(get_filter(state, outliner_filter::gp_influence)) {
 			row_contents.push_back(outliner_filter::gp_influence);
 			auto old_size = row_contents.size();
-			state.world.nation_for_each_gp_relationship_as_great_power(state.local_player_nation,
-					[&](dcon::gp_relationship_id grid) { row_contents.push_back(grid); });
+			state.world.nation_for_each_gp_relationship_as_great_power(state.local_player_nation, [&](dcon::gp_relationship_id grid) {
+				auto status = (state.world.gp_relationship_get_status(grid) & nations::influence::priority_mask);
+				if(status != nations::influence::priority_zero)
+					row_contents.push_back(grid);
+			});
 			if(old_size == row_contents.size())
 				row_contents.pop_back();
 		}
@@ -713,7 +799,7 @@ public:
 
 		auto rsz = row_windows[0]->base_data.size.y + row_windows[0]->base_data.position.y;
 		auto max_size = int32_t(rsz * row_contents.size());
-		auto space = (state.ui_state.root->base_data.size.y - 330) - ui::get_absolute_location(*this).y;
+		auto space = (state.ui_state.root->base_data.size.y - 200) - ui::get_absolute_location(state, *this).y;
 		auto max_rows = space / rsz;
 
 		if(max_size < space) {

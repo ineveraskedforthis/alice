@@ -44,12 +44,23 @@ enum class ledger_sort_type {
 	profit,
 	employment,
 	rgo_size,
-	factory_level
+	factory_level,
+	gdp,
+	gdp_capita,
+	sol
 };
 
 struct ledger_sort {
 	std::variant<std::monostate, ledger_sort_type, dcon::issue_id, dcon::pop_type_id> type = std::monostate{};
 	bool reversed = false;
+};
+
+struct price_toggle_list {
+	std::vector<bool> data;
+};
+
+struct nation_toggle_list {
+	std::vector<bool> data;
 };
 
 class ledger_generic_sort_button : public button_element_base {
@@ -84,7 +95,7 @@ public:
 		if(parent) {
 			auto num = int8_t(content.value - 1);
 			if(num <= 0)
-				num = 11;
+				num = 12;
 			Cyto::Any new_payload = ledger_page_number{num};
 			parent->impl_set(state, new_payload);
 		}
@@ -96,7 +107,7 @@ public:
 	void button_action(sys::state& state) noexcept override {
 		if(parent) {
 			auto num = int8_t(content.value + 1);
-			if(num > 11)
+			if(num > 12)
 				num = 1;
 			Cyto::Any new_payload = ledger_page_number{num};
 			parent->impl_set(state, new_payload);
@@ -113,10 +124,10 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ int16_t(24), 0 };
-		auto cell_width = (972 - cell_offset.x) / 6;
+		auto cell_width = (972 - cell_offset.x) / 9;
 		auto apply_offset = [&](auto& ptr) {
 			ptr->base_data.position = cell_offset;
 			ptr->base_data.size.x = int16_t(cell_width);
@@ -159,6 +170,24 @@ public:
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
+		{
+			auto ptr = make_element_by_type<ledger_generic_sort_button>(state, button_def, ledger_sort_type::gdp);
+			ptr->set_button_text(state, text::produce_simple_string(state, "ledger_inflation_adjusted_gdp"));
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
+		{
+			auto ptr = make_element_by_type<ledger_generic_sort_button>(state, button_def, ledger_sort_type::gdp_capita);
+			ptr->set_button_text(state, text::produce_simple_string(state, "ledger_inflation_adjusted_gdp_per_capita"));
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
+		{
+			auto ptr = make_element_by_type<ledger_generic_sort_button>(state, button_def, ledger_sort_type::sol);
+			ptr->set_button_text(state, text::produce_simple_string(state, "ledger_standard_of_living"));
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
 	}
 };
 
@@ -171,12 +200,12 @@ public:
 		// Country flag
 		{
 			auto ptr =
-					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find("ledger_default_flag")->second.definition);
+					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_flag"))->second.definition);
 			country_flag = ptr.get();
 			add_child_to_front(std::move(ptr));
 		}
 		xy_pair cell_offset{int16_t(country_flag->base_data.position.x + country_flag->base_data.size.x), 0};
-		auto cell_width = (972 - cell_offset.x) / 6;
+		auto cell_width = (972 - cell_offset.x) / 9;
 		auto apply_offset = [&](auto& ptr) {
 			ptr->base_data.position = cell_offset;
 			ptr->base_data.size.x = int16_t(cell_width);
@@ -185,42 +214,63 @@ public:
 		// Country name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::nation_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Country status
 		{
 			auto ptr = make_element_by_type<nation_status_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Military score
 		{
 			auto ptr = make_element_by_type<nation_military_score_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Industrial score
 		{
 			auto ptr = make_element_by_type<nation_industry_score_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Prestige
 		{
 			auto ptr = make_element_by_type<nation_prestige_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Total score
 		{
 			auto ptr = make_element_by_type<nation_total_score_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
+		// GDP (inflation adjusted)
+		{
+			auto ptr = make_element_by_type<nation_ppp_gdp_text>(state,
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
+		// GDP (inflation adjusted) per capita
+		{
+			auto ptr = make_element_by_type<nation_ppp_gdp_per_capita_text>(state,
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
+			apply_offset(ptr);
+			add_child_to_front(std::move(ptr));
+		}
+		// Standard of living
+		{
+			auto ptr = make_element_by_type<nation_sol_text>(state,
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -300,12 +350,43 @@ public:
 					}
 				});
 				break;
+			case ledger_sort_type::gdp_capita:
+				std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
+					float a_population = state.world.nation_get_demographics(a, demographics::total);
+					float b_population = state.world.nation_get_demographics(b, demographics::total);
+
+					if(lsort.reversed) {
+						return economy::gdp_adjusted(state, a) / a_population < economy::gdp_adjusted(state, b) / b_population;
+					} else {
+						return economy::gdp_adjusted(state, a) / a_population > economy::gdp_adjusted(state, b) / b_population;
+					}
+				});
+				break;
+			case ledger_sort_type::gdp:	
+				std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
+					if(lsort.reversed) {
+						return economy::gdp_adjusted(state, a) < economy::gdp_adjusted(state, b);
+					} else {
+						return economy::gdp_adjusted(state, a) > economy::gdp_adjusted(state, b);
+					}
+				});
+				break;
+			case ledger_sort_type::sol:
+				std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
+					if(lsort.reversed) {
+						return demographics::calculate_nation_sol(state, a) < demographics::calculate_nation_sol(state, b);
+					} else {
+						return demographics::calculate_nation_sol(state, a) > demographics::calculate_nation_sol(state, b);
+					}
+				});
+				break;
+				
 			default:
 				std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 					if(lsort.reversed) {
-						return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+						return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 					} else {
-						return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+						return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 					}
 				});
 				break;
@@ -323,7 +404,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ int16_t(24), 0 };
 		auto cell_width = (972 - cell_offset.x) / 8;
@@ -393,7 +474,7 @@ public:
 		// Country flag
 		{
 			auto ptr =
-					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find("ledger_default_flag")->second.definition);
+					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_flag"))->second.definition);
 			country_flag = ptr.get();
 			add_child_to_front(std::move(ptr));
 		}
@@ -407,56 +488,56 @@ public:
 		// Country name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::nation_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Total population
 		{
 			auto ptr = make_element_by_type<nation_population_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Provinces count
 		{
 			auto ptr = make_element_by_type<nation_provinces_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Factories count
 		{
 			auto ptr = make_element_by_type<nation_industries_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Literacy
 		{
 			auto ptr = make_element_by_type<nation_literacy_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Leadership
 		{
 			auto ptr = make_element_by_type<nation_leadership_points_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Brigades
 		{
 			auto ptr = make_element_by_type<nation_num_regiments>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Ships
 		{
 			auto ptr = make_element_by_type<nation_num_ships>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -567,9 +648,9 @@ public:
 		default:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 				if(lsort.reversed) {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 				} else {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 				}
 			});
 			break;
@@ -588,7 +669,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ int16_t(24), 0 };
 		auto cell_width = (972 - cell_offset.x) / 5;
@@ -640,7 +721,7 @@ public:
 		// Country flag
 		{
 			auto ptr =
-					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find("ledger_default_flag")->second.definition);
+					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_flag"))->second.definition);
 			country_flag = ptr.get();
 			add_child_to_front(std::move(ptr));
 		}
@@ -654,35 +735,35 @@ public:
 		// Country name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::nation_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Government
 		{
 			auto ptr = make_element_by_type<nation_government_type_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// National value
 		{
 			auto ptr = make_element_by_type<nation_national_value_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Ruling party
 		{
 			auto ptr = make_element_by_type<nation_ruling_party_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Party ideology
 		{
 			auto ptr = make_element_by_type<nation_ruling_party_ideology_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -753,9 +834,9 @@ public:
 		default:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 				if(lsort.reversed) {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 				} else {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 				}
 			});
 			break;
@@ -784,7 +865,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ int16_t(24), 0 };
 
@@ -833,7 +914,7 @@ public:
 		// Country flag
 		{
 			auto ptr =
-					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find("ledger_default_flag")->second.definition);
+					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_flag"))->second.definition);
 			country_flag = ptr.get();
 			add_child_to_front(std::move(ptr));
 		}
@@ -856,7 +937,7 @@ public:
 		// Country name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::nation_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -866,7 +947,7 @@ public:
 				return;
 
 			auto ptr = make_element_by_type<nation_selected_issue_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			ptr->issue_id = id;
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
@@ -908,9 +989,9 @@ public:
 		} else {
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 				if(lsort.reversed) {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 				} else {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 				}
 			});
 		}
@@ -945,9 +1026,9 @@ public:
 		} else {
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 				if(lsort.reversed) {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 				} else {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 				}
 			});
 		}
@@ -973,8 +1054,8 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
-		auto ibutton_def = state.ui_state.defs_by_name.find("ledger_pop_icon")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
+		auto ibutton_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_pop_icon"))->second.definition;
 
 		xy_pair cell_offset{ int16_t(24), 0 };
 
@@ -1015,7 +1096,7 @@ public:
 		// Country flag
 		{
 			auto ptr =
-					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find("ledger_default_flag")->second.definition);
+					make_element_by_type<flag_button>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_flag"))->second.definition);
 			country_flag = ptr.get();
 			add_child_to_front(std::move(ptr));
 		}
@@ -1034,14 +1115,14 @@ public:
 		// Country name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::nation_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// For each pop type generate
 		state.world.for_each_pop_type([&](dcon::pop_type_id id) {
 			auto ptr = make_element_by_type<nation_population_per_pop_type_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			ptr->pop_type_id = id;
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
@@ -1084,9 +1165,9 @@ public:
 		} else {
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::nation_id a, dcon::nation_id b) {
 				if(lsort.reversed) {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) > text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) > text::produce_simple_string(state, text::get_name(state, b));
 				} else {
-					return text::produce_simple_string(state, state.world.nation_get_name(a)) < text::produce_simple_string(state, state.world.nation_get_name(b));
+					return text::produce_simple_string(state, text::get_name(state, a)) < text::produce_simple_string(state, text::get_name(state, b));
 				}
 			});
 		}
@@ -1104,7 +1185,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ 0, 0 };
 
@@ -1188,63 +1269,63 @@ public:
 		// Province name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::province_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Total population
 		{
 			auto ptr = make_element_by_type<province_population_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Average militancy
 		{
 			auto ptr = make_element_by_type<province_militancy_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Average consciousness
 		{
 			auto ptr = make_element_by_type<province_consciousness_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Average literacy
 		{
 			auto ptr = make_element_by_type<province_literacy_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Religion
 		{
 			auto ptr = make_element_by_type<province_dominant_religion_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Culture
 		{
 			auto ptr = make_element_by_type<province_dominant_culture_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Issues
 		{
 			auto ptr = make_element_by_type<province_dominant_issue_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Ideology
 		{
 			auto ptr = make_element_by_type<province_dominant_ideology_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -1382,8 +1463,8 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
-		auto ibutton_def = state.ui_state.defs_by_name.find("ledger_pop_icon")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
+		auto ibutton_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_pop_icon"))->second.definition;
 
 		xy_pair cell_offset{ 0, 0 };
 
@@ -1434,13 +1515,13 @@ public:
 		// Province name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::province_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// For each pop type generate
 		state.world.for_each_pop_type([&](dcon::pop_type_id id) {
-			auto ptr = make_element_by_type<province_population_per_pop_type_text>(state, state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition, id);
+			auto ptr = make_element_by_type<province_population_per_pop_type_text>(state, state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition, id);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		});
@@ -1501,7 +1582,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ 0, 0 };
 
@@ -1573,49 +1654,49 @@ public:
 		// Province name
 		{
 			auto ptr = make_element_by_type<generic_name_text<dcon::province_id>>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// State name
 		{
 			auto ptr = make_element_by_type<province_state_name_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Goods
 		{
 			auto ptr = make_element_by_type<province_rgo_name_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Output
 		{
 			auto ptr = make_element_by_type<province_goods_produced_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Income
 		{
 			auto ptr = make_element_by_type<province_income_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Employed
 		{
 			auto ptr = make_element_by_type<province_rgo_workers_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Level
 		{
 			auto ptr = make_element_by_type<province_rgo_size_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -1663,6 +1744,7 @@ public:
 				}
 			});
 			break;
+		/*
 		case ledger_sort_type::output_amount:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::province_id a, dcon::province_id b) {
 				if(lsort.reversed) {
@@ -1672,24 +1754,26 @@ public:
 				}
 			});
 			break;
+		*/
 		case ledger_sort_type::profit:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::province_id a, dcon::province_id b) {
 				if(lsort.reversed) {
-					return province::rgo_income(state, a) < province::rgo_income(state, b);
+					return economy::rgo_income(state, a) < economy::rgo_income(state, b);
 				} else {
-					return province::rgo_income(state, a) > province::rgo_income(state, b);
+					return economy::rgo_income(state, a) > economy::rgo_income(state, b);
 				}
 			});
 			break;
 		case ledger_sort_type::employment:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::province_id a, dcon::province_id b) {
 				if(lsort.reversed) {
-					return province::rgo_employment(state, a) < province::rgo_employment(state, b);
+					return economy::rgo_employment(state, a) < economy::rgo_employment(state, b);
 				} else {
-					return province::rgo_employment(state, a) > province::rgo_employment(state, b);
+					return economy::rgo_employment(state, a) > economy::rgo_employment(state, b);
 				}
 			});
 			break;
+		/*
 		case ledger_sort_type::rgo_size:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::province_id a, dcon::province_id b) {
 				if(lsort.reversed) {
@@ -1699,6 +1783,7 @@ public:
 				}
 			});
 			break;
+		*/
 		default:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::province_id a, dcon::province_id b) {
 				if(lsort.reversed) {
@@ -1723,7 +1808,7 @@ public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 
-		auto button_def = state.ui_state.defs_by_name.find("ledger_default_button")->second.definition;
+		auto button_def = state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_button"))->second.definition;
 
 		xy_pair cell_offset{ 0, 0 };
 
@@ -1789,42 +1874,42 @@ public:
 		// State name
 		{
 			auto ptr = make_element_by_type<factory_state_name_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Goods
 		{
 			auto ptr = make_element_by_type<factory_output_name_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Output
 		{
 			auto ptr = make_element_by_type<factory_produced_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Income
 		{
 			auto ptr = make_element_by_type<factory_income_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Employed
 		{
 			auto ptr = make_element_by_type<factory_workers_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
 		// Level
 		{
 			auto ptr = make_element_by_type<factory_level_text>(state,
-					state.ui_state.defs_by_name.find("ledger_default_textbox")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("ledger_default_textbox"))->second.definition);
 			apply_offset(ptr);
 			add_child_to_front(std::move(ptr));
 		}
@@ -1861,18 +1946,26 @@ public:
 		case ledger_sort_type::output_amount:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::factory_id a, dcon::factory_id b) {
 				if(lsort.reversed) {
-					return state.world.factory_get_actual_production(a) < state.world.factory_get_actual_production(b);
+					return state.world.factory_get_output(a) < state.world.factory_get_output(b);
 				} else {
-					return state.world.factory_get_actual_production(a) > state.world.factory_get_actual_production(b);
+					return state.world.factory_get_output(a) > state.world.factory_get_output(b);
 				}
 			});
 			break;
 		case ledger_sort_type::profit:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::factory_id a, dcon::factory_id b) {
 				if(lsort.reversed) {
-					return state.world.factory_get_full_profit(a) < state.world.factory_get_full_profit(b);
+					return (
+						economy::explain_last_factory_profit(state, a).profit
+					) < (
+						economy::explain_last_factory_profit(state, b).profit
+					);
 				} else {
-					return state.world.factory_get_full_profit(a) > state.world.factory_get_full_profit(b);
+					return (
+						economy::explain_last_factory_profit(state, a).profit
+					) > (
+						economy::explain_last_factory_profit(state, b).profit
+					);
 				}
 			});
 			break;
@@ -1888,9 +1981,9 @@ public:
 		case ledger_sort_type::factory_level:
 			std::sort(row_contents.begin(), row_contents.end(), [&](dcon::factory_id a, dcon::factory_id b) {
 				if(lsort.reversed) {
-					return state.world.factory_get_level(a) < state.world.factory_get_level(b);
+					return economy::get_factory_level(state, a) < economy::get_factory_level(state, b);
 				} else {
-					return state.world.factory_get_level(a) > state.world.factory_get_level(b);
+					return economy::get_factory_level(state, a) > economy::get_factory_level(state, b);
 				}
 			});
 			break;
@@ -1916,6 +2009,119 @@ public:
 		color = state.world.commodity_get_color(content);
 	}
 };
+
+class ledger_nation_plupp : public tinted_image_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto content = retrieve<dcon::nation_id>(state, parent);
+		color = state.world.nation_get_color(content);
+	}
+};
+
+//
+// GDP graph
+//
+
+class gdp_graph : public window_element_base {
+	std::vector<line_graph*> graph_per_nation;
+	const uint32_t graph_length = economy::gdp_history_length;
+public:
+	void on_create(sys::state& state) noexcept override {
+		window_element_base::on_create(state);
+		uint32_t total_nations = state.world.nation_size();
+
+		state.world.for_each_nation([&](dcon::nation_id nation) {
+			auto ptr = make_element_by_type<line_graph>(state, "ledger_linechart", graph_length);
+			auto graph = reinterpret_cast<line_graph*>(ptr.get());
+			auto color = state.world.nation_get_color(nation);
+			graph->is_coloured = true;
+			graph->r = sys::red_from_int(color);
+			graph->g = sys::green_from_int(color);
+			graph->b = sys::blue_from_int(color);
+
+			graph_per_nation.push_back(graph);
+			add_child_to_front(std::move(ptr));
+		});
+	}
+	void on_update(sys::state& state) noexcept override {
+		float min = 0.f;
+		float max = 0.f;
+
+		auto ptr = retrieve< nation_toggle_list*>(state, parent);
+		if(!ptr)
+			return;
+
+		state.world.for_each_nation([&](dcon::nation_id nation) {
+			auto newest_index = economy::most_recent_gdp_record_index(state);
+			if((*ptr).data[nation.index()]) {
+				for(uint32_t i = 0; i < graph_length; ++i) {
+					auto record = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
+					if(record > max) {
+						max = record;
+					}
+				}
+			}
+		});
+
+		state.world.for_each_nation([&](dcon::nation_id nation) {
+			if(!((*ptr).data[nation.index()])) {
+				graph_per_nation[nation.index()]->set_visible(state, false);
+			} else {
+				graph_per_nation[nation.index()]->set_visible(state, true);
+				std::vector<float> datapoints(graph_length);
+				auto newest_index = economy::most_recent_gdp_record_index(state);
+
+				for(uint32_t i = 0; i < graph_length; ++i) {
+					datapoints[i] = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
+				}
+				graph_per_nation[nation.index()]->set_data_points(state, datapoints, min, max);
+			}
+		});
+	}
+};
+
+class nation_toggle_checkbox : public checkbox_button {
+public:
+	int32_t index;
+	nation_toggle_checkbox(dcon::nation_id nation_id) {
+		index = nation_id.index();
+	};
+	void button_action(sys::state& state) noexcept override {
+		if(index < 0) return;
+		auto ptr = retrieve< nation_toggle_list*>(state, parent);
+		if(!ptr)
+			return;
+		(*ptr).data[index] = !(*ptr).data[index];
+		state.game_state_updated.store(true, std::memory_order_release);
+	}
+	bool is_active(sys::state& state) noexcept override {
+		if(index < 0) return false;
+		auto ptr = retrieve< nation_toggle_list*>(state, parent);
+		if(!ptr)
+			return false;
+		return (*ptr).data[index];
+	}
+};
+
+class ledger_nation_entry : public listbox_row_element_base<dcon::nation_id> {
+public:
+	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
+		if(name == "nation_ledger_default_textbox") {
+			return make_element_by_type<generic_name_text<dcon::nation_id>>(state, id);
+		} else if(name == "nation_ledger_legend_plupp") {
+			return make_element_by_type<ledger_nation_plupp>(state, id);
+		} else if(name == "nation_ledger_legend_checkbox") {
+			return make_element_by_type<nation_toggle_checkbox>(state, id, content);
+		} else {
+			return nullptr;
+		}
+	}
+
+	void on_update(sys::state& state) noexcept override {
+		(reinterpret_cast<nation_toggle_checkbox*>(get_child_by_name(state, "nation_ledger_legend_checkbox")))->index = content.index();
+	}
+};
+
 
 //
 // Commodity price
@@ -1947,29 +2153,31 @@ public:
 		});
 	}
 	void on_update(sys::state& state) noexcept override {
-		uint32_t total_commodities = state.world.commodity_size();
-
 		float min = 0.f;
 		float max = 0.f;
 
-		auto ptr = retrieve< std::vector<bool>*>(state, parent);
+		auto ptr = retrieve< price_toggle_list*>(state, parent);
 		if(!ptr)
 			return;
 
 		state.world.for_each_commodity([&](dcon::commodity_id commodity) {
 			auto newest_index = economy::most_recent_price_record_index(state);
-			if((*ptr)[commodity.index()]) {
+			if((*ptr).data[commodity.index()]) {
 				for(uint32_t i = 0; i < graph_length; ++i) {
 					auto price = state.world.commodity_get_price_record(commodity, (newest_index + economy::price_history_length - graph_length + i + 1) % economy::price_history_length);
-					if(price > max) {
-						max = price;
+					auto log_price = log(price + 0.0001f);
+					if(log_price > max) {
+						max = log_price;
+					}
+					if (log_price < min) {
+						min = log_price;
 					}
 				}
 			}
 		});
 
 		state.world.for_each_commodity([&](dcon::commodity_id commodity) {
-			if(!((*ptr)[commodity.index()])) {
+			if(!((*ptr).data[commodity.index()])) {
 				graph_per_price[commodity.index()]->set_visible(state, false);
 			} else {
 				graph_per_price[commodity.index()]->set_visible(state, true);
@@ -1978,13 +2186,13 @@ public:
 
 				for(uint32_t i = 0; i < graph_length; ++i) {
 					datapoints[i] = state.world.commodity_get_price_record(commodity, (newest_index + economy::price_history_length - graph_length + i + 1) % economy::price_history_length);
+					datapoints[i] = log(datapoints[i] + 0.0001f);
 				}
 				graph_per_price[commodity.index()]->set_data_points(state, datapoints, min, max);
 			}
 		});
 	}
 };
-
 
 class price_toggle_checkbox : public checkbox_button {
 public:
@@ -1994,18 +2202,18 @@ public:
 	};
 	void button_action(sys::state& state) noexcept override {
 		if(index < 0) return;
-		auto ptr = retrieve< std::vector<bool>*>(state, parent);
+		auto ptr = retrieve< price_toggle_list*>(state, parent);
 		if(!ptr)
 			return;
-		(*ptr)[index] = !(*ptr)[index];
+		(*ptr).data[index] = !(*ptr).data[index];
 		state.game_state_updated.store(true, std::memory_order_release);
 	}
 	bool is_active(sys::state& state) noexcept override {
 		if(index < 0) return false;
-		auto ptr = retrieve< std::vector<bool>*>(state, parent);
+		auto ptr = retrieve< price_toggle_list*>(state, parent);
 		if(!ptr)
 			return false;
-		return (*ptr)[index];
+		return (*ptr).data[index];
 	}
 };
 
@@ -2042,6 +2250,22 @@ public:
 		update(state);
 	}
 };
+
+class ledger_nations_listbox : public listbox_element_base<ledger_nation_entry, dcon::nation_id> {
+protected:
+	std::string_view get_row_element_name() override {
+		return "ledger_nations_legend_entry";
+	}
+public:
+	void on_update(sys::state& state) noexcept override {
+		row_contents.clear();
+		state.world.for_each_nation([&](dcon::nation_id id) {
+			row_contents.push_back(id);
+		});
+		update(state);
+	}
+};
+
 class commodity_linegraph_legend_window : public window_element_base {
 public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
@@ -2053,13 +2277,30 @@ public:
 	}
 };
 
+class nations_linegraph_legend_window : public window_element_base {
+public:
+	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
+		if(name == "legend_nations_list") {
+			return make_element_by_type<ledger_nations_listbox>(state, id);
+		} else {
+			return nullptr;
+		}
+	}
+};
+
 class ledger_window : public window_element_base {
 	dcon::gui_def_id listbox_def_id{};
 	dcon::gui_def_id sort_buttons_window_id{};
 
 	all_prices_graph* commodity_linegraph = nullptr;
+	gdp_graph* gdp_linegraph = nullptr;
+
 	commodity_linegraph_legend_window* commodity_linegraph_legend = nullptr;
+	nations_linegraph_legend_window* gdp_linegraph_legend = nullptr;
+
 	image_element_base* commodity_linegraph_image = nullptr;
+	image_element_base* gdp_linegraph_image = nullptr;
+
 	simple_text_element_base* page_number_text = nullptr;
 	simple_text_element_base* ledger_header_text = nullptr;
 	ledger_page_number page_num{int8_t(1)};
@@ -2093,9 +2334,15 @@ class ledger_window : public window_element_base {
 		commodity_linegraph->set_visible(state, false);
 		commodity_linegraph_legend->set_visible(state, false);
 		commodity_linegraph_image->set_visible(state, false);
+
+
+		gdp_linegraph->set_visible(state, false);
+		gdp_linegraph_legend->set_visible(state, false);
+		gdp_linegraph_image->set_visible(state, false);
 	}
 
-	std::vector<bool> price_toggle_status;
+	price_toggle_list price_toggle_status;
+	nation_toggle_list nation_toggle_status;
 
 public:
 	void on_create(sys::state& state) noexcept override {
@@ -2103,7 +2350,12 @@ public:
 
 		uint32_t total_commodities = state.world.commodity_size();
 		for(uint32_t k = 0; k < total_commodities; ++k) {
-			price_toggle_status.push_back(true);
+			price_toggle_status.data.push_back(true);
+		}
+
+		uint32_t total_nations = state.world.nation_size();
+		for(uint32_t k = 0; k < total_nations; ++k) {
+			nation_toggle_status.data.push_back(true);
 		}
 
 		{
@@ -2217,6 +2469,29 @@ public:
 			add_child_to_front(std::move(ptr));
 		}
 
+		//gdp block
+
+		{
+			auto def = state.ui_state.defs_by_name.find(state.lookup_key("gdp_ledger_linegraph_bg"))->second.definition;
+			auto ptr = make_element_by_type<image_element_base>(state, def);
+			gdp_linegraph_image = ptr.get();
+			add_child_to_front(std::move(ptr));
+		}
+
+		{ 
+			auto def = state.ui_state.defs_by_name.find(state.lookup_key("gdp_ledger_linegraphs"))->second.definition;
+			auto ptr = make_element_by_type<gdp_graph>(state, def);
+			gdp_linegraph = ptr.get();
+			add_child_to_front(std::move(ptr));
+		}
+
+		{
+			auto def = state.ui_state.defs_by_name.find(state.lookup_key("gdp_ledger_linegraph_legend"))->second.definition;
+			auto ptr = make_element_by_type<nations_linegraph_legend_window>(state, def);
+			gdp_linegraph_legend = ptr.get();
+			add_child_to_front(std::move(ptr));
+		}	
+
 		Cyto::Any payload = page_num;
 		impl_set(state, payload);
 	}
@@ -2228,7 +2503,7 @@ public:
 			return ptr;
 		} else if(name == "ledger_bg") {
 			return make_element_by_type<draggable_target>(state, id);
-		} else if(name == "ledger_linegraphs") {
+		} else if(name == "ledger_linegraphs") { // prices block
 			auto ptr = make_element_by_type<all_prices_graph>(state, id);
 			commodity_linegraph = ptr.get();
 			return ptr;
@@ -2314,6 +2589,12 @@ public:
 			commodity_linegraph_legend->set_visible(state, true);
 			commodity_linegraph_image->set_visible(state, true);
 			break;
+		case 12:
+			ledger_header_text->set_text(state, text::produce_simple_string(state, "alice_ledger_header_gdp_history"));
+			gdp_linegraph->set_visible(state, true);
+			gdp_linegraph_legend->set_visible(state, true);
+			gdp_linegraph_image->set_visible(state, true);
+			break;
 		default:
 			break;
 		}
@@ -2326,8 +2607,11 @@ public:
 			current_sorting = any_cast<element_selection_wrapper<ledger_sort>>(payload).data;
 			impl_on_update(state);
 			return message_result::consumed;
-		} else if(payload.holds_type< std::vector<bool>*>()) {
-			payload.emplace<std::vector<bool>*>(&price_toggle_status);
+		} else if(payload.holds_type< price_toggle_list*>()) {
+			payload.emplace<price_toggle_list*>(&price_toggle_status);
+			return message_result::consumed;
+		} else if(payload.holds_type< nation_toggle_list*>()) {
+			payload.emplace<nation_toggle_list*>(&nation_toggle_status);
 			return message_result::consumed;
 		}
 		return message_result::unseen;

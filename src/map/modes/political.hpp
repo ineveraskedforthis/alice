@@ -1,6 +1,7 @@
 #pragma once
 #include "prng.hpp"
 
+// Imagine new color for subject based on overlord color and random from nation id.
 uint32_t derive_color_from_ol_color(sys::state& state, uint32_t ol_color, dcon::nation_id n) {
 	auto base = sys::rgb_to_hsv(ol_color);
 	auto roff = rng::get_random_pair(state, uint32_t(n.index()), uint32_t(n.index()));
@@ -47,6 +48,7 @@ std::vector<uint32_t> political_map_from(sys::state& state) {
 	state.world.for_each_province([&](dcon::province_id prov_id) {
 		auto fat_id = dcon::fatten(state.world, prov_id);
 		auto i = province::to_map_id(prov_id);
+		// Sea provinces
 		if(prov_id.index() >= state.province_definitions.first_sea_province.index()) {
 			prov_color[i] = 0;
 			prov_color[i + texture_size] = 0;
@@ -87,8 +89,17 @@ std::vector<uint32_t> political_map_from(sys::state& state) {
 				color = 255 << 16 | 255 << 8 | 255;
 			}
 			auto occupier = fat_id.get_nation_from_province_control();
-			uint32_t color_b = occupier ? nation_color[occupier.id.value] :
-				(id ? sys::pack_color(127, 127, 127) : sys::pack_color(255, 255, 255));
+			auto rebel_faction = fat_id.get_rebel_faction_from_province_rebel_control().id;
+			uint32_t color_b;
+			uint32_t rebel_color = sys::pack_color(127, 127, 127);
+			if(rebel_faction) {
+				dcon::rebel_type_fat_id rtype = state.world.rebel_faction_get_type(rebel_faction);
+				dcon::ideology_fat_id ideology = rtype.get_ideology();
+				if(ideology)
+					rebel_color = ideology.get_color();
+			}
+			color_b = occupier ? nation_color[occupier.id.value] :
+				(id ? rebel_color : sys::pack_color(255, 255, 255));
 
 			prov_color[i] = color;
 			prov_color[i + texture_size] = color_b;

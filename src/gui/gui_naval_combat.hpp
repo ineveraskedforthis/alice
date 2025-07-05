@@ -43,11 +43,10 @@ class nc_attacker_leader_img : public image_element_base {
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto b = retrieve<dcon::naval_battle_id>(state, parent);
 		auto lid = state.world.naval_battle_get_admiral_from_attacking_admiral(b);
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class nc_defending_leader_img : public image_element_base {
@@ -86,11 +85,10 @@ class nc_defending_leader_img : public image_element_base {
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto b = retrieve<dcon::naval_battle_id>(state, parent);
 		auto lid = state.world.naval_battle_get_admiral_from_defending_admiral(b);
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 
@@ -104,7 +102,7 @@ public:
 			auto name = state.to_string_view(state.world.leader_get_name(lid));
 			set_text(state, std::string(name));
 		} else {
-			set_text(state, "");
+			set_text(state, text::produce_simple_string(state, "no_leader"));
 		}
 	}
 };
@@ -118,7 +116,7 @@ public:
 			auto name = state.to_string_view(state.world.leader_get_name(lid));
 			set_text(state, std::string(name));
 		} else {
-			set_text(state, "");
+			set_text(state, text::produce_simple_string(state, "no_leader"));
 		}
 	}
 };
@@ -139,8 +137,9 @@ public:
 			auto mask_handle = ogl::get_texture_handle(state, dcon::texture_id(gfx_def.type_dependent - 1), true);
 			auto& mask_tex = state.open_gl.asset_textures[dcon::texture_id(gfx_def.type_dependent - 1)];
 			ogl::render_masked_rect(state, get_color_modification(this == state.ui_state.under_mouse, disabled, interactable), float(x),
-					float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
-					gfx_def.is_vertically_flipped());
+				float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
+				gfx_def.is_vertically_flipped(),
+				false);
 		}
 		image_element_base::render(state, x, y);
 	}
@@ -170,8 +169,9 @@ public:
 			auto mask_handle = ogl::get_texture_handle(state, dcon::texture_id(gfx_def.type_dependent - 1), true);
 			auto& mask_tex = state.open_gl.asset_textures[dcon::texture_id(gfx_def.type_dependent - 1)];
 			ogl::render_masked_rect(state, get_color_modification(this == state.ui_state.under_mouse, disabled, interactable), float(x),
-					float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
-					gfx_def.is_vertically_flipped());
+				float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
+				gfx_def.is_vertically_flipped(),
+				false);
 		}
 		image_element_base::render(state, x, y);
 	}
@@ -488,8 +488,8 @@ class nc_defender_combat_modifiers : public overlapping_listbox_element_base<lc_
 
 		auto defender_dice = (both_dice >> 4) & 0x0F;
 
-		auto defender_per = state.world.leader_get_personality(state.world.naval_battle_get_admiral_from_attacking_admiral(b));
-		auto defender_bg = state.world.leader_get_background(state.world.naval_battle_get_admiral_from_attacking_admiral(b));
+		auto defender_per = military::get_leader_personality_wrapper(state, state.world.naval_battle_get_admiral_from_defending_admiral(b));
+		auto defender_bg = military::get_leader_background_wrapper(state, state.world.naval_battle_get_admiral_from_defending_admiral(b));
 
 		auto defence_bonus =
 			int32_t(state.world.leader_trait_get_defense(defender_per) + state.world.leader_trait_get_defense(defender_bg));
@@ -515,8 +515,8 @@ class nc_attacker_combat_modifiers : public overlapping_listbox_element_base<lc_
 		auto both_dice = state.world.naval_battle_get_dice_rolls(b);
 		auto attacker_dice = both_dice & 0x0F;
 
-		auto attacker_per = state.world.leader_get_personality(state.world.naval_battle_get_admiral_from_attacking_admiral(b));
-		auto attacker_bg = state.world.leader_get_background(state.world.naval_battle_get_admiral_from_attacking_admiral(b));
+		auto attacker_per = military::get_leader_personality_wrapper(state, state.world.naval_battle_get_admiral_from_attacking_admiral(b));
+		auto attacker_bg = military::get_leader_background_wrapper(state, state.world.naval_battle_get_admiral_from_attacking_admiral(b));
 
 		auto attack_bonus =
 			int32_t(state.world.leader_trait_get_attack(attacker_per) + state.world.leader_trait_get_attack(attacker_bg));
@@ -526,6 +526,69 @@ class nc_attacker_combat_modifiers : public overlapping_listbox_element_base<lc_
 			row_contents.push_back(lc_modifier_data{ lc_mod_type::leader, attack_bonus });
 
 		update(state);
+	}
+};
+
+template<bool attacker>
+class nc_stacking_penalty_icon : public image_element_base {
+	dcon::gfx_object_id def;
+
+	void on_update(sys::state& state) noexcept override {
+
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto b = retrieve<dcon::naval_battle_id>(state, parent);
+		auto slots = state.world.naval_battle_get_slots(b);
+
+		int32_t attacker_ships = 0;
+		int32_t defender_ships = 0;
+
+		for(uint32_t j = slots.size(); j-- > 0;) {
+			switch(slots[j].flags & military::ship_in_battle::mode_mask) {
+			case military::ship_in_battle::mode_seeking:
+			case military::ship_in_battle::mode_approaching:
+			case military::ship_in_battle::mode_retreating:
+			case military::ship_in_battle::mode_engaged:
+				if((slots[j].flags & military::ship_in_battle::is_attacking) != 0)
+					++attacker_ships;
+				else
+					++defender_ships;
+				break;
+			default:
+				break;
+			}
+		}
+		int32_t friendly_ships;
+		int32_t enemy_ships;
+		std::string atk_or_def_string;
+		if(attacker) {
+			atk_or_def_string = "attackers";
+			friendly_ships = attacker_ships;
+			enemy_ships = defender_ships;
+		}
+		else {
+			atk_or_def_string = "defenders";
+			friendly_ships = defender_ships;
+			enemy_ships = attacker_ships;
+		}
+		float coordination_penalty = military::naval_battle_get_coordination_penalty(state, friendly_ships, enemy_ships);
+		float coordination_bonus = military::naval_battle_get_coordination_bonus(state, friendly_ships, enemy_ships);
+		float stacking_penalty = military::get_damage_reduction_stacking_penalty(state, friendly_ships, enemy_ships);
+		if(coordination_penalty > 0.0f) {
+			text::add_line(state, contents, "alice_naval_coordination_penalty", text::variable_type::x, atk_or_def_string, text::variable_type::y, text::format_percentage(coordination_penalty), text::variable_type::val, text::format_percentage(coordination_penalty * state.defines.naval_combat_stacking_target_select));
+		}
+		else {
+			text::add_line(state, contents, "alice_naval_coordination_bonus", text::variable_type::x, atk_or_def_string, text::variable_type::y, text::format_percentage(coordination_bonus), text::variable_type::val, text::format_percentage(coordination_bonus * state.defines.alice_naval_combat_enemy_stacking_target_select_bonus));
+		}
+		if(stacking_penalty < 1.0f) {
+			text::add_line(state, contents, "alice_naval_stacking_penalty", text::variable_type::x, atk_or_def_string, text::variable_type::y, text::format_percentage(stacking_penalty));
+		}
+		
 	}
 };
 
@@ -561,7 +624,11 @@ public:
 			return make_element_by_type<nc_attacker_ts_txt>(state, id);
 		} else if(name == "modifiers") {
 			return make_element_by_type<nc_attacker_combat_modifiers>(state, id);
-		} else {
+		} else if(name == "stacking_penalty_icon") {
+			return make_element_by_type<nc_stacking_penalty_icon<true>>(state, id);
+		}
+
+		else {
 			return nullptr;
 		}
 	}
@@ -598,7 +665,10 @@ public:
 			return make_element_by_type<nc_defender_ts_txt>(state, id);
 		} else if(name == "modifiers") {
 			return make_element_by_type<nc_defender_combat_modifiers>(state, id);
-		} else {
+		} else if(name == "stacking_penalty_icon") {
+			return make_element_by_type<nc_stacking_penalty_icon<false>>(state, id);
+		}
+		else {
 			return nullptr;
 		}
 	}
@@ -754,11 +824,10 @@ class nc_our_leader_img : public image_element_base {
 		military::naval_battle_report* report = retrieve< military::naval_battle_report*>(state, parent);
 		bool we_are_attacker = (report->attacker_won == report->player_on_winning_side);
 		dcon::leader_id lid = we_are_attacker ? report->attacking_admiral : report->defending_admiral;
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class nc_our_leader_name : public simple_text_element_base {
@@ -814,11 +883,10 @@ class nc_their_leader_img : public image_element_base {
 		military::naval_battle_report* report = retrieve< military::naval_battle_report*>(state, parent);
 		bool we_are_attacker = (report->attacker_won == report->player_on_winning_side);
 		dcon::leader_id lid = !we_are_attacker ? report->attacking_admiral : report->defending_admiral;
-
-		if(lid)
-			display_leader_attributes(state, lid, contents, 0);
-		else
+		if(!lid) {
 			text::add_line(state, contents, "no_leader");
+		}
+		display_leader_attributes(state, lid, contents, 0);
 	}
 };
 class nc_their_leader_name : public simple_text_element_base {
@@ -1063,18 +1131,12 @@ class nc_goto_location_button : public button_element_base {
 	void button_action(sys::state& state) noexcept override {
 		military::naval_battle_report* report = retrieve< military::naval_battle_report*>(state, parent);
 		auto prov = report->location;
-		if(prov) {
+		if(prov && prov.value < state.province_definitions.first_sea_province.value) {
 			state.map_state.set_selected_province(prov);
 			static_cast<ui::province_view_window*>(state.ui_state.province_window)->set_active_province(state, prov);
-
-			if(state.map_state.get_zoom() < 8)
-				state.map_state.zoom = 8.0f;
-
-			auto map_pos = state.world.province_get_mid_point(prov);
-			map_pos.x /= float(state.map_state.map_data.size_x);
-			map_pos.y /= float(state.map_state.map_data.size_y);
-			map_pos.y = 1.0f - map_pos.y;
-			state.map_state.set_pos(map_pos);
+			if(state.map_state.get_zoom() < map::zoom_very_close)
+				state.map_state.zoom = map::zoom_very_close;
+			state.map_state.center_map_on_province(state, prov);
 		}
 	}
 };
@@ -1118,9 +1180,9 @@ public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override;
 };
 
-std::vector<std::unique_ptr<ui::naval_combat_end_popup>> naval_combat_end_popup::naval_reports_pool;
+inline std::vector<std::unique_ptr<ui::naval_combat_end_popup>> naval_combat_end_popup::naval_reports_pool;
 
-message_result naval_combat_end_popup::get(sys::state& state, Cyto::Any& payload) noexcept {
+inline message_result naval_combat_end_popup::get(sys::state& state, Cyto::Any& payload) noexcept {
 	if(payload.holds_type<military::naval_battle_report*>()) {
 		payload.emplace<military::naval_battle_report*>(&report);
 		return message_result::consumed;
@@ -1128,7 +1190,7 @@ message_result naval_combat_end_popup::get(sys::state& state, Cyto::Any& payload
 	return window_element_base::get(state, payload);
 }
 
-void naval_combat_end_popup::make_new_report(sys::state& state, military::naval_battle_report const& r) {
+inline void naval_combat_end_popup::make_new_report(sys::state& state, military::naval_battle_report const& r) {
 	if(naval_reports_pool.empty()) {
 		auto new_elm = ui::make_element_by_type<ui::naval_combat_end_popup>(state, "endofnavalcombatpopup");
 		auto ptr = new_elm.get();
@@ -1145,7 +1207,7 @@ void naval_combat_end_popup::make_new_report(sys::state& state, military::naval_
 	}
 }
 
-std::unique_ptr<element_base> naval_combat_end_popup::make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept {
+inline std::unique_ptr<element_base> naval_combat_end_popup::make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept {
 	if(name == "background") {
 		return make_element_by_type<draggable_target>(state, id);
 	} else if(name == "combat_end_naval_lost") {
@@ -1250,7 +1312,7 @@ std::unique_ptr<element_base> naval_combat_end_popup::make_child(sys::state& sta
 	}
 }
 
-void nc_close_button::button_action(sys::state& state) noexcept {
+inline void nc_close_button::button_action(sys::state& state) noexcept {
 	parent->set_visible(state, false);
 	auto uptr = state.ui_state.root->remove_child(parent);
 	assert(uptr);

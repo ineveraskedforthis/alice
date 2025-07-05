@@ -137,39 +137,19 @@ int bm_font::get_kerning_pair(char first, char second) const {
 }
 
 float bm_font::get_string_width(sys::state& state, char const* string, uint32_t count) const {
-	float total = 0;
-
+	float total = 0.f;
 	for(uint32_t i = 0; i < count; ++i) {
-		auto c = uint8_t(string[i]);
-
-		if(uint8_t(string[i]) == 0x40) { // Handle @TAG
-			auto const& f = chars[0x4D];
-			float scaling = uint8_t(string[i]) == 0xA4 ? 1.5f : 1.f;
-			float offset = uint8_t(string[i]) == 0xA4 ? 0.25f : 0.f;
-			char tag[3] = { 0, 0, 0 };
-			tag[0] = (i + 1 < count) ? char(string[i + 1]) : 0;
-			tag[1] = (i + 2 < count) ? char(string[i + 2]) : 0;
-			tag[2] = (i + 3 < count) ? char(string[i + 3]) : 0;
-			if(ogl::display_tag_is_valid(state, tag)) {
-				total += f.x_offset - (float(f.width) * offset) + float(f.height) * 1.5f * scaling;
-				i += 3;
-				continue;
-			}
+		auto ch = uint8_t(string[i]);
+		if(i != 0 && ch == 0xC3 && uint8_t(string[i + 1]) == 0xA3) {
+			ch = 0xA3;
+			i++;
+		} else if(ch == 0xA4) {
+			ch = 0xA3;
 		}
-
-		if(c == 0x01 || c == 0x02 || c == 0x03 || c == 0x04 || c == 0x40) {
-			auto f = chars[0x4D];
-			float scaling = uint8_t(string[i]) == 0xA4 ? 1.5f : 1.f;
-			float offset = uint8_t(string[i]) == 0xA4 ? 0.25f : 0.f;
-			total += f.x_offset - (float(f.width) * offset) + float(f.width) * scaling;
-			continue;
+		if(i != count - 1) {
+			total += get_kerning_pair(ch, string[i + 1]);
 		}
-
-		total += chars[c].x_advance;
-		if(i != 0) {
-			total += get_kerning_pair(string[i - 1], c);
-		}
-
+		total += chars[ch].x_advance * (ch == 0xA3 ? 0.25f : 1.f);
 	}
 	return total;
 }
@@ -188,9 +168,27 @@ bm_font const& get_bm_font(sys::state& state, uint16_t font_handle) {
 		auto fname = [&]() {
 			auto sv = state.to_string_view(fit->second);
 			if(sv == "Main_14")
-				return std::string("Arial14");
+				return std::string("garamond_14");
+			if(sv == "Main_14_plain")
+				return std::string("garamond_14");
+			if(sv == "Main_14_grey")
+				return std::string("garamond_14_bold");
+			if(sv == "Main_14_black")
+				return std::string("garamond_14_bold");
+			if(sv == "Main_14_red")
+				return std::string("garamond_14_bold");
+			if(sv == "Main_14_bold")
+				return std::string("garamond_14_bold");
+			if(sv == "Main_14_orange")
+				return std::string("garamond_14_bold");
+			if(sv == "Main_14_eu")
+				return std::string("garamond_14");
+			if(sv == "tahoma_60")
+				return std::string("mapfont_56");
+			if(sv == "mapfont_56_small")
+				return std::string("vic_22_bl");
 			if(sv == "ToolTip_Font")
-				return std::string("Arial14");
+				return std::string("garamond_16");
 			if(sv == "FPS_Font")
 				return std::string("Arial14");
 			return std::string(sv);
@@ -199,11 +197,12 @@ bm_font const& get_bm_font(sys::state& state, uint16_t font_handle) {
 		auto root = get_root(state.common_fs);
 		auto gfx_dir = open_directory(root, NATIVE("gfx"));
 		auto font_dir = open_directory(gfx_dir, NATIVE("fonts"));
-
 		auto font_def = open_file(font_dir, simple_fs::win1250_to_native(fname + ".fnt"));
 		auto font_image = open_file(font_dir, simple_fs::win1250_to_native(fname + ".tga"));
-		assert(bool(font_def) && bool(font_image));
-
+		if(!bool(font_def) || !bool(font_image)) {
+			auto result = state.font_collection.bitmap_fonts.insert_or_assign(font_handle, bm_font());
+			return result.first->second;
+		}
 		auto result = state.font_collection.bitmap_fonts.insert_or_assign(font_handle, bm_font(state, *font_def, *font_image));
 		return result.first->second;
 	}

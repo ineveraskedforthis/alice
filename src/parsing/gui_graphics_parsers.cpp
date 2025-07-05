@@ -4,6 +4,15 @@
 #include "fonts.hpp"
 
 namespace parsers {
+std::string lowercase_str(std::string_view sv) {
+	std::string result;
+	result.reserve(sv.length());
+	for(auto ch : sv) {
+		result += char(tolower(ch));
+	}
+	return result;
+}
+
 struct obj_and_horizontal {
 	ui::gfx_object* obj = nullptr;
 	bool horizontal = false;
@@ -13,6 +22,7 @@ obj_and_horizontal common_create_object(gfx_object const& obj_in, building_gfx_c
 	context.ui_defs.gfx.emplace_back();
 	ui::gfx_object& new_obj = context.ui_defs.gfx.back();
 
+	new_obj.name = context.full_state.add_key_win1252(obj_in.name);
 	context.map_of_names.insert_or_assign(std::string(obj_in.name), dcon::gfx_object_id(uint16_t(gfxindex)));
 
 	if(obj_in.allwaystransparent) {
@@ -36,9 +46,9 @@ obj_and_horizontal common_create_object(gfx_object const& obj_in, building_gfx_c
 			new_obj.primary_texture_handle = it->second;
 		} else {
 			auto index = context.ui_defs.textures.size();
-			context.ui_defs.textures.emplace_back(context.full_state.add_to_pool(stripped));
-			new_obj.primary_texture_handle = dcon::texture_id(uint16_t(index));
-			context.map_of_texture_names.insert_or_assign(stripped, dcon::texture_id(uint16_t(index)));
+			context.ui_defs.textures.emplace_back(context.full_state.add_key_win1252(stripped));
+			new_obj.primary_texture_handle = dcon::texture_id(dcon::texture_id::value_base_t(index));
+			context.map_of_texture_names.insert_or_assign(stripped, new_obj.primary_texture_handle);
 		}
 	}
 	if(obj_in.secondary_texture.length() > 0) {
@@ -47,9 +57,9 @@ obj_and_horizontal common_create_object(gfx_object const& obj_in, building_gfx_c
 			new_obj.type_dependent = uint16_t(it->second.index() + 1);
 		} else {
 			auto index = context.ui_defs.textures.size();
-			context.ui_defs.textures.emplace_back(context.full_state.add_to_pool(stripped));
+			context.ui_defs.textures.emplace_back(context.full_state.add_key_win1252(stripped));
 			new_obj.type_dependent = uint16_t(index + 1);
-			context.map_of_texture_names.insert_or_assign(stripped, dcon::texture_id(uint16_t(index)));
+			context.map_of_texture_names.insert_or_assign(stripped, dcon::texture_id(dcon::texture_id::value_base_t(index)));
 		}
 	}
 
@@ -158,13 +168,18 @@ void gui_element_common::orientation(association_type, std::string_view txt, err
 }
 void gui_element_common::name(association_type, std::string_view txt, error_handler& err, int32_t line,
 		building_gfx_context& context) {
-	target.name = context.full_state.add_to_pool_lowercase(txt);
+	target.name = context.full_state.add_key_win1252(txt);
+}
+void gui_element_common::extends(association_type, std::string_view txt, error_handler& err, int32_t line, building_gfx_context& context) {
+	extension = context.full_state.add_key_win1252(txt);
 }
 void gui_element_common::rotation(association_type, std::string_view txt, error_handler& err, int32_t line,
 		building_gfx_context& context) {
-	if(is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "-1.5708")) {
+	if(is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "-1.5708")
+	|| is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "-1.570796")) {
 		target.flags |= uint8_t(ui::rotation::r90_right);
-	} else if(is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "1.5708")) {
+	} else if(is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "1.5708")
+		|| is_fixed_token_ci(txt.data(), txt.data() + txt.length(), "1.570796")) {
 		target.flags |= uint8_t(ui::rotation::r90_left);
 	} else if(parse_float(txt, line, err) == 0.0f) {
 		target.flags |= uint8_t(ui::rotation::upright);
@@ -182,6 +197,18 @@ void gui_element_common::maxheight(association_type, int32_t v, error_handler& e
 void gui_element_common::maxsize(gfx_xy_pair const& pr, error_handler& err, int32_t line, building_gfx_context& context) {
 	target.size.x = int16_t(pr.x);
 	target.size.y = int16_t(pr.y);
+}
+void gui_element_common::add_size(gfx_xy_pair const& pr, error_handler& err, int32_t line, building_gfx_context& context) {
+	target.size.x += int16_t(pr.x);
+	target.size.y += int16_t(pr.y);
+}
+void gui_element_common::add_position(gfx_xy_pair const& pr, error_handler& err, int32_t line, building_gfx_context& context) {
+	target.position.x += int16_t(pr.x);
+	target.position.y += int16_t(pr.y);
+}
+void gui_element_common::table_layout(gfx_xy_pair const& pr, error_handler& err, int32_t line, building_gfx_context& context) {
+	target.position.x += int16_t(target.size.x) * int16_t(pr.x);
+	target.position.y += int16_t(target.size.y) * int16_t(pr.y);
 }
 
 button::button() {
@@ -388,33 +415,8 @@ void button::shortcut(association_type, std::string_view t, error_handler& err, 
 	}
 }
 
-std::string lowercase_str(std::string_view sv) {
-	std::string result;
-	result.reserve(sv.length());
-	for(auto ch : sv) {
-		result += char(tolower(ch));
-	}
-	return result;
-}
-
 void button::buttontext(association_type, std::string_view txt, error_handler& err, int32_t line, building_gfx_context& context) {
-	auto it = context.full_state.key_to_text_sequence.find(lowercase_str(txt));
-	if(it != context.full_state.key_to_text_sequence.end()) {
-		target.data.button.txt = it->second;
-	} else {
-		auto new_key = context.full_state.add_to_pool_lowercase(txt);
-		auto component_sz = context.full_state.text_components.size();
-		context.full_state.text_components.emplace_back(new_key);
-		if(context.full_state.text_components.size() >= std::numeric_limits<uint32_t>::max()) {
-			err.accumulated_errors += "registered too many text components on line " + std::to_string(line) + " " + err.file_name + "\n";
-		}
-
-		auto seq_size = context.full_state.text_sequences.size();
-		context.full_state.text_sequences.push_back(text::text_sequence{uint32_t(component_sz), uint16_t(1)});
-		auto new_id = dcon::text_sequence_id(dcon::text_sequence_id::value_base_t(seq_size));
-		target.data.button.txt = new_id;
-		context.full_state.key_to_text_sequence.insert_or_assign(new_key, new_id);
-	}
+	target.data.button.txt = context.full_state.add_key_win1252(txt);
 }
 
 void button::buttonfont(association_type, std::string_view txt, error_handler& err, int32_t line, building_gfx_context& context) {
@@ -432,7 +434,7 @@ void button::format(association_type, std::string_view t, error_handler& err, in
 	} else if(is_fixed_token_ci(t.data(), t.data() + t.length(), "justified")) {
 		target.data.button.flags |= uint8_t(ui::alignment::justified);
 	} else {
-		err.accumulated_errors += "tried to parse  " + std::string(t) + " as an alignment on line " + std::to_string(line) +
+		err.accumulated_errors += "tried to parse " + std::string(t) + " as an alignment on line " + std::to_string(line) +
 															" of file " + err.file_name + "\n";
 	}
 }
@@ -448,6 +450,53 @@ void button::clicksound(association_type, std::string_view t, error_handler& err
 		err.accumulated_errors += "tried to parse  " + std::string(t) + " as a click sound on line " + std::to_string(line) +
 															" of file " + err.file_name + "\n";
 	}
+}
+
+void nation_script_button::allow(bool, error_handler& err, int32_t line, building_gfx_context& context) {
+	if(added_allow != -1) {
+		err.accumulated_errors += "multiple allow conditions for a button defined on line  " + std::to_string(line) + " of file " + err.file_name + "\n";
+	}
+	added_allow = int32_t(context.nation_buttons_allow.size()) - 1;
+}
+void nation_script_button::effect(bool, error_handler& err, int32_t line, building_gfx_context& context) {
+	if(added_effect != -1) {
+		err.accumulated_errors += "multiple effects for a button defined on line  " + std::to_string(line) + " of file " + err.file_name + "\n";
+	}
+	added_effect = int32_t(context.nation_buttons_effect.size()) - 1;
+}
+void province_script_button::allow(bool, error_handler& err, int32_t line, building_gfx_context& context) {
+	if(added_allow != -1) {
+		err.accumulated_errors += "multiple allow conditions for a button defined on line  " + std::to_string(line) + " of file " + err.file_name + "\n";
+	}
+	added_allow = int32_t(context.province_buttons_allow.size()) - 1;
+}
+void province_script_button::effect(bool, error_handler& err, int32_t line, building_gfx_context& context) {
+	if(added_effect != -1) {
+		err.accumulated_errors += "multiple effects for a button defined on line  " + std::to_string(line) + " of file " + err.file_name + "\n";
+	}
+	added_effect = int32_t(context.province_buttons_effect.size()) - 1;
+}
+
+
+bool province_button_allow(token_generator& gen, error_handler& err, building_gfx_context& context) {
+	context.province_buttons_allow.push_back(pending_button_script{ err.file_name, gen, dcon::gui_def_id{} });
+	gen.discard_group();
+	return true;
+}
+bool province_button_effect(token_generator& gen, error_handler& err, building_gfx_context& context) {
+	context.province_buttons_effect.push_back(pending_button_script{ err.file_name, gen, dcon::gui_def_id{} });
+	gen.discard_group();
+	return true;
+}
+bool nation_button_allow(token_generator& gen, error_handler& err, building_gfx_context& context) {
+	context.nation_buttons_allow.push_back(pending_button_script{ err.file_name, gen, dcon::gui_def_id{} });
+	gen.discard_group();
+	return true;
+}
+bool nation_button_effect(token_generator& gen, error_handler& err, building_gfx_context& context) {
+	context.nation_buttons_effect.push_back(pending_button_script{ err.file_name, gen, dcon::gui_def_id{} });
+	gen.discard_group();
+	return true;
 }
 
 image::image() {
@@ -509,23 +558,7 @@ void textbox::format(association_type, std::string_view t, error_handler& err, i
 	}
 }
 void textbox::text(association_type, std::string_view txt, error_handler& err, int32_t line, building_gfx_context& context) {
-	auto it = context.full_state.key_to_text_sequence.find(lowercase_str(txt));
-	if(it != context.full_state.key_to_text_sequence.end()) {
-		target.data.text.txt = it->second;
-	} else {
-		auto new_key = context.full_state.add_to_pool_lowercase(txt);
-		auto component_sz = context.full_state.text_components.size();
-		context.full_state.text_components.emplace_back(new_key);
-		if(context.full_state.text_components.size() >= std::numeric_limits<uint32_t>::max()) {
-			err.accumulated_errors += "registered too many text components on line " + std::to_string(line) + " " + err.file_name + "\n";
-		}
-
-		auto seq_size = context.full_state.text_sequences.size();
-		context.full_state.text_sequences.push_back(text::text_sequence{uint32_t(component_sz), uint16_t(1)});
-		auto new_id = dcon::text_sequence_id(dcon::text_sequence_id::value_base_t(seq_size));
-		target.data.text.txt = new_id;
-		context.full_state.key_to_text_sequence.insert_or_assign(new_key, new_id);
-	}
+	target.data.text.txt = context.full_state.add_key_win1252(txt);
 }
 void textbox::texturefile(association_type, std::string_view t, error_handler& err, int32_t line, building_gfx_context& context) {
 	if(t.length() == 0) {
@@ -664,7 +697,7 @@ void scrollbar::icontype(image const& v, error_handler& err, int32_t line, build
 auto find_in_children(std::string_view name, std::vector<ui::element_data> const& v, sys::state const& state) {
 	auto lname = lowercase_str(name);
 	for(size_t i = v.size(); i-- > 0;) {
-		if(state.to_string_view(v[i].name) == lname) {
+		if(lowercase_str(state.to_string_view(v[i].name)) == lname) {
 			return i;
 		}
 	}
@@ -772,10 +805,33 @@ void window::editboxtype(textbox const& v, error_handler& err, int32_t line, bui
 void window::textboxtype(textbox const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	children.push_back(v.target);
 }
+void window::provincescriptbuttontype(province_script_button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
+	children.push_back(v.target);
+	sc.push_back(window::scripted_children{ uint32_t(children.size() - 1), v.added_allow, v.added_effect, -1, -1 });
+}
+void window::nationscriptbuttontype(nation_script_button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
+	children.push_back(v.target);
+	sc.push_back(window::scripted_children{ uint32_t(children.size() - 1), -1, -1, v.added_allow, v.added_effect});
+}
 void window::finish(building_gfx_context& context) {
 	auto first_child = context.full_state.ui_defs.gui.size();
 	for(auto& ch : children) {
 		context.full_state.ui_defs.gui.push_back(ch);
+	}
+	for(auto& s : sc) {
+		auto child_id = dcon::gui_def_id(dcon::gui_def_id::value_base_t(first_child + s.child_number));
+		if(s.pallow != -1) {
+			context.province_buttons_allow[s.pallow].button_element = child_id;
+		}
+		if(s.peffect != -1) {
+			context.province_buttons_effect[s.peffect].button_element = child_id;
+		}
+		if(s.nallow != -1) {
+			context.nation_buttons_allow[s.nallow].button_element = child_id;
+		}
+		if(s.neffect != -1) {
+			context.nation_buttons_effect[s.neffect].button_element = child_id;
+		}
 	}
 	target.data.window.num_children = uint8_t(children.size());
 	target.data.window.first_child = dcon::gui_def_id(dcon::gui_def_id::value_base_t(first_child));
@@ -784,24 +840,39 @@ void window::finish(building_gfx_context& context) {
 void guitypes::guibuttontype(button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::icontype(image const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::eu3dialogtype(window const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().data.window.flags |= ui::window_data::is_dialog_mask;
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::instanttextboxtype(textbox const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().data.text.flags |= ui::text_data::is_instant_mask;
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::listboxtype(listbox const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::positiontype(gui_element_common const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
@@ -810,33 +881,81 @@ void guitypes::positiontype(gui_element_common const& v, error_handler& err, int
 void guitypes::scrollbartype(scrollbar const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::windowtype(window const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::checkboxtype(button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().data.button.flags |= ui::button_data::is_checkbox_mask;
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::shieldtype(image const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().data.image.flags |= ui::image_data::is_mask_mask;
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::overlappingelementsboxtype(overlapping const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::editboxtype(textbox const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().data.text.flags |= ui::text_data::is_edit_mask;
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 void guitypes::textboxtype(textbox const& v, error_handler& err, int32_t line, building_gfx_context& context) {
 	context.full_state.ui_defs.gui.push_back(v.target);
 	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
+}
+
+void guitypes::provincescriptbuttontype(province_script_button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
+	context.full_state.ui_defs.gui.push_back(v.target);
+	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.added_allow != -1) {
+		context.province_buttons_allow[v.added_allow].button_element = dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1));
+	}
+	if(v.added_effect != -1) {
+		context.province_buttons_effect[v.added_effect].button_element = dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1));
+	}
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
+}
+void guitypes::nationscriptbuttontype(nation_script_button const& v, error_handler& err, int32_t line, building_gfx_context& context) {
+	context.full_state.ui_defs.gui.push_back(v.target);
+	context.full_state.ui_defs.gui.back().ex_flags |= ui::element_data::ex_is_top_level;
+	if(v.added_allow != -1) {
+		context.nation_buttons_allow[v.added_allow].button_element = dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1));
+	}
+	if(v.added_effect != -1) {
+		context.nation_buttons_effect[v.added_effect].button_element = dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1));
+	}
+	if(v.extension) {
+		context.ui_defs.extensions.push_back(ui::window_extension{ v.extension, dcon::gui_def_id(dcon::gui_def_id::value_base_t(context.full_state.ui_defs.gui.size() - 1)) });
+	}
 }
 
 } // namespace parsers

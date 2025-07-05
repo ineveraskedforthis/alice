@@ -190,6 +190,8 @@
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_add_to_sphere, 1.000000)                                                                   \
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_release_puppet, 1.000000)                                                                  \
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_make_puppet, 85.000000)                                                                    \
+	LUA_DEFINES_LIST_ELEMENT(peace_cost_make_substate, 90.000000)                                                                    \
+	LUA_DEFINES_LIST_ELEMENT(peace_cost_unequal_treaty, 1.000000)                                                                   \
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_disarmament, 1.000000)                                                                     \
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_destroy_forts, 1.000000)                                                                   \
 	LUA_DEFINES_LIST_ELEMENT(peace_cost_destroy_naval_bases, 1.000000)                                                             \
@@ -207,6 +209,8 @@
 	LUA_DEFINES_LIST_ELEMENT(infamy_add_to_sphere, 2.000000)                                                                       \
 	LUA_DEFINES_LIST_ELEMENT(infamy_release_puppet, 0.500000)                                                                      \
 	LUA_DEFINES_LIST_ELEMENT(infamy_make_puppet, 5.000000)                                                                         \
+	LUA_DEFINES_LIST_ELEMENT(infamy_make_substate, 6.000000)                                                                       \
+	LUA_DEFINES_LIST_ELEMENT(infamy_unequal_treaty, 3.000000)                                                                      \
 	LUA_DEFINES_LIST_ELEMENT(infamy_disarmament, 5.000000)                                                                         \
 	LUA_DEFINES_LIST_ELEMENT(infamy_destroy_forts, 2.000000)                                                                       \
 	LUA_DEFINES_LIST_ELEMENT(infamy_destroy_naval_bases, 2.000000)                                                                 \
@@ -243,6 +247,8 @@
 	LUA_DEFINES_LIST_ELEMENT(prestige_add_to_sphere, 0.050000)                                                                     \
 	LUA_DEFINES_LIST_ELEMENT(prestige_release_puppet, 0.050000)                                                                    \
 	LUA_DEFINES_LIST_ELEMENT(prestige_make_puppet, 0.050000)                                                                       \
+	LUA_DEFINES_LIST_ELEMENT(prestige_make_substate, 0.050000)                                                                     \
+	LUA_DEFINES_LIST_ELEMENT(prestige_unequal_treaty, 0.050000)                                                                    \
 	LUA_DEFINES_LIST_ELEMENT(prestige_disarmament, 0.050000)                                                                       \
 	LUA_DEFINES_LIST_ELEMENT(prestige_destroy_forts, 0.050000)                                                                     \
 	LUA_DEFINES_LIST_ELEMENT(prestige_destroy_naval_bases, 0.050000)                                                               \
@@ -262,6 +268,8 @@
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_add_to_sphere, 1.000000)                                                            \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_release_puppet, 1.000000)                                                           \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_make_puppet, 1.000000)                                                              \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_make_substate, 1.000000)                                                            \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_unequal_treaty, 1.000000)                                                           \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_disarmament, 1.000000)                                                              \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_destroy_forts, 1.000000)                                                            \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_infamy_destroy_naval_bases, 1.000000)                                                      \
@@ -279,6 +287,8 @@
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_add_to_sphere, -20.000000)                                                        \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_release_puppet, -20.000000)                                                       \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_make_puppet, -20.000000)                                                          \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_make_substate, -20.000000)                                                        \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_unequal_treaty, -20.000000)                                                  \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_disarmament, -20.000000)                                                          \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_destroy_forts, -20.000000)                                                        \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_prestige_destroy_naval_bases, -20.000000)                                                  \
@@ -296,6 +306,8 @@
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_add_to_sphere, 2.000000)                                                         \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_release_puppet, 2.000000)                                                        \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_make_puppet, 2.000000)                                                           \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_make_substate, 2.000000)                                                           \
+	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_unequal_treaty, 2.000000)                                                           \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_disarmament, 2.000000)                                                           \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_destroy_forts, 2.000000)                                                         \
 	LUA_DEFINES_LIST_ELEMENT(breaktruce_militancy_destroy_naval_bases, 2.000000)                                                   \
@@ -650,12 +662,102 @@
 	LUA_DEFINES_LIST_ELEMENT(alice_speed_2, 750.000000)                                                                            \
 	LUA_DEFINES_LIST_ELEMENT(alice_speed_3, 250.000000)                                                                            \
 	LUA_DEFINES_LIST_ELEMENT(alice_speed_4, 125.000000)                                                                            \
+/* How much war exhaustion is the AI ready to take when declaring wars & peacing out */ \
+	LUA_DEFINES_LIST_ELEMENT(alice_ai_war_exhaustion_readiness_limit, 25.000000)                                                   \
 	LUA_DEFINES_LIST_ELEMENT(alice_ai_gather_radius, -0.996000)                                                                    \
 	LUA_DEFINES_LIST_ELEMENT(alice_ai_threat_radius, -0.996000)                                                                    \
 	LUA_DEFINES_LIST_ELEMENT(alice_ai_threat_overestimate, 1.150000)                                                               \
 	LUA_DEFINES_LIST_ELEMENT(alice_ai_attack_target_radius, -0.996000)                                                             \
 	LUA_DEFINES_LIST_ELEMENT(alice_full_reinforce, 1.000000)                                                             \
-	LUA_DEFINES_LIST_ELEMENT(alice_ai_offensive_strength_overestimate, 1.000000)                                                             \
+	LUA_DEFINES_LIST_ELEMENT(alice_auto_hire_generals, 1.00000)                                                                   \
+	LUA_DEFINES_LIST_ELEMENT(alice_ai_offensive_strength_overestimate, 1.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_military_score_leadership_factor, 1.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_lf_needs_scale, 1.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_ev_needs_scale, 1.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_lx_needs_scale, 1.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_max_event_iterations, 8.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_needs_scaling_factor, 400000.000000) \
+	LUA_DEFINES_LIST_ELEMENT(alice_factory_per_level_employment, 10000.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_domestic_investment_multiplier, 50.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_rgo_boost, 2.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_base_rgo_employment_bonus, 5000.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_base_rgo_efficiency_bonus, 2.00) \
+	LUA_DEFINES_LIST_ELEMENT(alice_inputs_base_factor_artisans, 1.01) \
+	LUA_DEFINES_LIST_ELEMENT(alice_output_base_factor_artisans, 0.99) \
+	LUA_DEFINES_LIST_ELEMENT(alice_inputs_base_factor, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_rgo_overhire_multiplier, 10.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_rgo_production_scale_neg_delta, 0.001) \
+	LUA_DEFINES_LIST_ELEMENT(alice_invest_capitalist, 0.25) \
+	LUA_DEFINES_LIST_ELEMENT(alice_invest_aristocrat, 0.0125) \
+	LUA_DEFINES_LIST_ELEMENT(alice_invest_middle_class, 0.0125) \
+	LUA_DEFINES_LIST_ELEMENT(alice_invest_farmer, 0.00) \
+	LUA_DEFINES_LIST_ELEMENT(alice_save_capitalist, 0.01) \
+	LUA_DEFINES_LIST_ELEMENT(alice_save_aristocrat, 0.01) \
+	LUA_DEFINES_LIST_ELEMENT(alice_save_middle_class, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_save_farmer, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_needs_lf_spend, 0.05) \
+	LUA_DEFINES_LIST_ELEMENT(alice_needs_ev_spend, 0.45) \
+	LUA_DEFINES_LIST_ELEMENT(alice_needs_lx_spend, 0.50) \
+	LUA_DEFINES_LIST_ELEMENT(alice_sat_delay_factor, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_need_drift_speed, 0.01) \
+	LUA_DEFINES_LIST_ELEMENT(alice_disable_divergent_any_country_effect, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_unciv_civ_forbid_war, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_ideology_base_change_rate, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_nurture_religion_assimilation, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_surrender_on_cores_lost, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_artificial_gp_limitant, 0.0) \
+ 	LUA_DEFINES_LIST_ELEMENT(alice_rename_dont_use_localisation, 0.0) \
+ 	LUA_DEFINES_LIST_ELEMENT(alice_spherelings_only_ally_sphere, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_overseas_mil, 0.035) \
+	LUA_DEFINES_LIST_ELEMENT(alice_militancy_decay, 0.015) \
+	LUA_DEFINES_LIST_ELEMENT(alice_rgo_per_size_employment, 40000.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_rgo_generate_distribution, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_eval_ai_mil_everyday, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_allow_subjects_declare_wars, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_research_points_on_conquer_base, 0.75) \
+	LUA_DEFINES_LIST_ELEMENT(alice_substate_subject_money_transfer, 40.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_puppet_subject_money_transfer, 30.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_privateinvestment_subject_transfer, 2.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_allow_revoke_subject_states, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_take_province_militancy_subject, 2.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_take_province_militancy_all_subjects, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_ai_strength_estimation_military_industrial_balance, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_factory_refit_cost_modifier, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_free_trade_agreement_years, 5.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_event_taken_auto_days, 30.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_message_expiration_days, 15.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_crisis_necessary_base_win_ratio, 2.5) \
+	LUA_DEFINES_LIST_ELEMENT(alice_crisis_necessary_base_fast_win_ratio, 3.5) \
+	LUA_DEFINES_LIST_ELEMENT(alice_crisis_per_wg_ratio, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_crisis_unciv_stubbornness, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_state_transfer_limits, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_secondary_rgos_min_employment, 100.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_reg_move_to_reserve_org, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_reg_move_to_reserve_str, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_reg_deploy_from_reserve_org, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_reg_deploy_from_reserve_str, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_leadership_generation_divisor, 2.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_battle_won_score_to_leadership, 10.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_battle_lost_score_to_leadership, 20.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_naval_base_to_colonial_distance_factor, 0.04) \
+	LUA_DEFINES_LIST_ELEMENT(alice_allow_factories_in_colonies, 0.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_always_available_cbs_zero_infamy, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_naval_unit_build_time_mult, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_land_unit_build_time_mult, 1.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_province_building_build_time_mult, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_factory_build_time_mult, 0.1) \
+	LUA_DEFINES_LIST_ELEMENT(alice_naval_combat_enemy_stacking_target_select_bonus, 0.5) \
+	LUA_DEFINES_LIST_ELEMENT(alice_naval_combat_stacking_damage_penalty, 0.5) \
+	LUA_DEFINES_LIST_ELEMENT(alice_globe_mean_radius_km, 6371.0) \
+	LUA_DEFINES_LIST_ELEMENT(alice_max_starvation_degrowth, 0.0012) \
+
+// scales the needs values so that they are needs per this many pops
+// this value was arrived at by looking at farmers: 40'000 farmers produces enough grain to satisfy about 2/3
+// of the nominal life needs value for themselves. If we assume that there is supposed to be enough grain in the world
+// to feed everyone, and *every* the rgos was grain (and everyone farmed), the scaling factor would have to be about 60'000
+// if all rgos were equally common (there are about 20 of them), the scaling factor would have to be about
+// 1'200'000. Assuming that grain is slightly more prevalent, we arrive at the factor below as a nice round number
+//constexpr inline float needs_scaling_factor = 1'000'000.0f * 2.0f;
 
 namespace parsing {
 struct defines {
@@ -663,7 +765,7 @@ struct defines {
 	LUA_DEFINES_LIST
 #undef LUA_DEFINES_LIST_ELEMENT
 
-	void assign_define(sys::state& state, int32_t line, std::string_view key, float v, parsers::error_handler& err);
+		void assign_define(sys::state& state, int32_t line, std::string_view key, float v, parsers::error_handler& err);
 	void parse_line(sys::state& state, int32_t line, std::string_view data, parsers::error_handler& err);
 	void parse_file(sys::state& state, std::string_view data, parsers::error_handler& err);
 };

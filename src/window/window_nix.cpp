@@ -75,11 +75,26 @@ bool is_in_fullscreen(sys::state const& game_state) {
 
 void set_borderless_full_screen(sys::state& game_state, bool fullscreen) {
 	if(game_state.win_ptr && game_state.win_ptr->window) {
-		// Maybe fix this at some point. Just maximize atm
-		if(fullscreen)
+		// Unsure how it works, but it works
+		sys::state* state = (sys::state*)glfwGetWindowUserPointer(game_state.win_ptr->window);
+		int width, height;
+		glfwGetFramebufferSize(game_state.win_ptr->window, &width, &height);
+		state->x_size = width;
+		state->y_size = height;
+
+		GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+
+		if(fullscreen) {
+			glfwGetWindowSize(game_state.win_ptr->window, &width, &height);
+			const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+			glfwSetWindowMonitor(game_state.win_ptr->window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+			game_state.win_ptr->in_fullscreen=true;
+		} else {
+			const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+			glfwSetWindowMonitor(game_state.win_ptr->window, nullptr, 0, 0, width, height, mode->refreshRate);
 			glfwMaximizeWindow(game_state.win_ptr->window);
-		else
-			glfwRestoreWindow(game_state.win_ptr->window);
+			game_state.win_ptr->in_fullscreen=false;
+		}
 	}
 }
 
@@ -125,6 +140,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		break;
 	case GLFW_REPEAT:
 		switch(virtual_key) {
+		case sys::virtual_key::RETURN: [[fallthrough]];
 		case sys::virtual_key::BACK: [[fallthrough]];
 		case sys::virtual_key::DELETE_KEY: [[fallthrough]];
 		case sys::virtual_key::LEFT: [[fallthrough]];
@@ -208,8 +224,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 void character_callback(GLFWwindow* window, unsigned int codepoint) {
 	sys::state* state = (sys::state*)glfwGetWindowUserPointer(window);
 	if(state->ui_state.edit_target) {
-		// TODO change UTF32 to (win1250??)
-		state->on_text(char(codepoint));
+		state->on_text(codepoint);
 	}
 }
 
@@ -247,6 +262,19 @@ void window_maximize_callback(GLFWwindow* window, int maximized) {
 	on_window_change(window);
 }
 
+void focus_callback(GLFWwindow* window, int focused) {
+	sys::state* state = (sys::state*)glfwGetWindowUserPointer(window);
+	if(focused) {
+		if(state->user_settings.mute_on_focus_lost) {
+			sound::resume_all(*state);
+		}
+	} else {
+		if(state->user_settings.mute_on_focus_lost) {
+			sound::pause_all(*state);
+		}
+	}
+}
+
 void create_window(sys::state& game_state, creation_parameters const& params) {
 	game_state.win_ptr = std::make_unique<window_data_impl>();
 	game_state.win_ptr->creation_x_size = params.size_x;
@@ -273,6 +301,7 @@ void create_window(sys::state& game_state, creation_parameters const& params) {
 
 	glfwSetWindowUserPointer(window, &game_state);
 
+
 	// event callbacks
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
@@ -283,7 +312,16 @@ void create_window(sys::state& game_state, creation_parameters const& params) {
 	glfwSetWindowIconifyCallback(window, window_iconify_callback);
 	glfwSetWindowMaximizeCallback(window, window_maximize_callback);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetWindowFocusCallback(window, focus_callback);
 	glfwSetWindowSizeLimits(window, 640, 400, 2400, 1800);
+	if(params.borderless_fullscreen){
+		int width, height;
+		glfwGetFramebufferSize(game_state.win_ptr->window, &width, &height);
+		glfwGetWindowSize(game_state.win_ptr->window, &width, &height);
+		const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		glfwSetWindowMonitor(window, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
+		game_state.win_ptr->in_fullscreen=true;
+	}
 
 	ogl::initialize_opengl(game_state);
 
@@ -292,14 +330,21 @@ void create_window(sys::state& game_state, creation_parameters const& params) {
 
 	on_window_change(window); // Init the window size
 
+	change_cursor(game_state, cursor_type::busy);
 	game_state.on_create();
+	change_cursor(game_state, cursor_type::normal);
 
 	while(!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		// Run game code
 
+
+
+
+		game_state.ui_lock.lock();
 		game_state.render();
 		glfwSwapBuffers(window);
+		game_state.ui_lock.unlock();
 
 		sound::update_music_track(game_state);
 	}
@@ -308,10 +353,14 @@ void create_window(sys::state& game_state, creation_parameters const& params) {
 	glfwTerminate();
 }
 
+void change_cursor(sys::state& state, cursor_type type) {
+	//TODO: Implement on linux
+}
+
 void emit_error_message(std::string const& content, bool fatal) {
 	std::fprintf(stderr, "%s", content.c_str());
 	if(fatal) {
-		std::terminate();
+		std::exit(EXIT_FAILURE);
 	}
 }
 

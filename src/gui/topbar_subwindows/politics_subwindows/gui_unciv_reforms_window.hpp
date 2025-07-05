@@ -14,6 +14,21 @@ namespace ui {
 void reform_description(sys::state& state, text::columnar_layout& contents, dcon::reform_option_id ref) {
 	auto reform = fatten(state.world, ref);
 
+	{
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, reform.get_name(), text::text_color::yellow);
+		text::close_layout_box(contents, box);
+	}
+	if(auto desc = reform.get_desc();  state.key_is_localized(desc)) {
+		text::substitution_map sub{};
+		text::add_to_substitution_map(sub, text::variable_type::country, state.local_player_nation);
+		text::add_to_substitution_map(sub, text::variable_type::country_adj, text::get_adjective(state, state.local_player_nation));
+		text::add_to_substitution_map(sub, text::variable_type::capital, state.world.nation_get_capital(state.local_player_nation));
+		auto box = text::open_layout_box(contents);
+		text::add_to_layout_box(state, contents, box, desc, sub);
+		text::close_layout_box(contents, box);
+	}
+
 	float cost = 0.0f;
 	if(state.world.reform_get_reform_type(state.world.reform_option_get_parent_reform(ref)) == uint8_t(culture::issue_type::military)) {
 		float base_cost = float(state.world.reform_option_get_technology_cost(ref));
@@ -66,13 +81,13 @@ void reform_description(sys::state& state, text::columnar_layout& contents, dcon
 
 class unciv_reforms_westernize_button : public standard_nation_button {
 public:
+	sound::audio_instance& get_click_sound(sys::state& state) noexcept override {
+		return sound::get_enact_sound(state);
+	}
+
 	void on_update(sys::state& state) noexcept override {
-		if(parent) {
-			Cyto::Any payload = dcon::nation_id{};
-			parent->impl_get(state, payload);
-			auto nation_id = any_cast<dcon::nation_id>(payload);
-			disabled = !command::can_civilize_nation(state, nation_id);
-		}
+		auto nation_id = retrieve<dcon::nation_id>(state, parent);
+		disabled = !command::can_civilize_nation(state, nation_id);
 	}
 
 	void button_action(sys::state& state) noexcept override {
@@ -83,6 +98,10 @@ public:
 
 class unciv_reforms_reform_button : public button_element_base {
 public:
+	sound::audio_instance& get_click_sound(sys::state& state) noexcept override {
+		return sound::get_enact_sound(state);
+	}
+
 	void button_action(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::reform_option_id>(state, parent);
 		command::enact_reform(state, state.local_player_nation, content);
@@ -160,16 +179,13 @@ public:
 	void on_update(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::reform_id>(state, parent);
 		auto color = multiline_text_element_base::black_text ? text::text_color::black : text::text_color::white;
-		auto container = text::create_endless_layout(multiline_text_element_base::internal_layout,
+		auto container = text::create_endless_layout(state, multiline_text_element_base::internal_layout,
 				text::layout_parameters{ 0, 0, multiline_text_element_base::base_data.size.x,
 						multiline_text_element_base::base_data.size.y, multiline_text_element_base::base_data.data.text.font_handle, -4, text::alignment::left, color, false });
 		auto fat_id = dcon::fatten(state.world, content);
 		auto box = text::open_layout_box(container);
 		text::add_to_layout_box(state, container, box, fat_id.get_name(), text::substitution_map{});
 		text::close_layout_box(container, box);
-	}
-	message_result test_mouse(sys::state& state, int32_t x, int32_t y, mouse_probe_type type) noexcept override {
-		return message_result::unseen;
 	}
 };
 

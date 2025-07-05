@@ -4,6 +4,7 @@
 #include "system_state.hpp"
 #include "parsers_declarations.hpp"
 #include "opengl_wrapper.hpp"
+#include "math_fns.hpp"
 
 #ifdef _WIN64
 
@@ -17,11 +18,17 @@
 
 #endif
 
-namespace map
-{
+namespace map {
+
+struct bmp_pixel_data {
+	uint8_t blue;
+	uint8_t green;
+	uint8_t red;
+	uint8_t _0x00;
+};
 
 // Used to load the terrain.bmp and the rivers.bmp
-std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, native_string_view name, glm::ivec2 map_size, uint8_t fill) {
+std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, native_string_view name, glm::ivec2 map_size, uint8_t fill, std::vector<bmp_pixel_data> * color_table) {
 	std::vector<uint8_t> output_data(map_size.x * map_size.y, fill);
 
 	auto root = simple_fs::get_root(context.state.common_fs);
@@ -34,24 +41,138 @@ std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, nativ
 	auto content = simple_fs::view_contents(*terrain_bmp);
 	uint8_t const* start = (uint8_t const*)(content.data);
 
-#ifdef _WIN64
+#ifdef __linux__
+
+	//Ported from Microsoft's documentation
+	//Replaced DWORD into uint32_t, WORD into uint16_t
+	//LONG into int32_t
+	typedef struct {
+		int32_t   ciexyzX;
+		int32_t	  ciexyzY;
+		int32_t	  ciexyzZ;
+	} CIEXYZ;
+
+	typedef struct {
+		CIEXYZ    ciexyzRed;
+		CIEXYZ	  ciexyzGreen;
+		CIEXYZ	  ciexyzBlue;
+	} CIEXYZTRIPLE;
+
+	typedef struct {
+  		uint16_t  bfType;
+  		uint32_t  bfSize;
+  		uint16_t  bfReserved1;
+  		uint16_t  bfReserved2;
+		uint32_t  bfOffBits;
+	} __attribute__((__packed__))
+	BITMAPFILEHEADER;
+	
+	typedef struct {
+		uint32_t  biSize;
+  		int32_t   biWidth;
+  		int32_t   biHeight;
+  		uint16_t  biPlanes;
+  		uint16_t  biBitCount;
+  		uint32_t  biCompression;
+  		uint32_t  biSizeImage;
+		int32_t   biXPelsPerMeter;
+		int32_t	  biYPelsPerMeter;
+		uint32_t  biClrUsed;
+		uint32_t  biClrImportant;
+	} __attribute__((__packed__))
+	BITMAPINFOHEADER;
+
+	typedef struct {
+  		uint32_t  bcSize;
+  		uint16_t  bcWidth;
+  		uint16_t  bcHeight;
+  		uint16_t  bcPlanes;
+  		uint16_t  bcBitCount;
+	} BITMAPCOREHEADER;
+
+	typedef struct {
+  		uint32_t  bV4Size;
+  		int32_t   bV4Width;
+  		int32_t   bV4Height;
+  		uint16_t  bV4Planes;
+  		uint16_t  bV4BitCount;
+  		uint32_t  bV4V4Compression;
+  		uint32_t  bV4SizeImage;
+		int32_t	  bV4XPelsPerMeter;
+		int32_t	  bV4YPelsPerMeter;
+		uint32_t  bV4ClrUsed;
+		uint32_t  bV4ClrImportant;
+		uint32_t  bV4RedMask;
+		uint32_t  bV4GreenMask;
+		uint32_t  bV4BlueMask;
+		uint32_t  bV4AlphaMask;
+		uint32_t  bV4CSType;
+		uint32_t  bV4GammaRed;
+		uint32_t  bV4GammaGreen;
+		uint32_t  bV4GammaBlue;
+	} BITMAPV4HEADER;
+
+	typedef struct {
+  		uint32_t  	 bV5Size;
+  		int32_t   	 bV5Width;
+  		int32_t   	 bV5Height;
+  		uint16_t  	 bV5Planes;
+		uint16_t  	 bV5BitCount;
+  		uint32_t  	 bV5Compression;
+  		uint32_t  	 bV5SizeImage;
+		int32_t	  	 bV5XPelsPerMeter;
+		int32_t	  	 bV5YPelsPerMeter;
+		uint32_t  	 bV5ClrUsed;
+		uint32_t  	 bV5ClrImportant;
+		uint32_t  	 bV5RedMask;
+		uint32_t  	 bV5GreenMask;
+		uint32_t  	 bV5BlueMask;
+		uint32_t  	 bV5AlphaMask;
+		uint32_t  	 bV5CSType;
+		CIEXYZTRIPLE bV5Endpoints;
+		uint32_t  	 bV5GammaRed;
+		uint32_t  	 bV5GammaGreen;
+		uint32_t  	 bV5GammaBlue;
+		uint32_t  	 bV5Intent;
+		uint32_t  	 bV5ProfileData;
+		uint32_t  	 bV5ProfileSize;
+		uint32_t  	 bV5Reserved;
+	} BITMAPV5HEADER;
+	
+	const int	BI_RGB	= 0;
+	const int	BI_RLE8	= 1;
+	const int	BI_RLE4	= 2;
+
+#endif
 
 	int32_t compression_type = 0;
 	int32_t size_x = 0;
 	int32_t size_y = 0;
 
+	uint32_t num_of_colors = 2;
+
+	bool has_BI_BITFIELDS = false;
+	bool has_BI_ALPHABITFIELDS = false;
+
 	BITMAPFILEHEADER const* fh = (BITMAPFILEHEADER const*)(start);
 	uint8_t const* data = start + fh->bfOffBits;
 	std::unique_ptr<uint8_t[]> decompressed_data;
+
+	auto color_table_offset = start + sizeof(BITMAPFILEHEADER);
 
 	BITMAPCOREHEADER const* core_h = (BITMAPCOREHEADER const*)(start + sizeof(BITMAPFILEHEADER));
 	if(core_h->bcSize == sizeof(BITMAPINFOHEADER)) {
 		BITMAPINFOHEADER const* h = (BITMAPINFOHEADER const*)(start + sizeof(BITMAPFILEHEADER));
 		size_x = h->biWidth;
 		size_y = h->biHeight;
+		num_of_colors = h->biClrUsed;
+		if(num_of_colors == 0) {
+			num_of_colors = 1 << h->biBitCount;
+		}
 		if(h->biCompression == BI_RLE8) {
 			compression_type = 1;
 		}
+		color_table_offset += sizeof(BITMAPINFOHEADER);
 	} else if(core_h->bcSize == sizeof(BITMAPV5HEADER)) {
 		BITMAPV5HEADER const* h = (BITMAPV5HEADER const*)(start + sizeof(BITMAPFILEHEADER));
 		if(h->bV5Compression == BI_RLE8) {
@@ -59,6 +180,11 @@ std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, nativ
 		}
 		size_x = h->bV5Width;
 		size_y = h->bV5Height;
+		num_of_colors = h->bV5ClrUsed;
+		if(num_of_colors == 0) {
+			num_of_colors = 1 << h->bV5BitCount;
+		}
+		color_table_offset += sizeof(BITMAPV5HEADER);
 	} else if(core_h->bcSize == sizeof(BITMAPV4HEADER)) {
 		BITMAPV4HEADER const* h = (BITMAPV4HEADER const*)(start + sizeof(BITMAPFILEHEADER));
 		if(h->bV4V4Compression == BI_RLE8) {
@@ -66,12 +192,29 @@ std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, nativ
 		}
 		size_x = h->bV4Width;
 		size_y = h->bV4Height;
+		num_of_colors = h->bV4ClrUsed;
+		if(num_of_colors == 0) {
+			num_of_colors = 1 << h->bV4BitCount;
+		}
+		color_table_offset += sizeof(BITMAPV4HEADER);
 	} else if(core_h->bcSize == sizeof(BITMAPCOREHEADER)) {
 		BITMAPCOREHEADER const* h = (BITMAPCOREHEADER const*)(start + sizeof(BITMAPFILEHEADER));
 		size_x = h->bcWidth;
 		size_y = h->bcHeight;
+		num_of_colors = 1 << h->bcBitCount;
+		color_table_offset += sizeof(BITMAPCOREHEADER);
 	} else {
 		std::abort(); // unknown bitmap type
+	}
+
+	// reading color table:
+	if(color_table != nullptr) {
+		for(uint32_t color_entry_index = 0; color_entry_index < num_of_colors; color_entry_index++) {
+			bmp_pixel_data const* new_color =
+				(bmp_pixel_data const*)
+				(color_table_offset + color_entry_index * sizeof(bmp_pixel_data));
+			color_table->push_back(*new_color);
+		}
 	}
 
 	if(compression_type == 1) {
@@ -127,23 +270,6 @@ std::vector<uint8_t> load_bmp(parsers::scenario_building_context& context, nativ
 
 	assert(size_x == int32_t(map_size.x));
 	uint32_t free_space = uint32_t(std::max(0, map_size.y - size_y)); // schombert: find out how much water we need to add
-#else
-
-	// Data offset is where the pixel data starts
-	uint8_t const* ptr = start + 10;
-	uint32_t data_offset = (ptr[3] << 24) | (ptr[2] << 16) | (ptr[1] << 8) | ptr[0];
-
-	// The width & height of the image
-	ptr = start + 18;
-	uint32_t size_x = (ptr[3] << 24) | (ptr[2] << 16) | (ptr[1] << 8) | ptr[0];
-	ptr = start + 22;
-	uint32_t size_y = (ptr[3] << 24) | (ptr[2] << 16) | (ptr[1] << 8) | ptr[0];
-
-
-	uint8_t const* data = start + data_offset;
-	assert(size_x == uint32_t(map_size.x));
-	uint32_t free_space = std::max(uint32_t(0), map_size.y - size_y); // schombert: find out how much water we need to add
-#endif
 
 	// Calculate how much extra we add at the poles
 	uint32_t top_free_space = (free_space * 3) / 5;
@@ -233,16 +359,20 @@ ankerl::unordered_dense::map<uint32_t, uint8_t> internal_make_index_map() {
 
 void display_data::load_terrain_data(parsers::scenario_building_context& context) {
 	if(!context.new_maps) {
-		terrain_id_map = load_bmp(context, NATIVE("terrain.bmp"), glm::ivec2(size_x, size_y), 255);
+		terrain_id_map = load_bmp(context, NATIVE("terrain.bmp"), glm::ivec2(size_x, size_y), 255, nullptr);
 	} else {
-		auto root = simple_fs::get_root(context.state.common_fs);
-		auto map_dir = simple_fs::open_directory(root, NATIVE("map"));
+		auto const root = simple_fs::get_root(context.state.common_fs);
+		auto const map_dir = simple_fs::open_directory(root, NATIVE("map"));
 		auto terrain_file = open_file(map_dir, NATIVE("alice_terrain.png"));
+		if(!terrain_file) {
+			terrain_file = open_file(map_dir, NATIVE("terrain.png"));
+		}
 		terrain_id_map.resize(size_x * size_y, uint8_t(255));
 
 		ogl::image terrain_data;
-		if(terrain_file)
+		if(terrain_file) {
 			terrain_data = ogl::load_stb_image(*terrain_file);
+		}
 
 		auto terrain_resolution = internal_make_index_map();
 
@@ -345,12 +475,24 @@ void display_data::load_terrain_data(parsers::scenario_building_context& context
 void display_data::load_median_terrain_type(parsers::scenario_building_context& context) {
 	median_terrain_type.resize(context.state.world.province_size() + 1);
 	province_area.resize(context.state.world.province_size() + 1);
+	province_area_km2.resize(context.state.world.province_size() + 1);
+
+	float R = context.state.defines.alice_globe_mean_radius_km;
+
 	std::vector<std::array<int, 64>> terrain_histogram(context.state.world.province_size() + 1, std::array<int, 64>{});
 	for(int i = size_x * size_y - 1; i-- > 0;) {
 		auto prov_id = province_id_map[i];
 		auto terrain_id = terrain_id_map[i];
 		if(terrain_id < 64)
 			terrain_histogram[prov_id][terrain_id] += 1;
+		auto x = i % size_x;
+		auto y = i / size_x;
+		// 0.5f is added to shift us to the center of the pixel;
+		// float s = (((float)x + 0.5f) / (float) size_x) * 2 * math::pi;
+		float t = (((float)y + 0.5f) / (float) size_y - 0.5f) * math::pi;
+		auto area_form = R * R * math::cos(t);
+		auto pixel_size = area_form * (1.f / (float)size_y * math::pi) * (1.f / (float)size_x * 2 * math::pi);
+		province_area_km2[prov_id] += pixel_size;
 	}
 
 	for(int i = context.state.world.province_size(); i-- > 1;) { // map-id province 0 == the invalid province; we don't need to collect data for it
@@ -370,28 +512,30 @@ void display_data::load_median_terrain_type(parsers::scenario_building_context& 
 }
 
 void display_data::load_provinces_mid_point(parsers::scenario_building_context& context) {
-	std::vector<glm::ivec2> accumulated_tile_positions(context.state.world.province_size() + 1, glm::vec2(0));
-	std::vector<int> tiles_number(context.state.world.province_size() + 1, 0);
+	std::vector<glm::i64vec2> accumulated_tile_positions(context.state.world.province_size() + 1, glm::i64vec2(0));
+	std::vector<int64_t> tiles_number(context.state.world.province_size() + 1, 0);
 	for(int i = size_x * size_y - 1; i-- > 0;) {
 		auto prov_id = province_id_map[i];
 		int x = i % size_x;
 		int y = i / size_x;
-		accumulated_tile_positions[prov_id] += glm::vec2(x, y);
+		accumulated_tile_positions[prov_id] += glm::i64vec2(x, y);
 		tiles_number[prov_id]++;
 	}
 	// schombert: needs to start from +1 here or you don't catch the last province
 	for(int i = context.state.world.province_size() + 1; i-- > 1;) { // map-id province 0 == the invalid province; we don't need to collect data for it
 
-		glm::vec2 tile_pos;
+		glm::dvec2 tile_pos;
 
 		// OK, so some mods do in fact define provinces that aren't on the map.
 		//assert(tiles_number[i] > 0); // yeah but a province without tiles is no bueno
 
 		if(tiles_number[i] == 0) {
-			tile_pos = glm::vec2(0, 0);
+			tile_pos = glm::dvec2(0, 0);
 		} else {
 			tile_pos = accumulated_tile_positions[i] / tiles_number[i];
 		}
+		assert(tile_pos.x >= 0);
+		assert(tile_pos.y >= 0);
 		context.state.world.province_set_mid_point(province::from_map_id(uint16_t(i)), tile_pos);
 	}
 }
@@ -446,6 +590,9 @@ void display_data::load_map_data(parsers::scenario_building_context& context) {
 
 	// Load the province map
 	auto provinces_png = simple_fs::open_file(map_dir, NATIVE("alice_provinces.png"));
+	if(!provinces_png) {
+		provinces_png = simple_fs::open_file(map_dir, NATIVE("provinces.png"));
+	}
 	ogl::image provinces_image;
 	if(provinces_png) {
 		provinces_image = ogl::load_stb_image(*provinces_png);
@@ -470,9 +617,35 @@ void display_data::load_map_data(parsers::scenario_building_context& context) {
 	std::vector<uint8_t> river_data;
 	if(!context.new_maps) {
 		auto size = glm::ivec2(size_x, size_y);
-		river_data = load_bmp(context, NATIVE("rivers.bmp"), size, 255);
+		std::vector<bmp_pixel_data> color_table;
+		river_data = load_bmp(context, NATIVE("rivers.bmp"), size, 255, &color_table);
+
+		for(uint32_t ty = 0; ty < size_y; ++ty) {
+			//uint32_t y = size_y - ty - 1;
+			for(uint32_t x = 0; x < size_x; ++x) {
+				uint8_t color_index = river_data[x + size_x * ty];
+				auto r = color_table[color_index].red;
+				auto g = color_table[color_index].green;
+				auto b = color_table[color_index].blue;
+				if(r == 255 && g == 0 && b == 128) {
+					river_data[ty * size_x + x] = 255; // sea
+				} else if(r == 255 && g == 255 && b == 255) {
+					river_data[ty * size_x + x] = 255; // land
+				} else if(color_index == 0 /* && terrain_id_map[x + size_x * ty] != uint8_t(255)*/)
+					river_data[ty * size_x + x] = 0; // source
+				else if(color_index == 1 /* && terrain_id_map[x + size_x * ty] != uint8_t(255)*/)
+					river_data[ty * size_x + x] = 1; // merge
+				else {
+					river_data[ty * size_x + x] = std::min<uint8_t>((uint8_t)250, std::max<uint8_t>((uint8_t)2, r / 3 + g / 3 + b / 3));
+				}
+			}
+		}
+
 	} else {
 		auto river_file = simple_fs::open_file(map_dir, NATIVE("alice_rivers.png"));
+		if(!river_file) {
+			river_file = simple_fs::open_file(map_dir, NATIVE("rivers.png"));
+		}
 		river_data.resize(size_x * size_y, uint8_t(255));
 
 		ogl::image river_image_data;
@@ -493,7 +666,7 @@ void display_data::load_map_data(parsers::scenario_building_context& context) {
 					else if(ptr[1] + ptr[2] < 128 * 2 && ptr[0] > 128 /* && terrain_id_map[x + size_x * ty] != uint8_t(255)*/ )
 						river_data[ty * size_x + x] = 1; // merge
 					else if(ptr[0] + ptr[1] + ptr[2] < 128 * 3 /*&& terrain_id_map[x + size_x * ty] != uint8_t(255)*/)
-						river_data[ty * size_x + x] = 2;
+						river_data[ty * size_x + x] = std::min<uint8_t>((uint8_t)250, std::max<uint8_t>((uint8_t)2, ptr[0] / 3 + ptr[1] / 3 + ptr[2] / 3));
 					else
 						river_data[ty * size_x + x] = 255;
 

@@ -11,15 +11,15 @@ When displaying whether the game is paused, you should show the speed as paused 
 ### Responding to a change in game state
 
 The game state may change as the result of a new day being processed, which is probably the most common case. However, it may also change while the game is paused as the result of player commands (for example, the player adjusting their budget or selecting an event choice). Fortunately, this difference is largely irrelevant to the ui. Before starting to render a new frame we do the following:
-```
+```c++
 auto game_state_was_updated = game_state_updated.exchange(false, std::memory_order::acq_rel);
-	if(game_state_was_updated) {
-		ui_state.units_root->impl_on_update(*this);
-		ui_state.rgos_root->impl_on_update(*this);
-		ui_state.root->impl_on_update(*this);
-		// TODO map needs to refresh itself with data
-		// TODO also need to update any tooltips (which probably exist outside the root container)
-	}
+if(game_state_was_updated) {
+	ui_state.units_root->impl_on_update(*this);
+	ui_state.rgos_root->impl_on_update(*this);
+	ui_state.root->impl_on_update(*this);
+	// TODO map needs to refresh itself with data
+	// TODO also need to update any tooltips (which probably exist outside the root container)
+}
 ```
 The part that is currently updated pushes an `update` message through the ui hierarchy, and any properly implemented control will respond to it by updating any data it is storing locally from the game state, recreating its text content if necessary, and so on. Also necessary, but currently unimplemented, the map will have to update the data it is basing the current map mode off of, and tooltips, which are likely stored in a different ui root container, will have to be updated as well.
 
@@ -36,7 +36,7 @@ In addition to just informing the ui that things have changed and that it needs 
 Each of these are passed to the ui via a queue that is a member of `sys::state`. The ui should empty these queues as soon as possible (ideally, whenever a new frame is rendered) and place the information into its own internal storage.
 
 The queues that hold new events are, for events:
-```
+```c++
 rigtorp::SPSCQueue<event::pending_human_n_event> new_n_event;
 rigtorp::SPSCQueue<event::pending_human_f_n_event> new_f_n_event;
 rigtorp::SPSCQueue<event::pending_human_p_event> new_p_event;
@@ -44,18 +44,18 @@ rigtorp::SPSCQueue<event::pending_human_f_p_event> new_f_p_event;
 ```
 
 For diplomatic requests:
-```
+```c++
 rigtorp::SPSCQueue<diplomatic_message::message> new_requests;
 ```
 
 For general notification messages:
-```
+```c++
 rigtorp::SPSCQueue<notification::message> new_messages;
 ```
 
 The event queues hold the complete description of events that have occurred for the nation that is controlled by the local player / provinces within that nation. That information as a whole is required for the player to eventually choose an event option, as it identifies which event, out of all the possible events for any human player, the choice is for.
 
-The diplomatic request messages hold a very minimal amount of information. To respond to such a request the ui must call `command::respond_to_diplomatic_message(sys::state& state, dcon::nation_id source, dcon::nation_id from, diplomatic_message::type type, bool accept)` with the appropriate parameters. If a response is not made within `diplomatic_message::expiration_in_days` days, it will be automatically declined, and the ui should automatically discard any visible notifications or message boxes after that point, as any attempt to respond to expired requests will be ignored.
+The diplomatic request messages hold a very minimal amount of information. To respond to such a request the ui must call `command::respond_to_diplomatic_message(sys::state& state, dcon::nation_id source, dcon::nation_id from, diplomatic_message::type type, bool accept)` with the appropriate parameters. If a response is not made within `state.defines.alice_message_expiration_days` days, it will be automatically declined, and the ui should automatically discard any visible notifications or message boxes after that point, as any attempt to respond to expired requests will be ignored.
 
 The notification messages hold 5 important pieces of information. They contain a `type`, a `primary` nation, which is nation that the message is primarily about, and an optional `secondary` nation, which is another nation that caused the thing to happen (for example, in a notification about a new war, the nation that declared the war would be the secondary nation, while the primary nation would be the target of the war). Those three items should be used, along with the player's saved notification settings, to determine what happens when the message is received (i.e. do we pause the game automatically? do we display a pop-up message? do we record it in the log?).
 

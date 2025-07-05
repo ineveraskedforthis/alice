@@ -1,14 +1,44 @@
 #include "gui_common_elements.hpp"
+#include "ai_alliances.hpp"
 
 namespace ui {
+bool country_category_filter_check(sys::state& state, country_list_filter filt, dcon::nation_id a, dcon::nation_id b) {
+	switch(filt) {
+	case country_list_filter::all:
+		return true;
+	case country_list_filter::allies:
+		return nations::are_allied(state, a, b);
+	case country_list_filter::enemies:
+		return military::are_at_war(state, a, b);
+	case country_list_filter::sphere:
+		return state.world.nation_get_in_sphere_of(b) == a;
+	case country_list_filter::neighbors:
+		return bool(state.world.get_nation_adjacency_by_nation_adjacency_pair(a, b));
+	case country_list_filter::find_allies:
+		return ai::ai_will_accept_alliance(state, b, a)
+			&& command::can_ask_for_alliance(state, a, b, false);
+	case country_list_filter::influenced:
+		return (state.world.gp_relationship_get_status(state.world.get_gp_relationship_by_gp_influence_pair(b, a))
+			& nations::influence::priority_mask) != nations::influence::priority_zero
+			&& state.world.nation_get_in_sphere_of(b) != a;
+	case country_list_filter::neighbors_no_vassals:
+		for(const auto sub : state.world.nation_get_overlord_as_ruler(b)) {
+			if(state.world.get_nation_adjacency_by_nation_adjacency_pair(a, sub.get_subject()))
+				return true;
+		}
+		return !state.world.overlord_get_ruler(state.world.nation_get_overlord_as_subject(b))
+			&& state.world.get_nation_adjacency_by_nation_adjacency_pair(a, b);
+	default:
+		return true;
+	}
+}
+
 void sort_countries(sys::state& state, std::vector<dcon::nation_id>& list, country_list_sort sort, bool sort_ascend) {
 	switch(sort) {
 	case country_list_sort::country: {
 		auto f = [&](dcon::nation_id a, dcon::nation_id b) {
-			dcon::nation_fat_id a_fat_id = dcon::fatten(state.world, a);
-			auto a_name = text::produce_simple_string(state, a_fat_id.get_name());
-			dcon::nation_fat_id b_fat_id = dcon::fatten(state.world, b);
-			auto b_name = text::produce_simple_string(state, b_fat_id.get_name());
+			auto a_name = text::produce_simple_string(state, text::get_name(state, a));
+			auto b_name = text::produce_simple_string(state, text::get_name(state, b));
 			return a_name < b_name;
 		};
 		std::stable_sort(list.begin(), list.end(), f);
@@ -162,4 +192,16 @@ std::string get_status_text(sys::state& state, dcon::nation_id nation_id) {
 		return text::produce_simple_string(state, "diplomacy_greatnation_status");
 	}
 }
+
+// Return text key for tooltips on the provided labour type
+std::string labour_type_to_text_key(int32_t type) {
+	// TODO: implement the rest of labour types
+	if(type == economy::labor::high_education_and_accepted) {
+		return "employment_type_high_education_and_accepted";
+	} else if(type == economy::labor::no_education) {
+		return "employment_type_no_education";
+	}
+	return "";
+}
+
 } // namespace ui

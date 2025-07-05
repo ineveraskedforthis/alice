@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_element_types.hpp"
+#include "construction.hpp"
 
 namespace ui {
 
@@ -12,8 +13,26 @@ class military_unit_name_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto content = retrieve<military_unit_info<T>>(state, parent);
-		if(std::holds_alternative<T>(content)) {
+
+		if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
+			auto c = std::get<dcon::province_land_construction_id>(content);
+			auto utid = state.world.province_land_construction_get_type(c);
+			auto unitname = utid ? state.military_definitions.unit_base_definitions[utid].name : dcon::text_key{};
+			std::string res = text::produce_simple_string(state, unitname);
+
+			set_text(state, res);
+		}
+		else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
+			auto c = std::get<dcon::province_naval_construction_id>(content);
+			auto utid = state.world.province_naval_construction_get_type(c);
+			auto unitname = utid ? state.military_definitions.unit_base_definitions[utid].name : dcon::text_key{};
+			std::string res = text::produce_simple_string(state, unitname);
+
+			set_text(state, res);
+		}
+		else if(std::holds_alternative<T>(content)) {
 			auto fat_id = dcon::fatten(state.world, std::get<T>(content));
+			auto unit_name = std::string{ state.to_string_view(fat_id.get_name()) };
 			set_text(state, std::string{ state.to_string_view(fat_id.get_name()) });
 		}
 	}
@@ -28,49 +47,22 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto container = retrieve<military_unit_info<T>>(state, parent);
-		float admin_eff = state.world.nation_get_administrative_efficiency(state.local_player_nation);
-		float admin_cost_factor = 2.0f - admin_eff;
-
 		if(std::holds_alternative<dcon::province_land_construction_id>(container)) {
 			auto c = std::get<dcon::province_land_construction_id>(container);
-
-			auto& goods = state.military_definitions.unit_base_definitions[state.world.province_land_construction_get_type(c)].build_cost;
-			auto& cgoods = state.world.province_land_construction_get_purchased_goods(c);
-
-			float total = 0.0f;
-			float purchased = 0.0f;
-
-			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-				if(goods.commodity_type[i]) {
-					auto box = text::open_layout_box(contents, 0);
-					text::add_to_layout_box(state, contents, box, state.world.commodity_get_name(goods.commodity_type[i]));
-					text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
-					text::add_to_layout_box(state, contents, box, text::fp_one_place{ cgoods.commodity_amounts[i] });
-					text::add_to_layout_box(state, contents, box, std::string_view{ " / " });
-					text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * admin_cost_factor });
-					text::close_layout_box(contents, box);
-				}
-			}
+			economy::build_land_unit_construction_tooltip(
+				state,
+				contents,
+				c
+			);
 		} else if(std::holds_alternative<dcon::province_naval_construction_id>(container)) {
 			auto c = std::get<dcon::province_naval_construction_id>(container);
 
-			auto& goods = state.military_definitions.unit_base_definitions[state.world.province_naval_construction_get_type(c)].build_cost;
-			auto& cgoods = state.world.province_naval_construction_get_purchased_goods(c);
-
-			float total = 0.0f;
-			float purchased = 0.0f;
-
-			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-				if(goods.commodity_type[i]) {
-					auto box = text::open_layout_box(contents, 0);
-					text::add_to_layout_box(state, contents, box, state.world.commodity_get_name(goods.commodity_type[i]));
-					text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
-					text::add_to_layout_box(state, contents, box, text::fp_one_place{ cgoods.commodity_amounts[i] });
-					text::add_to_layout_box(state, contents, box, std::string_view{ " / " });
-					text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * admin_cost_factor });
-					text::close_layout_box(contents, box);
-				}
-			}
+			auto pid = state.world.province_naval_construction_get_province(c);
+			economy::build_naval_unit_construction_tooltip(
+				state,
+				contents,
+				c
+			);
 		}
 
 	}
@@ -176,8 +168,7 @@ class leader_in_army_img : public image_element_base {
 		} else {
 			lid = state.world.navy_get_admiral_from_navy_leadership(unit);
 		}
-		if(lid)
-			display_leader_full(state, lid, contents, 0);
+		display_leader_full(state, lid, contents, 0);
 	}
 };
 
@@ -272,16 +263,15 @@ class military_unit_entry : public listbox_row_element_base<military_unit_info<T
 	image_element_base* unit_moving_icon = nullptr;
 	image_element_base* unit_digin_icon = nullptr;
 	image_element_base* unit_combat_icon = nullptr;
-
 public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
+		auto name2 = name;
 		if(name == "military_unit_entry_bg") {
 			return make_element_by_type<mil_goto_background_button<T>>(state, id);
 		} else if(name == "unit_progress") {
 			auto ptr = make_element_by_type<military_unit_building_progress_bar<T>>(state, id);
 			unit_building_progress = ptr.get();
 			return ptr;
-
 		} else if(name == "leader") {
 			auto ptr = make_element_by_type<leader_in_army_img<T>>(state, id);
 			leader_icon = ptr.get();
@@ -298,7 +288,8 @@ public:
 			auto ptr = make_element_by_type<generic_name_text<dcon::province_id>>(state, id);
 			location_text = ptr.get();
 			return ptr;
-		} else if(name == "unit_eta") {
+		}
+		else if(name == "unit_eta") {
 			auto ptr = make_element_by_type<simple_text_element_base>(state, id);
 			eta_date_text = ptr.get();
 			return ptr;
@@ -350,14 +341,12 @@ public:
 		if(is_building) {
 			if(std::holds_alternative<dcon::province_land_construction_id>(content)) {
 				auto c = std::get<dcon::province_land_construction_id>(content);
-				unit_icon->frame =
-					state.military_definitions.unit_base_definitions[state.world.province_land_construction_get_type(c)].icon - 1;
-				unit_building_progress->progress = economy::unit_construction_progress(state, c);
+				if(unit_icon) unit_icon->frame = state.military_definitions.unit_base_definitions[state.world.province_land_construction_get_type(c)].icon - 1;
+				if(unit_building_progress) unit_building_progress->progress = economy::unit_construction_progress(state, c);
 			} else if(std::holds_alternative<dcon::province_naval_construction_id>(content)) {
 				auto c = std::get<dcon::province_naval_construction_id>(content);
-				unit_icon->frame =
-					state.military_definitions.unit_base_definitions[state.world.province_naval_construction_get_type(c)].icon - 1;
-				unit_building_progress->progress = economy::unit_construction_progress(state, c);
+				if(unit_icon) unit_icon->frame = state.military_definitions.unit_base_definitions[state.world.province_naval_construction_get_type(c)].icon - 1;
+				if(unit_building_progress) unit_building_progress->progress = economy::unit_construction_progress(state, c);
 			}
 		} else {
 			auto regiments = 0;
@@ -381,26 +370,27 @@ public:
 					++regiments;
 				});
 			}
-			unit_strength_progress->progress = (full_strength != 0.0f) ? strength / full_strength : 0.f;
-			unit_men_text->set_text(state, text::prettify(int32_t(strength)));
-			unit_regiments_text->set_text(state, std::to_string(regiments));
+			if(unit_strength_progress) unit_strength_progress->progress = (full_strength != 0.0f) ? strength / full_strength : 0.f;
+			if(unit_men_text) unit_men_text->set_text(state, text::prettify(int32_t(strength)));
+			if(unit_regiments_text) unit_regiments_text->set_text(state, std::to_string(regiments));
 		}
 
-		unit_icon->set_visible(state, is_building);
-		cancel_button->set_visible(state, is_building);
-		eta_date_text->set_visible(state, is_building);
-		location_text->set_visible(state, is_building);
-		unit_building_progress->set_visible(state, is_building);
+		if(unit_icon) unit_icon->set_visible(state, is_building);
+		if(cancel_button) cancel_button->set_visible(state, is_building);
+		if(eta_date_text) eta_date_text->set_visible(state, is_building);
+		if(location_text) location_text->set_visible(state, is_building);
 
-		unit_name->set_visible(state, !is_building);
-		leader_icon->set_visible(state, !is_building);
-		unit_regiments_text->set_visible(state, !is_building);
-		unit_men_text->set_visible(state, !is_building);
-		unit_morale_progress->set_visible(state, !is_building);
-		unit_strength_progress->set_visible(state, !is_building);
-		unit_moving_icon->set_visible(state, !is_building && is_moving);
-		unit_digin_icon->set_visible(state, !is_building && is_digin);
-		unit_combat_icon->set_visible(state, !is_building && is_combat);
+		if(unit_building_progress) unit_building_progress->set_visible(state, is_building);
+
+		if(unit_name) unit_name->set_visible(state, true);
+		if(leader_icon) leader_icon->set_visible(state, !is_building);
+		if(unit_regiments_text) unit_regiments_text->set_visible(state, !is_building);
+		if(unit_men_text) unit_men_text->set_visible(state, !is_building);
+		if(unit_morale_progress) unit_morale_progress->set_visible(state, !is_building);
+		if(unit_strength_progress) unit_strength_progress->set_visible(state, !is_building);
+		if(unit_moving_icon) unit_moving_icon->set_visible(state, !is_building && is_moving);
+		if(unit_digin_icon) unit_digin_icon->set_visible(state, !is_building && is_digin);
+		if(unit_combat_icon) unit_combat_icon->set_visible(state, !is_building && is_combat);
 	}
 
 
@@ -464,22 +454,14 @@ public:
 template<class T>
 class build_unit_button : public button_element_base {
 public:
-	bool is_navy = false;
 	bool disarmed = false;
 	bool no_possible_units = false;
 	void button_action(sys::state& state) noexcept override {
 		state.ui_state.unit_window_army->set_visible(state, false);
 		state.ui_state.unit_window_navy->set_visible(state, false);
-
 		state.ui_state.root->move_child_to_front(state.ui_state.build_unit_window);
-
-		if constexpr(std::is_same_v<T, dcon::army_id>) {
-			Cyto::Any payload = dcon::army_id{};
-			state.ui_state.build_unit_window->impl_set(state, payload);
-		} else if constexpr(std::is_same_v<T, dcon::navy_id>) {
-			Cyto::Any payload = dcon::navy_id{};
-			state.ui_state.build_unit_window->impl_set(state, payload);
-		}
+		Cyto::Any payload = T{};
+		state.ui_state.build_unit_window->impl_set(state, payload);
 		state.ui_state.build_unit_window->set_visible(state, true);
 	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -520,7 +502,7 @@ public:
 				unit_def_count++;
 			}
 			utid = dcon::unit_type_id{ unit_def_count };
-			if(is_navy == false) {
+			if constexpr(std::is_same_v<T, dcon::army_id>) {
 				for(auto ucon : state.world.nation_get_province_land_construction(state.local_player_nation)) {
 					count++;
 					if(count) {
@@ -545,9 +527,7 @@ public:
 				disabled = true;
 				no_possible_units = true;
 			} else {
-				
 				disarmed = false;
-
 				utid = dcon::unit_type_id{ 0 };
 				count = 0;
 				unit_def_count = 0;
@@ -657,7 +637,6 @@ template<class T>
 class military_units_window : public window_element_base {
 private:
 	image_element_base* cdts_icon = nullptr;
-
 public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
 		if(name == "current_count") {
@@ -672,34 +651,25 @@ public:
 			} else {
 				return make_element_by_type<military_navies_construction_text>(state, id);
 			}
-
 		} else if(name == "cut_down_to_size") {
 			auto ptr = make_element_by_type<image_element_base>(state, id);
 			ptr->set_visible(state, false);
 			cdts_icon = ptr.get();
 			return ptr;
-
 		} else if(name == "sort_name") {
 			return make_element_by_type<military_units_sortby_name>(state, id);
-
 		} else if(name == "sort_strength") {
 			return make_element_by_type<military_units_sortby_strength>(state, id);
-
 		} else if(name == "build_new") {
 			auto ptr = make_element_by_type<build_unit_button<T>>(state, id);
 			if constexpr(std::is_same_v<T, dcon::army_id>) {
-				ptr->is_navy = false;
 				ptr->set_button_text(state, text::produce_simple_string(state, "military_build_army_label"));
 			} else {
-				ptr->is_navy = true;
 				ptr->set_button_text(state, text::produce_simple_string(state, "military_build_navy_label"));
 			}
-			ptr->set_visible(state, true);
 			return ptr;
-
 		} else if(name == "unit_listbox") {
 			return make_element_by_type<military_units_listbox<T>>(state, id);
-
 		} else {
 			return nullptr;
 		}

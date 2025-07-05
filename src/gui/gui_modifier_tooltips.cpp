@@ -14,6 +14,8 @@ enum class modifier_display_type : uint8_t {
 	percent,
 	fp_two_places,
 	fp_three_places,
+	yesno,
+	percent_two_places
 };
 struct modifier_display_info {
 	bool positive_is_green;
@@ -40,15 +42,19 @@ std::string format_modifier_value(sys::state& state, float value, modifier_displ
 		return (value >= 0.f ? "+" : "") + text::prettify(int64_t(value));
 	case modifier_display_type::percent:
 		return (value >= 0.f ? "+" : "") + text::format_percentage(value, 1);
+	case modifier_display_type::percent_two_places:
+		return (value >= 0.f ? "+" : "") + text::format_percentage(value, 2);
 	case modifier_display_type::fp_two_places:
 		return(value >= 0.f ? "+" : "") + text::format_float(value, 2);
 	case modifier_display_type::fp_three_places:
 		return (value >= 0.f ? "+" : "") + text::format_float(value, 3);
+	case modifier_display_type::yesno:
+		return (value >= 0.f ? "yes" : "no");
 	}
 	return "x%";
 }
 
-void modifier_description(sys::state& state, text::layout_base& layout, dcon::modifier_id mid, int32_t indentation) {
+void modifier_description(sys::state& state, text::layout_base& layout, dcon::modifier_id mid, int32_t indentation, float scale) {
 	auto fat_id = dcon::fatten(state.world, mid);
 
 	auto const& prov_def = fat_id.get_province_values();
@@ -58,11 +64,24 @@ void modifier_description(sys::state& state, text::layout_base& layout, dcon::mo
 		auto data = province_modifier_names[prov_def.offsets[i].index()];
 		auto box = text::open_layout_box(layout, indentation);
 		text::add_to_layout_box(state, layout, box, text::produce_simple_string(state, data.name), text::text_color::white);
-		text::add_to_layout_box(state, layout, box, std::string_view{":"}, text::text_color::white);
+		text::add_to_layout_box(state, layout, box, std::string_view{ ":" }, text::text_color::white);
 		text::add_space_to_layout_box(state, layout, box);
 		auto color = data.positive_is_green ? (prov_def.values[i] >= 0.f ? text::text_color::green : text::text_color::red)
-																				: (prov_def.values[i] >= 0.f ? text::text_color::red : text::text_color::green);
-		text::add_to_layout_box(state, layout, box, format_modifier_value(state, prov_def.values[i], data.type), color);
+			: (prov_def.values[i] >= 0.f ? text::text_color::red : text::text_color::green);
+		text::add_to_layout_box(state, layout, box, format_modifier_value(state, prov_def.values[i] * scale, data.type), color);
+		
+		// Special case since movement_cost is to show two modifiers: movement cost and trade attraction
+		if(prov_def.offsets[i] == sys::provincial_mod_offsets::movement_cost) {
+			text::close_layout_box(layout, box);
+			box = text::open_layout_box(layout, indentation);
+
+			text::add_to_layout_box(state, layout, box, text::produce_simple_string(state, "alice_trade_attractiveness"), text::text_color::white);
+			text::add_to_layout_box(state, layout, box, std::string_view{ ":" }, text::text_color::white);
+			text::add_space_to_layout_box(state, layout, box);
+			auto color2 = (prov_def.values[i] >= 0.f ? text::text_color::red : text::text_color::green);
+			text::add_to_layout_box(state, layout, box, format_modifier_value(state, -1 * prov_def.values[i] * scale, data.type), color2);
+		}
+
 		text::close_layout_box(layout, box);
 	}
 
@@ -77,11 +96,10 @@ void modifier_description(sys::state& state, text::layout_base& layout, dcon::mo
 		text::add_space_to_layout_box(state, layout, box);
 		auto color = data.positive_is_green ? (nat_def.values[i] >= 0.f ? text::text_color::green : text::text_color::red)
 																				: (nat_def.values[i] >= 0.f ? text::text_color::red : text::text_color::green);
-		text::add_to_layout_box(state, layout, box, format_modifier_value(state, nat_def.values[i], data.type), color);
+		text::add_to_layout_box(state, layout, box, format_modifier_value(state, nat_def.values[i] * scale, data.type), color);
 		text::close_layout_box(layout, box);
 	}
 }
-
 void active_single_modifier_description(sys::state& state, text::layout_base& layout, dcon::modifier_id mid, int32_t indentation,
 		bool& header, dcon::national_modifier_value nmid, float scaled) {
 	if(scaled == 0.f)
@@ -169,12 +187,12 @@ void acting_modifiers_description_province(sys::state& state, text::layout_base&
 	for(auto t = economy::province_building_type::railroad; t != economy::province_building_type::last; t = economy::province_building_type(uint8_t(t) + 1)) {
 		if(state.economy_definitions.building_definitions[int32_t(t)].province_modifier) {
 			active_single_modifier_description(state, layout, state.economy_definitions.building_definitions[int32_t(t)].province_modifier, identation,
-					header, nmid, state.world.province_get_building_level(p, t));
+					header, nmid, state.world.province_get_building_level(p, uint8_t(t)));
 		}
 	}
 	if(state.national_definitions.infrastructure) {
 		active_single_modifier_description(state, layout, state.national_definitions.infrastructure, identation, header, nmid,
-				state.world.province_get_building_level(p, economy::province_building_type::railroad) * state.economy_definitions.building_definitions[int32_t(economy::province_building_type::railroad)].infrastructure);
+				state.world.province_get_building_level(p, uint8_t(economy::province_building_type::railroad)) * state.economy_definitions.building_definitions[int32_t(economy::province_building_type::railroad)].infrastructure);
 	}
 	if(state.national_definitions.nationalism) {
 		active_single_modifier_description(state, layout, state.national_definitions.nationalism, identation, header, nmid,
@@ -269,9 +287,8 @@ void active_modifiers_description(sys::state& state, text::layout_base& layout, 
 				state.world.nation_get_war_exhaustion(n));
 	}
 	if(state.national_definitions.average_literacy) {
-		auto total = state.world.nation_get_demographics(n, demographics::total);
-		active_single_modifier_description(state, layout, state.national_definitions.average_literacy, identation, header, nmid,
-				total > 0 ? state.world.nation_get_demographics(n, demographics::literacy) / total : 0.0f);
+		auto literacy = nations::get_avg_non_colonial_literacy(state, n);
+		active_single_modifier_description(state, layout, state.national_definitions.average_literacy, identation, header, nmid, literacy);
 	}
 	if(state.national_definitions.total_blockaded) {
 		auto bc = ve::to_float(state.world.nation_get_central_blockaded(n));
@@ -334,6 +351,23 @@ void active_modifiers_description(sys::state& state, text::layout_base& layout, 
 		auto p = pc.get_province().id;
 		acting_modifiers_description_province<dcon::national_modifier_value>(state, layout, p, identation, header, nmid);
 	}
+}
+void display_battle_reinforcement_modifiers(sys::state& state, dcon::land_battle_id b, text::layout_base& contents, int32_t indent, bool attacker) {
+	uint32_t reserve_count = military::get_reserves_count_by_side(state, b, attacker);
+	//top header displaying how many brigades are currently in reserve on that side
+	text::add_line(state, contents, "alice_reinforce_battle_mod_top", text::variable_type::x, text::format_wholenum(reserve_count), indent);
+
+	// average army spending in battle
+	float reinf_mod = military::calculate_average_battle_supply_spending(state, b, attacker);
+	text::add_line(state, contents, "alice_reinforce_battle_spending_modifier", text::variable_type::x, text::format_float(reinf_mod, 2), indent + 20);
+
+	// location reinforcement bonus
+	reinf_mod = military::calculate_average_battle_location_modifier(state, b, attacker);
+	text::add_line(state, contents, "alice_reinforce_battle_location_modifier", text::variable_type::x, text::format_float(reinf_mod, 2), indent + 20);
+
+	// get the national modifiers 
+	reinf_mod = military::calculate_average_battle_national_modifiers(state, b, attacker);
+	text::add_line(state, contents, "alice_reinforce_battle_national_modifier", text::variable_type::x, text::format_float(reinf_mod, 2), indent + 20);
 }
 
 } // namespace ui

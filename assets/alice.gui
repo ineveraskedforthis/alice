@@ -1,4 +1,39 @@
 guiTypes = {
+	guiButtonType = {
+		name = "observer_button"
+		extends = "lobby"
+		position = { x = 17 y = -200 }
+		quadTextureSprite ="GFX_frontend_play_button"	
+		buttonText = "alice_observer_btn_text"
+		buttonFont = "vic_32_black"
+		Orientation = "LOWER_LEFT"
+	}
+
+	instantTextBoxType = { 
+			name = "state_location_name"
+			extends = "state_info"
+			position = { x = 175 y = 4 }
+			font = "vic_22"
+			maxWidth = 140
+			maxHeight = 16	
+			format = left
+			fixedsize = yes
+		}
+			
+	iconType = {
+        name = "gfx_storage_unit_types"
+        spriteType = "GFX_unit_strip"
+        position = {  -150 -150 }
+        Orientation = "UPPER_LEFT"
+    }
+    
+    iconType = {
+        name = "gfx_storage_commodity"
+        spriteType = "GFX_resources_big"
+        position = {  -150 -150 }
+        Orientation = "UPPER_LEFT"
+    }
+
 	instantTextBoxType = {
 		name = "alice_investment_text"
 		position = { 0 0 }
@@ -30,21 +65,21 @@ guiTypes = {
 			name = "save_and_exit"
 			position = { 58 104 }
 			quadTextureSprite ="GFX_frontend_button_236"
-			buttonText = "alice_save_exit"
+			buttonText = "save_and_exit"
 			buttonFont = "vic_22_black"
 		}
 		guiButtonType = {
 			name = "save"
 			position = { 58 142 }
 			quadTextureSprite ="GFX_frontend_button_236"
-			buttonText = "alice_save"
+			buttonText = "save"
 			buttonFont = "vic_22_black"
 		}
 		guiButtonType = {
 			name = "exit"
 			position = { 58 180 }
 			quadTextureSprite ="GFX_frontend_button_236"
-			buttonText = "alice_exit"
+			buttonText = "exit"
 			buttonFont = "vic_22_black"
 		}
 		guiButtonType = {
@@ -409,27 +444,89 @@ guiTypes = {
 				quadTextureSprite = "option_next"
 			}
 
-			# 3D Models (Y/N)
+			# Color blind mode
 			instantTextBoxType = {
-				name = "render_models_label"
-				position = { 78 326 }
-				text = "render_models_label"
+				position = { 58 324 }
+				name = "color_blind_mode_label"
 				font = "Arial16"
 				borderSize = { 0 0}
 				maxsize = { 236 18 }
+				text = "color_blind_mode_label"
 				orientation = "UPPER_LEFT"
 				format = left
 			}
-			checkboxType = {
-				name = "render_models_checkbox"
-				position = { 51 326 }
-				quadTextureSprite = "GFX_checkbox_default"
+			instantTextBoxType = {
+				position = { 216 324 }
+				name = "color_blind_value"
+				font = "Arial14"
+				borderSize = { 0 0 }
+				maxsize = { 72 18 }
+				orientation = "UPPER_LEFT"
+				format = center
 			}
+			guiButtonType = {
+				name = "color_blind_left"
+				position = { 186 320 }
+				quadTextureSprite = "option_prev"
+			}
+			guiButtonType = {
+				name = "color_blind_right"
+				position = { 289 320 }
+				quadTextureSprite = "option_next"
+			}
+
+			# graphic details
+			instantTextBoxType = {
+				position = { 58 348 }
+				name = "graphics_details_label"
+				font = "Arial16"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				text = "graphics_details_label"
+				orientation = "UPPER_LEFT"
+				format = left
+			}
+			instantTextBoxType = {
+				position = { 216 348 }
+				name = "graphics_details_value"
+				font = "Arial14"
+				borderSize = { 0 0 }
+				maxsize = { 72 18 }
+				orientation = "UPPER_LEFT"
+				format = center
+			}
+			guiButtonType = {
+				name = "graphics_details_left"
+				position = { 186 344 }
+				quadTextureSprite = "option_prev"
+			}
+			guiButtonType = {
+				name = "graphics_details_right"
+				position = { 289 344 }
+				quadTextureSprite = "option_next"
+			}
+
+			# 3D Models (Y/N)
+			#instantTextBoxType = {
+			#	name = "render_models_label"
+			#	position = { 78 346 }
+			#	text = "render_models_label"
+			#	font = "Arial16"
+			#	borderSize = { 0 0}
+			#	maxsize = { 236 18 }
+			#	orientation = "UPPER_LEFT"
+			#	format = left
+			#}
+			#checkboxType = {
+			#	name = "render_models_checkbox"
+			#	position = { 51 346 }
+			#	quadTextureSprite = "GFX_checkbox_default"
+			#}
 
 			# Black map font (Y/N)
 			instantTextBoxType = {
 				name = "black_map_font_label"
-				position = { 78 350 }
+				position = { 78 370 }
 				text = "black_map_font_label"
 				font = "Arial16"
 				borderSize = { 0 0 }
@@ -439,7 +536,7 @@ guiTypes = {
 			}
 			checkboxType = {
 				name = "black_map_font_checkbox"
-				position = { 51 350 }
+				position = { 51 370 }
 				quadTextureSprite = "GFX_checkbox_default"
 			}
 		}
@@ -498,7 +595,7 @@ guiTypes = {
 			# Spoilers checkbox
 			instantTextBoxType = {
 				name = "spoilers_label"
-				position = { 78 260 }
+				position = { 78 280 }
 				text = "spoilers_label"
 				font = "Arial16"
 				borderSize = { 0 0 }
@@ -508,9 +605,73 @@ guiTypes = {
 			}
 			guiButtonType = {
 				name = "spoilers_checkbox"
-				position = { 51 260 }
+				position = { 51 280 }
 				quadTextureSprite = "GFX_checkbox_default"
 			}
+			# Diplo Messages Popup checkbox
+			instantTextBoxType = {
+				name = "dm_popup_label"
+				position = { 78 300 }
+				text = "dm_popup_label"
+				font = "Arial16"
+				borderSize = { 0 0 }
+				maxsize = { 236 18 }
+				orientation = "UPPER_LEFT"
+				format = left
+			}
+			guiButtonType = {
+				name = "dm_popup_checkbox"
+				position = { 51 300 }
+				quadTextureSprite = "GFX_checkbox_default"
+			}
+			# WASD for map movement
+			instantTextBoxType = {
+				name = "wasd_for_map_movement_label"
+				position = { 78 320 }
+				text = "wasd_for_map_movement_label"
+				font = "Arial16"
+				borderSize = { 0 0 }
+				maxsize = { 236 18 }
+				orientation = "UPPER_LEFT"
+				format = left
+			}
+			guiButtonType = {
+				name = "wasd_for_map_movement_checkbox"
+				position = { 51 320 }
+				quadTextureSprite = "GFX_checkbox_default"
+			}
+
+			# Language
+			instantTextBoxType = {
+				name = "language_label"
+				position = { 58 340 }
+				font = "Arial16"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				text = "language_label"
+				orientation = "UPPER_LEFT"
+				format = centre
+			}
+			instantTextBoxType={
+				name = "language_value"
+				position = { 58 360 }
+				font = "Arial14"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				orientation = "UPPER_LEFT"
+				format = centre
+			}
+			guiButtonType = {
+				name = "language_left"
+				position = { 51 358 }
+				quadTextureSprite = "option_prev"
+			}
+			guiButtonType = {
+				name = "language_right"
+				position = { 269 358 }
+				quadTextureSprite = "option_next"
+			}
+
 			# Zoom style
 			instantTextBoxType = {
 				name = "zoom_mode_label"
@@ -571,6 +732,51 @@ guiTypes = {
 				name = "auto_save_right"
 				position = { 269 202 }
 				quadTextureSprite = "option_next"
+			}
+			# Zoom speed
+			instantTextBoxType = {
+				name = "zoom_speed_label"
+				position = { 58 228 }
+				font = "Arial16"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				text = "zoom_speed_label"
+				orientation = "UPPER_LEFT"
+				format = centre
+			}
+			scrollbarType = {
+				name = "zoom_speed_scrollbar"
+				slider = "slider"
+				track= "track"
+				leftbutton = "up"
+				rightbutton = "down"
+				size = { 236 16 }
+				position = { 58 248 }
+				minValue = 15
+				maxValue = 25
+				stepSize = 1
+				startValue = 20
+				horizontal = 1
+				guiButtonType = {
+					name = "slider"
+					quadTextureSprite = "GFX_slider_circle"
+					position = { 0 0}
+				}
+				guiButtonType = {
+					name = "track"
+					quadTextureSprite = "GFX_bg_horizontal_slider_220wide"
+					position = { 0 0}
+				}
+				guiButtonType = {
+					name = "up"
+					quadTextureSprite = "GFX_slider_left"
+					position = { 0 0}
+				}
+				guiButtonType = {
+					name = "down"
+					quadTextureSprite = "GFX_slider_right"
+					position = { 0 236}
+				}
 			}
 		}
 
@@ -774,7 +980,52 @@ guiTypes = {
 					position = { 0 236}
 				}
 			}
-
+			# Change current song
+			instantTextBoxType = {
+				position = { 58 308 }
+				name = "music_player_label"
+				font = "Arial16"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				text = "music_player_label"
+				orientation = "UPPER_LEFT"
+				format = centre
+			}
+			instantTextBoxType={
+				position = { 58 328 }
+				name = "music_player_value"
+				font = "Arial14"
+				borderSize = { 0 0}
+				maxsize = { 236 18 }
+				orientation = "UPPER_LEFT"
+				format = centre
+			}
+			guiButtonType = {
+				name = "music_player_left"
+				position = { 51 326 }
+				quadTextureSprite = "option_prev"
+			}
+			guiButtonType = {
+				name = "music_player_right"
+				position = { 269 326 }
+				quadTextureSprite = "option_next"
+			}
+			# Mute on focus checkbox
+			instantTextBoxType = {
+				name = "mute_on_focus_lost_label"
+				position = { 78 360 }
+				text = "mute_on_focus_lost_label"
+				font = "Arial16"
+				borderSize = { 0 0 }
+				maxsize = { 236 18 }
+				orientation = "UPPER_LEFT"
+				format = left
+			}
+			guiButtonType = {
+				name = "mute_on_focus_lost_checkbox"
+				position = { 51 360 }
+				quadTextureSprite = "GFX_checkbox_default"
+			}
 		}
 	}
 
@@ -1451,12 +1702,12 @@ guiTypes = {
 
 			iconType = {
 				name = "overlay"
-				spriteType = "GFX_alice_siege_frame"
+				spriteType = "GFX_unit_siege_frame"
 				position = { 0 0 }
 			}
 			iconType = {
 				name ="progress"
-				spriteType = "GFX_alice_siege_bar"
+				spriteType = "GFX_unit_siege_bar"
 				position = { 31 4 }
 			}
 
@@ -1503,6 +1754,176 @@ guiTypes = {
 			}
 		}
 	}
+    
+    
+    ##############################################
+	# Unit status
+	##############################################
+	windowType = {
+		name = "alice_army_group_panel"
+		backGround=""
+		position = { x=0 y=0 }	
+		size = { x=254 y=44 }
+		moveable = 0
+		dontRender = ""
+		horizontalBorder= ""
+		verticalBorder= ""
+		fullScreen = no	
+		
+		
+		iconType =
+		{
+			name ="unit_bottom_bg"
+			spriteType = "GFX_unit_bottom_bg"
+			position = { x= -1 y = -18 }
+			Orientation = "UPPER_LEFT"
+		}
+			
+		iconType =
+		{
+			name ="icon_speed"
+			spriteType = "GFX_icon_speed"
+			position = { x= 109 y = -13}
+			Orientation = "UPPER_LEFT"
+			
+		}
+			
+		instantTextBoxType = {
+			name = "speed"
+			position = { x = 118 y = -11 }
+			textureFile = ""
+			font = "Arial12_bold_black"
+			borderSize = {x = 0 y = 0}
+			text = ""	
+			maxWidth = 40
+			maxHeight = 16
+
+			fixedsize = yes	
+
+			format = right
+		}	
+		
+		iconType =
+		{
+			name ="icon_recon"
+			spriteType = "GFX_icon_recon"
+			position = { x= 185 y = -13}
+			Orientation = "UPPER_LEFT"
+			
+		}
+		
+		instantTextBoxType = {
+			name = "recon"
+			position = { x = 194 y = -10 }
+			textureFile = ""
+			font = "Arial12_bold_black"
+			borderSize = {x = 0 y = 0}
+			text = ""	
+			maxWidth = 40
+			maxHeight = 16
+
+			fixedsize = yes	
+
+			format = right
+		}		
+
+		iconType =
+		{
+			name ="icon_engineer"
+			spriteType = "GFX_icon_attack_efficiency"
+			position = { x= 261 y = -13}
+			Orientation = "UPPER_LEFT"
+		}
+		
+		instantTextBoxType = {
+			name = "engineer"
+			position = { x = 270 y = -10 }
+			textureFile = ""
+			font = "Arial12_bold_black"
+			borderSize = {x = 0 y = 0}
+			text = ""	
+			maxWidth = 40
+			maxHeight = 16
+
+			fixedsize = yes	
+
+			format = right
+		}		
+
+		iconType =
+		{
+			name ="icon_supplies_small"
+			spriteType = "GFX_unit_supplies_icon"
+			position = { x= 7 y = -13}
+			Orientation = "UPPER_LEFT"
+			
+		}		
+		
+		iconType =
+		{
+			name ="supply_status"
+			spriteType = "supply_progress"
+			position = { x= 36 y = -10 }
+			Orientation = "UPPER_LEFT"
+		}
+						
+		
+		iconType =
+		{
+			name ="unitstatus_dugin"
+			spriteType = "GFX_military_dugin_icon"
+			position = { x= 78 y = -16  }
+			Orientation = "UPPER_LEFT"
+		}		
+	}
+    
+    listboxType = 	{
+        name ="alice_unit_listbox"
+        position = { 0 28 }
+        size = { 332 408 }
+        Orientation = "UPPER_LEFT"
+        spacing = 0
+        scrollbartype = "standardlistbox_slider"
+        borderSize = { 0 0 }
+    }
+    
+    windowType={
+		name = "alice_army_group_on_map"
+		position = {  0 0 }
+		size = { 1 1 }
+		moveable = 0
+		Orientation = "UPPER_LEFT"
+        
+        windowType = {
+			name = "main_army_group_icon"
+			position = {  -50 -50 }
+			size = { 1 1 }
+			moveable = 0
+			Orientation = "UPPER_LEFT"
+
+			iconType = {
+				name ="frame_bg"
+				spriteType = "GFX_alice_unit_frames"
+				position = { 4 0 }
+			}
+			instantTextBoxType={
+				position = { 8 40 }
+				name = "label"
+				font = "Arial14"
+				borderSize = { 0 0}
+				maxsize = { 53 17 }
+				orientation = "UPPER_LEFT"
+				format = centre
+                text = "HQ"
+			}
+			iconType = {
+				name = "controller_flag"
+				spriteType = "GFX_alice_unit_flag"
+				position = { 12 6 }
+			}
+		}
+        
+    }
 
 	windowType = {
 		name = "alice_leader_selection_panel"
@@ -1777,6 +2198,21 @@ guiTypes = {
 			quadTextureSprite ="GFX_alice_unit_select_leader"
 		}
 
+		iconType = {
+			name ="prestige_bar_frame"
+			spriteType = "GFX_prestige_bar_frame"
+			position = { 8 2 }
+			#allwaystransparent = yes
+		}
+		iconType = {
+			name ="leader_prestige_bar"
+			spriteType = "GFX_leader_prestige_progress_bar"
+			position = { 18 32 }
+			Orientation = "UPPER_LEFT"
+			rotation = 1.5708
+			#allwaystransparent = yes
+		}
+
 		iconType =	{
 			name ="photo"
 			spriteType = "GFX_leader_generic0"
@@ -2009,6 +2445,30 @@ guiTypes = {
 				format = left
 				spacing = 1.0
 			}
+			instantTextBoxType = {
+				name = "reinforcement_info_txt"
+				position = { 16 65 }
+				textureFile = ""
+				font = "vic_22_black"
+				borderSize = { 0 0}
+				maxsize = { 50 32 }
+				fixedsize = yes
+			}
+			iconType = {
+				name ="reserve_icon"
+				spriteType = "GFX_topbar_manpower"
+				position = {  10 90 }
+				Orientation = "UPPER_LEFT"
+			}
+			instantTextBoxType = {
+				name = "reserve_reg_info"
+				position = { 42 95 }
+				textureFile = ""
+				font = "vic_22_black"
+				borderSize = { 0 0}
+				maxsize = { 50 32 }
+				fixedsize = yes
+			}
 
 			iconType = {
 				name ="morale"
@@ -2130,6 +2590,30 @@ guiTypes = {
 				Orientation = "UPPER_LEFT"
 				format = left
 				spacing = 1.0
+			}
+			instantTextBoxType = {
+				name = "reinforcement_info_txt"
+				position = { 16 65 }
+				textureFile = ""
+				font = "vic_22_black"
+				borderSize = { 0 0}
+				maxsize = { 50 32 }
+				fixedsize = yes
+			}
+			iconType = {
+				name ="reserve_icon"
+				spriteType = "GFX_topbar_manpower"
+				position = {  10 90 }
+				Orientation = "UPPER_LEFT"
+			}
+			instantTextBoxType = {
+				name = "reserve_reg_info"
+				position = { 42 95 }
+				textureFile = ""
+				font = "vic_22_black"
+				borderSize = { 0 0}
+				maxsize = { 50 32 }
+				fixedsize = yes
 			}
 			iconType = {
 				name ="morale"
@@ -2364,7 +2848,14 @@ guiTypes = {
 				spriteType = "GFX_naval_combat_unit_normal_L"
 				position = { 118 138 }
 				Orientation = "UPPER_LEFT"
-				frame = 3
+				frame = 5
+			}
+			iconType = {
+				name ="stacking_penalty_icon"
+				spriteType = "GFX_alice_unit_status"
+				position = { 30 85 }
+				Orientation = "UPPER_LEFT"
+				frame = 5
 			}
 
 			instantTextBoxType = {
@@ -2515,6 +3006,13 @@ guiTypes = {
 				Orientation = "UPPER_LEFT"
 				frame = 3
 			}
+			iconType = {
+				name ="stacking_penalty_icon"
+				spriteType = "GFX_alice_unit_status"
+				position = { 40 85 }
+				Orientation = "UPPER_LEFT"
+				frame = 5
+			}
 
 			instantTextBoxType = {
 				name = "big_ship_value"
@@ -2630,9 +3128,8 @@ guiTypes = {
 
 		listboxType = {
 			name = "message_settings_items"
-			position = {  30 89}
-
-			backGround=""
+			position = { 30 89 }
+			backGround = ""
 			size = { 725  321 }
 			spacing = 1
 			scrollbartype = "standardlistbox_slider"
@@ -2640,6 +3137,36 @@ guiTypes = {
 			Orientation = "UPPER_LEFT"
 		}
 
+		# 236 + 4 x step
+		guiButtonType = {
+			name = "message_reset"
+			position = { 30 410 }
+			quadTextureSprite ="GFX_frontend_button_236"
+			buttonText = "reset"
+			buttonFont = "vic_22_black"
+		}
+		guiButtonType = {
+			name = "message_spectator"
+			position = { 270 410 }
+			quadTextureSprite ="GFX_frontend_button_236"
+			buttonText = "message_settings_spectator"
+			buttonFont = "vic_22_black"
+		}
+		instantTextBoxType = {
+			position = { 530 413 }
+			name = "message_notify_rebels_defeat_label"
+			font = "vic_18_black"
+			borderSize = { 0 0}
+			maxsize = { 240 18 }
+			text = "message_notify_rebels_defeat_label"
+			orientation = "UPPER_LEFT"
+			format = left
+		}
+		guiButtonType = {
+			name = "message_notify_rebels_defeat_checkbox"
+			position = { 700 415 }
+			quadTextureSprite = "GFX_checkbox_default"
+		}
 	}
 
 	windowType = {
@@ -2716,31 +3243,51 @@ guiTypes = {
 		scrollbartype = "standardlistbox_slider"
 		Orientation = "UPPER_LEFT"
 	}
-
 	windowType = {
 		name = "alice_nation_event_button"
 		position = { 0 0 }
 		size = { 512  28 }
-
 		guiButtonType = {
 			name = "opt_button"
 			position = { 0 -1}
 			quadTextureSprite ="GFX_event_country_button"
 			buttonFont = "vic_18_black"
 		}
-
 		guiButtonType = {
 			name = "auto_button"
 			position = { 482 -1 }
 			quadTextureSprite = "GFX_alice_event_auto"
 		}
 	}
-
 	listboxType = {
 		name = "alice_nation_event_opts_list"
 		position = {  0 0}
 		backGround=""
 		size = { 512  145 }
+		spacing = 1
+		scrollbartype = "standardlistbox_slider"
+		Orientation = "UPPER_LEFT"
+	}
+	windowType = {
+		name = "alice_election_event_button"
+		position = { 0 0 }
+		size = { 512 48 }
+		guiButtonType = {
+			name = "opt_button"
+			position = { 0 0 }
+			quadTextureSprite ="GFX_event_election_button"
+			buttonFont = "vic_18_black"
+		}
+		guiButtonType = {
+			name = "auto_button"
+			position = { 483 0 }
+			quadTextureSprite = "GFX_alice_election_event_auto"
+		}
+	}
+	listboxType = {
+		name = "alice_election_event_opts_list"
+		position = { 0 0 }
+		size = { 512 250 }
 		spacing = 1
 		scrollbartype = "standardlistbox_slider"
 		Orientation = "UPPER_LEFT"
@@ -2832,7 +3379,7 @@ guiTypes = {
 		}
 		instantTextBoxType = {
 			name = "legend_esc_instr"
-			text = "alice_state_select_2"
+			text = "press_esc_to_cancel"
 			position = { 0 33 }
 			font = "Arial14"
 			borderSize = { 0 0}
@@ -2848,6 +3395,32 @@ guiTypes = {
 			spacing = 1
 			scrollbartype = "standardlistbox_slider"
 			Orientation = "UPPER_LEFT"
+		}
+	}
+
+	windowType = {
+		name = "alice_console_window"
+		position = { 5 135 }
+		size = { 500 600 }
+		moveable = 0
+		iconType =  {
+			name = "background"
+			size = { 500 565 }
+			spriteType = "console_background"
+		}
+		instantTextBoxType = {
+			name = "console_list"
+			font = "Arial16"
+			maxsize = { 500 565 }
+			format = left
+		}
+		editBoxType = {
+			name = "console_edit"
+			font = "FPS_Font"
+			position = { 0 560 }
+			size = { 500 40 }
+			borderSize = { 10 10 }
+			textureFile = "gfx\\interface\\small_tiles_dialog.dds"
 		}
 	}
 
@@ -3634,6 +4207,83 @@ guiTypes = {
 			format = left
 		}
 	}
+    
+    iconType = {
+        name ="gdp_ledger_linegraph_bg"
+        spriteType = "GFX_ledger_linegraph_bg"
+        position = { x= 63 y = 151 }
+        Orientation = "UPPER_LEFT"
+    }
+    
+    windowType = {
+			name = "gdp_ledger_linegraphs"
+			backGround =""
+			position = { x = 80 y = 130 }
+			size = { x=690 y = 540 }
+			moveable = 0
+			dontRender = ""
+			horizontalBorder = "0"
+			verticalBorder = ""
+			fullScreen = no
+		}
+		
+    windowType = {
+        name = "gdp_ledger_linegraph_legend"
+        backGround =""
+        position = { x = 830 y = 153 }
+        size = { x=200 y = 540 }
+        moveable = 0
+        dontRender = ""
+        horizontalBorder = "0"
+        verticalBorder = ""
+        fullScreen = no
+        
+        listboxType = {
+            name ="legend_nations_list"
+            position = { x = 0 y = 0 }
+            backGround=""
+            size = { x=208 y = 528 }
+            Orientation = "UPPER_LEFT"
+            spacing = 2
+            scrollbartype = "standardlistbox_slider"
+            borderSize = {x = 1 y = 1}
+        }
+    }
+    
+    windowType = {
+		name = "ledger_nations_legend_entry"
+		backGround=""
+		position = { x=0 y=-0 }	
+		size = { x=200 y=24 }
+		moveable = 0
+		dontRender = ""
+		horizontalBorder= ""
+		verticalBorder= ""
+		fullScreen = no
+		Orientation = "UPPER_LEFT"
+		
+		checkboxType = {
+			name = "nation_ledger_legend_checkbox"	
+			position = {x = 24 y = 1 }
+			quadTextureSprite ="GFX_checkbox_default"
+		}
+		
+		iconType = {
+			name ="nation_ledger_legend_plupp"
+			spriteType = "GFX_politics_party_plupp"
+			position = { x= 0 y = 0 }
+		}
+		
+		instantTextBoxType = { 
+			name = "nation_ledger_default_textbox"
+			position = { x = 47 y = 5 }
+			font = "Arial12_bold_black"
+			text = " "	
+			maxWidth = 160
+			maxHeight = 16
+			fixedsize = yes
+		}
+	}
 
 	checkboxType = {
 		name = "alice_debt_checkbox"
@@ -3644,7 +4294,7 @@ guiTypes = {
 	instantTextBoxType = {
 		name = "alice_domestic_investment_label"
 		text = "domestic_investment_label"
-		position = { 38 588 }
+		position = { 38 580 }
 		font = "vic_18_black"
 		borderSize = { 0 0 }
 		maxsize = { 146 18 }
@@ -3654,7 +4304,7 @@ guiTypes = {
 	instantTextBoxType = {
 		name = "alice_domestic_investment_value"
 		text = "0.0"
-		position = { 418 588 }
+		position = { 418 580 }
 		font = "vic_18_black"
 		borderSize = { 0 0 }
 		maxsize = { 60 18 }
@@ -3668,7 +4318,79 @@ guiTypes = {
 		leftbutton = "up"
 		rightbutton = "down"
 		size = { 220 20 }
-		position = { 198 588 }
+		position = { 198 580 }
+		priority = 100			
+		minValue = 0
+		maxValue = 100
+		stepSize = 1
+		startValue = 0
+		horizontal = 1
+		useRangeLimit = yes
+		rangeLimitMin = 0
+		rangeLimitMax = 100
+		rangeLimitMinIcon = "min"
+		rangeLimitMaxIcon = "max"
+		guiButtonType = {
+			name = "slider"	
+			quadTextureSprite = "GFX_slider_circle"
+			position = { 0 0 }
+		}
+		guiButtonType = {
+			name = "track"
+			quadTextureSprite = "GFX_bg_horizontal_slider_220wide"
+			position = { 0 0 }
+		}
+		guiButtonType = {
+			name = "up"
+			quadTextureSprite = "GFX_slider_left"
+			position = { 0 0 }
+		}
+		guiButtonType = {
+			name = "down"
+			quadTextureSprite = "GFX_slider_right"
+			position = { 0 220 }
+		}
+		iconType = {
+			name = "min"
+			spriteType = "GFX_scroll_limit"
+			position = { 0 0 }
+		}
+		iconType = {
+			name = "max"
+			spriteType = "GFX_scroll_limit2"
+			position = { 0 0 }
+		}
+	}
+    
+    
+    instantTextBoxType = {
+		name = "alice_overseas_maintenance_label"
+		text = "BUDGET_OVERSEAS"
+		position = { 38 598 }
+		font = "vic_18_black"
+		borderSize = { 0 0 }
+		maxsize = { 146 18 }
+		orientation = "UPPER_LEFT"
+		format = left
+	}
+	instantTextBoxType = {
+		name = "alice_overseas_maintenance_value"
+		text = "0.0"
+		position = { 418 598 }
+		font = "vic_18_black"
+		borderSize = { 0 0 }
+		maxsize = { 60 18 }
+		orientation = "UPPER_LEFT"
+		format = right
+	}
+	scrollbarType = {
+		name = "alice_overseas_maintenance_slider"	
+		slider = "slider"
+		track = "track"
+		leftbutton = "up"
+		rightbutton = "down"
+		size = { 220 20 }
+		position = { 198 598 }
 		priority = 100			
 		minValue = 0
 		maxValue = 100
@@ -3764,7 +4486,7 @@ guiTypes = {
 			position = { 128 288 }
 			size = { 128 24 }
 			quadTextureSprite = "GFX_button_128wide"
-			buttonText = "macro_save_template"
+			buttonText = "save"
 			buttonFont = "vic_22_black"
 		}
 		guiButtonType = {
@@ -3772,7 +4494,7 @@ guiTypes = {
 			position = { 256 288 }
 			size = { 128 24 }
 			quadTextureSprite = "GFX_button_128wide"
-			buttonText = "macro_remove_template"
+			buttonText = "delete"
 			buttonFont = "vic_22_black"
 		}
 		guiButtonType = {
@@ -3788,7 +4510,15 @@ guiTypes = {
 			position = { 510 288 }
 			size = { 128 24 }
 			quadTextureSprite = "GFX_button_128wide"
-			buttonText = "macro_apply_template"
+			buttonText = "apply"
+			buttonFont = "vic_22_black"
+		}
+        guiButtonType = {
+			name = "set_main"
+			position = { 510 263 }
+			size = { 128 24 }
+			quadTextureSprite = "GFX_button_128wide"
+			buttonText = "set_main"
 			buttonFont = "vic_22_black"
 		}
 		editBoxType = {
@@ -3821,17 +4551,11 @@ guiTypes = {
 		}
 		instantTextBoxType = {
 			name = "name"
-			position = { 32 0 }
+			position = { 5 0 }
 			font = "vic_22"
 			borderSize = { 0 0 }
-			maxsize = { 70 24 }
+			maxsize = { 100 24 }
 			format = center
-		}
-		guiButtonType = {
-			name = "shield"
-			position = { 4 4 }
-			quadTextureSprite = "GFX_flag_new"
-			Orientation = "UPPER_LEFT"
 		}
 	}
 	windowType = {
@@ -3854,424 +4578,6 @@ guiTypes = {
 		}
 	}
 
-	windowType = {
-		name = "alice_menubar"
-		backGround = ""
-		position = { 0 0 }	
-		size = { 100 100 }
-		moveable = 0
-		horizontalBorder = ""
-		verticalBorder = ""
-		fullScreen = yes
-		windowType = {
-			name = "messagelog_window"
-			backGround = ""
-			position = { -874 -156 }	
-			size = { 720 100 }	
-			moveable = 0
-			horizontalBorder = ""
-			verticalBorder = ""
-			fullScreen = no
-			Orientation = "LOWER_RIGHT"
-			iconType = {
-				name = "log_bg"
-				spriteType = "GFX_log_bg"
-				position = { 0 -3 }
-				Orientation = "UPPER_LEFT"
-			}
-			listboxType = {
-				name = "messagelog"
-				position = { 0 11 }
-				backGround = ""
-				size = { 422 115}
-				#Orientation = "LOWER_RIGHT"
-				Orientation = "UPPER_LEFT"
-				spacing = 1
-				scrollbartype = "standardlistbox_slider"
-				borderSize = { 0 0}
-			}
-			guiButtonType = {
-				name = "closebutton"
-				position = { -293 27 }
-				quadTextureSprite = "GFX_closelog_button"
-				tooltip = ""
-				tooltipText = ""
-				buttonText = "  "
-				buttonFont = "Main_14_black"
-				Orientation = "LOWER_RIGHT"
-				shortcut = "<"
-			}
-			checkboxType = {
-				name = "messagecat_combat"
-				position = { -705 25 }
-				quadTextureSprite = "GFX_messagecat_combat"
-				Orientation = "LOWER_RIGHT"
-			}
-			checkboxType = {
-				name = "messagecat_diplomacy"
-				position = { -665 25 }
-				quadTextureSprite = "GFX_messagecat_diplo"
-				Orientation = "LOWER_RIGHT"
-			}
-			checkboxType = {
-				name = "messagecat_units"
-				position = { -625 25 }
-				quadTextureSprite = "GFX_messagecat_units"
-				Orientation = "LOWER_RIGHT"
-			}
-			checkboxType = {
-				name = "messagecat_provinces"
-				position = { -585 25 }
-				quadTextureSprite = "GFX_messagecat_provinces"
-				Orientation = "LOWER_RIGHT"
-			}
-			checkboxType = {
-				name = "messagecat_events"
-				position = { -545 25 }
-				quadTextureSprite = "GFX_messagecat_events"
-				Orientation = "LOWER_RIGHT"
-			}
-			checkboxType = {
-				name = "messagecat_others"
-				position = { -505 25 }
-				quadTextureSprite = "GFX_messagecat_other"
-				Orientation = "LOWER_RIGHT"
-			}
-		}
-		guiButtonType = {
-			name = "openbutton"
-			position = { -447 -29 }
-			quadTextureSprite = "GFX_openlog_button"
-			tooltip = ""
-			tooltipText = ""
-			buttonText = " "
-			buttonFont = "Main_14_black"
-			shortcut = "<"
-			Orientation = "LOWER_RIGHT"
-		}
-		iconType = {
-			name = "minimap_bg"
-			spriteType = "GFX_minimap_bg"
-			position = { -374 -172 }
-			Orientation = "LOWER_RIGHT"
-		}
-		iconType = {
-			name = "minimap_bg-patch"
-			spriteType = "GFX_new_minimap_bg"
-			position = { -374 -200 }
-			Orientation = "LOWER_RIGHT"
-		}
-		iconType = {
-			name = "menubar_bg"
-			spriteType = "GFX_menubar_bg"
-			position = { -64 -200 }
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "menu_button"
-			position = { -49 -155 }
-			quadTextureSprite = "GFX_menu_button"
-			Orientation = "LOWER_RIGHT"
-			clicksound = click
-		}
-		guiButtonType = {
-			name = "ledger_button"
-			position = { -49 -125 }
-			quadTextureSprite = "GFX_ledger_button"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "l"
-		}
-		guiButtonType = {
-			name = "button_goto"
-			position = { -49 -90 }
-			quadTextureSprite ="GFX_button_goto"
-			tooltip = ""
-			tooltipText = ""
-			delayedTooltipText = ""
-			buttonText = ""
-			buttonFont = "Main_14_black"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "map_zoom_in"
-			position = { -45 -35 }
-			quadTextureSprite ="GFX_map_zoom_in"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "map_zoom_out"
-			position = { -24 -35 }
-			quadTextureSprite = "GFX_map_zoom_out"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_1"
-			tooltipText = "mapmode_1"
-			position = { -348 -157 }
-			size = { 26 21 }
-			quadTextureSprite ="GFX_mapmode_terrain.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "q"
-		}
-		guiButtonType = {
-			name = "mapmode_11"
-			tooltipText = "mapmode_11"
-			position = { -348 -136 }
-			quadTextureSprite ="GFX_mapmode_rgooutput.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "a"
-		}
-		guiButtonType = {
-			name = "mapmode_12"
-			tooltipText = "mapmode_12"
-			position = { -322 -136 }
-			quadTextureSprite ="GFX_mapmode_popdensity.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "s"
-		}
-		guiButtonType = {
-			name = "mapmode_2"
-			tooltipText = "mapmode_2"
-			position = { -322 -157 }
-			quadTextureSprite ="GFX_mapmode_political.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "w"
-		}
-		guiButtonType = {
-			name = "mapmode_13"
-			tooltipText = "mapmode_13"
-			position = { -296 -136 }
-			quadTextureSprite = "GFX_mapmode_nationality.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "d"
-		}
-		guiButtonType = {
-			name = "mapmode_6"
-			tooltipText = "mapmode_6"
-			position = { -296 -157 }
-			quadTextureSprite = "GFX_mapmode_infra.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "e"
-		}
-		guiButtonType = {
-			name = "mapmode_14"
-			tooltipText = "mapmode_14"
-			position = { -270 -136 }
-			quadTextureSprite = "GFX_mapmode_soi.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "f"
-		}
-		guiButtonType = {
-			name = "mapmode_4"
-			tooltipText = "mapmode_4"
-			position = { -270 -157 }
-			quadTextureSprite = "GFX_mapmode_diplomatic.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "r"
-		}
-		guiButtonType = {
-			name = "mapmode_15"
-			tooltipText = "mapmode_15"
-			position = { -244 -136 }
-			quadTextureSprite = "GFX_mapmode_supplylimit.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "g"
-		}
-		guiButtonType = {
-			name = "mapmode_5"
-			tooltipText = "mapmode_5"
-			position = { -244 -157 }
-			quadTextureSprite = "GFX_mapmode_region.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "t"
-		}
-		guiButtonType = {
-			name = "mapmode_3"
-			tooltipText = "mapmode_3"
-			position = { -218 -157 }
-			quadTextureSprite = "GFX_mapmode_revolt.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "y"
-		}
-		guiButtonType = {
-			name = "mapmode_16"
-			tooltipText = "mapmode_16"
-			position = { -218 -136 }
-			quadTextureSprite ="GFX_mapmode_partyloyalty.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "h"
-		}
-		guiButtonType = {
-			name = "mapmode_8"
-			tooltipText = "mapmode_8"
-			position = { -192 -157 }
-			quadTextureSprite ="GFX_mapmode_admin.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "u"
-		}
-		guiButtonType = {
-			name = "mapmode_17"
-			tooltipText = "mapmode_17"
-			position = { -192 -136 }
-			quadTextureSprite = "GFX_mapmode_rank.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "j"
-		}
-		guiButtonType = {
-			name = "mapmode_7"
-			tooltipText = "mapmode_7"
-			position = { -166 -157 }
-			quadTextureSprite = "GFX_mapmode_colonial.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "i"
-		}
-		guiButtonType = {
-			name = "mapmode_18"
-			tooltipText = "mapmode_18"
-			position = { -166 -136 }
-			quadTextureSprite = "GFX_mapmode_migration.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "k"
-		}
-		guiButtonType = {
-			name = "mapmode_9"
-			tooltipText = "mapmode_9"
-			position = { -140 -157 }
-			quadTextureSprite = "GFX_mapmode_recruit.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "o"
-		}
-		guiButtonType = {
-			name = "mapmode_19"
-			tooltipText = "mapmode_19"
-			position = { -140 -136 }
-			quadTextureSprite = "GFX_mapmode_civ_level.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "l"
-		}
-		guiButtonType = {
-			name = "mapmode_10"
-			tooltipText = "mapmode_10"
-			position = { -114 -157 }
-			quadTextureSprite = "GFX_mapmode_natfocus.n"
-			Orientation = "LOWER_RIGHT"
-			shortcut = "p"
-		}
-		guiButtonType = {
-			name = "mapmode_20"
-			tooltipText = "mapmode_20"
-			position = { -114 -136 }
-			quadTextureSprite = "GFX_mapmode_relation.n"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_21"
-			tooltipText = "mapmode_21"
-			position = { -88 -136 }
-			quadTextureSprite = "GFX_mapmode_crises.n"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_22"
-			tooltipText = "mapmode_22"
-			position = { -88 -157 }
-			quadTextureSprite = "GFX_mapmode_naval.n"
-			Orientation = "LOWER_RIGHT"
-		}
-		# New Alice mapmodes!
-		guiButtonType = {
-			name = "mapmode_23"
-			tooltipText = "mapmode_23"
-			position = { -348 -178 }
-			quadTextureSprite = "GFX_mapmode_religion"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_24"
-			tooltipText = "mapmode_24"
-			position = { -322 -178 }
-			quadTextureSprite = "GFX_mapmode_fort"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_25"
-			tooltipText = "mapmode_25"
-			position = { -296 -178 }
-			quadTextureSprite = "GFX_mapmode_ideology"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_26"
-			tooltipText = "mapmode_26"
-			position = { -270 -178 }
-			quadTextureSprite = "GFX_mapmode_income"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_27"
-			tooltipText = "mapmode_27"
-			position = { -244 -178 }
-			quadTextureSprite = "GFX_mapmode_con"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_28"
-			tooltipText = "mapmode_28"
-			position = { -218 -178 }
-			quadTextureSprite = "GFX_mapmode_militancy"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_29"
-			tooltipText = "mapmode_29"
-			position = { -192 -178 }
-			quadTextureSprite = "GFX_mapmode_literacy"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_30"
-			tooltipText = "mapmode_30"
-			position = { -166 -178 }
-			quadTextureSprite = "GFX_mapmode_employment"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_31"
-			tooltipText = "mapmode_31"
-			position = { -140 -178 }
-			quadTextureSprite = "GFX_mapmode_factories"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_32"
-			tooltipText = "mapmode_32"
-			position = { -114 -178 }
-			quadTextureSprite = "GFX_mapmode_issues"
-			Orientation = "LOWER_RIGHT"
-		}
-		guiButtonType = {
-			name = "mapmode_33"
-			tooltipText = "mapmode_33"
-			position = { -88 -178 }
-			quadTextureSprite = "GFX_mapmode_growth"
-			Orientation = "LOWER_RIGHT"
-		}
-	}
-
-	checkboxType = {
-		name = "alice_buy_from_stockpile"
-		position = { 715 388 }
-		quadTextureSprite = "GFX_trade_stockpile_checkbox"
-		Orientation = "UPPER_LEFT"
-	}
-
-	iconType = {
-		name = "minimap_pic"
-		spriteType = "GFX_minimap"
-		position = { -328 -110 }
-		Orientation = "LOWER_RIGHT"
-	}
-
 	instantTextBoxType = {
 		name = "alice_readme_text"
 		position = { -235 -180 }
@@ -4280,4 +4586,1316 @@ guiTypes = {
 		font = "Arial14"
 		Orientation = "CENTER_DOWN"
 	}
+
+	windowType = {
+		name = "alice_diplomessageicon_entry_window"
+		position = { 0 0 }	
+		size = { 48 48 }
+		guiButtonType = {
+			name = "diplomessageicon_button"
+			position = { 0 0 }
+			quadTextureSprite ="GFX_diplo_message_icons"	
+			Orientation = "UPPER_LEFT"
+		}
+		iconType = {
+			name = "flag"
+			spriteType = "GFX_flag_new"
+			position = { 8 22 }
+			Orientation = "UPPER_LEFT"			
+		}
+	}
+	OverlappingElementsBoxType = {
+		name = "alice_diplomessageicons_window"
+		position = { 435 90 }	
+		size = { 576 48 }
+		Orientation = "UPPER_LEFT"
+		format = centre
+		spacing = 1.0
+	}
+
+	guiButtonType = {
+		name = "alice_enable_ai_controlled"
+		position = { 180 312 }
+		quadTextureSprite = "GFX_checkbox_default"	
+	}
+	guiButtonType = {
+		name = "alice_enable_ai_controlled_multi"
+		position = { 239 4 }
+		quadTextureSprite = "GFX_checkbox_default"	
+	}
+	guiButtonType = {
+		name = "alice_military_mobilized_is_ai_controlled"
+		position = { 379 559 }
+		quadTextureSprite = "GFX_checkbox_default"
+	}
+	guiButtonType = {
+		name = "alice_interested_in_alliance"
+		position = { 0 0 }
+		quadTextureSprite = "GFX_checkbox_default"	
+	}
+	guiButtonType = {
+		name = "alice_move_capital"
+		extends = "province_view_header"
+		position = { x= 368 y = 43 }
+		quadTextureSprite = "GFX_move_capital"	
+	}
+	guiButtonType = {
+		name = "alice_toggle_administration"
+		extends = "province_view_header"
+		position = { x= 100 y = 43 }
+		quadTextureSprite = "GFX_move_capital"	
+	}
+	guiButtonType = {
+		name = "alice_take_province"
+		extends = "province_view_header"
+		position = { x= 148 y = 3 }
+		quadTextureSprite = "GFX_take_province"	
+	}
+
+	iconType = {
+		name ="province_victory_points_icon"
+		extends = "province_view_header"
+		spriteType = "GFX_prestige_icon_2"
+		position = { x=125 y=43 }
+		Orientation = "UPPER_LEFT"
+	}
+	instantTextBoxType = {
+			name = "province_victory_points"
+			extends = "province_view_header"
+			position = { x=140 y =45}
+			borderSize = { 0 0}
+			maxsize = { 50 20 }
+			textureFile = ""
+			font = "vic_18"
+	}
+
+	instantTextBoxType = {
+			name = "ready_state"
+			extends = "ingame_multiplayer_entry"
+			position = { x=160 y =2}
+			borderSize = { 0 0}
+			maxsize = { 50 32 }
+			textureFile = ""
+			font = "vic_18_black"
+		}
+
+	guiButtonType = {
+			name = "button_ban"
+			extends = "ingame_multiplayer_entry"
+			quadTextureSprite = "GFX_button_ban"
+			tooltip = ""
+			tooltipText =""	
+			delayedTooltipText = ""
+			position = { x=228 y =2}
+		}
+
+		guiButtonType = {
+			name = "resync_button"
+			extends = "ingame_lobby_window"
+			quadTextureSprite = "GFX_alice_event_auto"
+			position = { x=535 y =314}
+		}
+
+
+
+    guiButtonType = {
+		name = "alice_budget_warning"
+		extends = "topbar"
+		position = { x= 147 y = 23 }
+		quadTextureSprite = "GFX_gunboats"	
+	}
+    windowType = {
+        name = "local_economy_view"
+        extends = "province_view"
+        position = { 435 -505 }
+        size = { 700 528 }
+        Orientation = "LOWER_LEFT"
+        
+        iconType = {
+			name ="background"
+			spriteType = "bg-700-547"
+			position = { x= 10 y = 0 }
+			Orientation = "UPPER_LEFT"
+		}      
+        
+        windowType = {
+            name = "table_rgo_headers"
+            position = { 0 0 }
+            size = { 700 528 }
+               
+            iconType = {
+                name ="header_underline"
+                spriteType = "6-width-header-line"
+                position = { x= 250 y = 20 }
+                Orientation = "UPPER_LEFT"
+            } 
+            
+            instantTextBoxType = {
+                name = "rgo_details_header"
+                position = { 360 5 }
+                borderSize = { 1 1 }
+                maxsize = { 128 24 }
+                format = centre
+                font = "vic_18_black"
+                text = "rgo_details_header"
+            }
+            
+            
+            iconType = {
+                name ="header_underline"
+                spriteType = "3-width-header-line"
+                position = { x= 250 y = 45 }
+                Orientation = "UPPER_LEFT"
+            } 
+            
+            instantTextBoxType = {
+                name = "rgo_profits_header"
+                position = { 280 30 }
+                borderSize = { 1 1 }
+                maxsize = { 128 24 }
+                format = centre
+                font = "vic_18_black"
+                text = "rgo_profits_header"
+            }
+            
+            iconType = {
+                name ="header_underline"
+                spriteType = "3-width-header-line"
+                position = { x= 430 y = 45 }
+                Orientation = "UPPER_LEFT"
+            }
+
+			instantTextBoxType = {
+				name = "rgo_employment_header"
+				position = { 450 30 }
+				borderSize = { 1 1 }
+				maxsize = { 128 24 }
+				format = centre
+				font = "vic_18_black"
+				text = "rgo_employment_header"
+			}
+        }        
+        
+        
+        windowType = {
+            name = "table_rgo_data"
+            position = { 30 65 }	
+            size = { 670 467 }
+            
+            listboxType = {
+                name = "table_body"
+                position = { 0 30 }	
+                size = { 660 407 }
+            }
+        }
+        
+        iconType = {
+            name ="trade_route_background"
+            spriteType = "bg-700-547"
+            position = { x= 200 y = 0 }
+            Orientation = "UPPER_LEFT"
+        } 
+        
+        windowType = {
+            name = "table_trade_route_data"
+            position = { 215 15 }
+            size = { 670 517 }            
+            
+            listboxType = {
+                name = "table_body"
+                position = { 0 30 }	
+                size = { 660 487 }
+            }
+        }
+    }
+
+	guiButtonType = {
+        name = "toggle-economy-province"
+        position = { x=405 y=50}
+        quadTextureSprite ="button-economy-province"
+        buttonText = ""
+        buttonFont = "vic_18_black"
+		extends = "province_view"
+    }
+
+	guiButtonType = {
+        name = "toggle-tiles-province"
+        position = { x=405 y=100}
+        quadTextureSprite ="button-economy-province"
+        buttonText = ""
+        buttonFont = "vic_18_black"
+		extends = "province_view"
+    }
+
+	windowType = {
+        name = "province_tiles_window"
+        position = { 445 0 }
+        size = { 288 288 }
+    }
+
+	iconType = {
+			position = { x=0 y=0 }	
+			size = { x=36 y=36 }
+			name = "province_tiles_tile"
+			spriteType = "provincetiles"
+	}
+
+	iconType = {
+			position = { x=16 y=16 }	
+			size = { x=20 y=20 }
+			name = "province_tiles_tile_subicon_commodity"
+			spriteType = "GFX_resources_small"
+	}
+
+	iconType = {
+			position = { x=14 y=14 }	
+			size = { x=22 y=22 }
+			name = "province_tiles_tile_subicon_unit"
+			spriteType = "GFX_unit_strip"
+	}
+
+	windowType = {
+		name = "context_menu_window"
+		position = { 650 0 }	
+		size = { x=180 y=30 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+	}
+	
+	guiButtonType = {
+		name = "context_menu_item"
+		position = { x = 0 y = 0 }
+		size = { x=180 y=30 }
+		quadTextureSprite ="GFX_diplo_wargoal_button"
+		buttonFont = "vic_18_black"
+		buttonText = "Test"
+		clicksound = click
+	}
+    
+    windowType = {
+        name = "table_production_methods"
+        position = { 80 60 }	
+        size = { 800 540 }
+        
+        listboxType = {
+            name = "table_production_methods_body"
+            position = { 0 40 }	
+            size = { 800 500 }
+        }
+        
+        extends = "country_production"
+    }
+    
+    windowType = {
+		name = "alice_country_trade"
+		backGround =""
+		position = { x=-510 y=-400 }
+		size = { x=1022 y=822 }
+		moveable = 0
+		dontRender = ""
+		horizontalBorder = "0"
+		verticalBorder = ""
+		fullScreen = no
+		orientation="CENTER"
+        
+        iconType = {
+            name = "bg_market_table_global"
+            position = { x=25 y=800}
+            spriteType ="bg-150-100"
+        }	
+        
+        iconType = {
+            name = "bg_market_table_nation"
+            position = { x=200 y=800}
+            spriteType ="bg-150-100"
+        }
+        
+        iconType = {
+            name = "bg_market_table_trade_good_global"
+            position = { x=375 y=800}
+            spriteType ="bg-150-100"
+        }
+        
+        iconType = {
+            name = "bg_market_table_trade_good_markets"
+            position = { x=550 y=800}
+            spriteType ="bg-150-100"
+        }
+        
+        guiButtonType = {
+            name = "market_table_global"
+            position = { x=50 y=810}
+            quadTextureSprite ="bg-100-60"
+            buttonText = "trade_global_data"
+            buttonFont = "vic_18_black"
+        }	
+        
+        guiButtonType = {
+            name = "market_table_nation"
+            position = { x=225 y=810}
+            quadTextureSprite ="bg-100-60"
+            buttonText = "trade_nation_data"
+            buttonFont = "vic_18_black"
+        }
+        
+        guiButtonType = {
+            name = "market_table_trade_good_global"
+            position = { x=400 y=810}
+            quadTextureSprite ="bg-100-60"
+            buttonText = "trade_good_stats_global"
+            buttonFont = "vic_18_black"
+        }
+        
+        guiButtonType = {
+            name = "market_table_trade_good_markets"
+            position = { x=575 y=810}
+            quadTextureSprite ="bg-100-60"
+            buttonText = "trade_good_stats_markets"
+            buttonFont = "vic_18_black"
+        }
+				
+		iconType = {
+			name ="bg_trade"
+			spriteType = "bg-1022-822"
+			position = { x= 0 y = 0 }
+			Orientation = "UPPER_LEFT"
+		}
+		
+		textBoxType = { 
+			name = "headline_trade"
+			position = { x = 770 y = -42 }
+			font = "vic_title"
+			text = "TRADE"	
+			maxWidth = 200
+			maxHeight = 48	
+			format = right
+		}
+		
+		guiButtonType = {
+			name = "close_button"
+			position = { x= -25 y = -5}
+			quadTextureSprite = "GFX_main_close_button"		
+			Orientation = "UPPER_RIGHT"
+			shortcut = "ESCAPE"
+			clicksound = click
+		}
+		
+		###############################################
+		# WORLD MARKET GOODS
+		###############################################	
+        
+        windowType = {
+            name = "commodity_table_nation"
+            position = { 20 20 }	
+            size = { 650 780 }
+            
+            listboxType = {
+                name = "commodity_table_body"
+                position = { 0 40 }	
+                size = { 650 740 }
+            }
+        }
+        
+        windowType = {
+            name = "commodity_table_global"
+            position = { 20 20 }	
+            size = { 650 780 }
+            
+            listboxType = {
+                name = "commodity_table_body"
+                position = { 0 40 }	
+                size = { 650 740 }
+            }
+        }
+        
+        windowType = {
+            name = "trade_good_global_stats"
+            position = { 20 20 }	
+            size = { 650 780 }
+            
+            listboxType = {
+                name = "commodity_table_body"
+                position = { 0 40 }	
+                size = { 650 740 }
+            }
+        }
+        
+        windowType = {
+            name = "trade_good_markets_stats"
+            position = { 20 20 }	
+            size = { 650 780 }
+            
+            listboxType = {
+                name = "commodity_table_body"
+                position = { 0 40 }	
+                size = { 650 740 }
+            }
+        }
+        
+		#############################################
+		# TRADE DETAIL 
+		#############################################
+		windowType = {
+			name = "trade_details"
+			position = { x = 710 y = 20 }
+			size = { x = 300 y = 780 }
+			
+			iconType = {
+			name = "goods_icon"
+			spriteType = "GFX_resources"
+			position = { x=5 y =5 }
+			}
+			
+			instantTextBoxType = { 
+				name = "goods_title"
+				position = { x = 10 y = 25 }
+				font = "vic_18_black"
+				text = "GOODS"
+				maxWidth = 300
+				maxHeight = 32	
+				format = left
+			}
+			
+			instantTextBoxType = { 
+				name = "goods_price"
+				position = { x = 100 y = 10 }
+				font = "vic_18_black"
+				text = "99"
+				maxWidth = 150
+				maxHeight = 32	
+				format = right
+			}
+			
+			iconType = {
+				name = "price_linechart"
+				spriteType = "GFX_price_linechart"
+				position = { x = 0 y = 60 }
+			}
+			
+			instantTextBoxType = {
+				position = { x = 10 y = 110 }
+				name = "price_chart_low"
+				font = "vic_18_black"
+				text = "0"	
+				maxWidth = 170
+				maxHeight = 10
+			}
+			
+			instantTextBoxType = {
+				position = { x = 10 y = 50 }
+				name = "price_chart_high"
+				font = "vic_18_black"
+				text = "99"	
+				maxWidth = 170
+				maxHeight = 10
+			}
+			
+			
+			##################		
+        
+            checkboxType = {
+				name = "sell_stockpile"
+				position = {x= 20 y = 290}
+				quadTextureSprite = "GFX_toggle_default"
+				tooltip = ""
+				tooltipText =""
+				delayedTooltipText = ""
+			}
+			
+			instantTextBoxType = {
+				position = {x= 0 y = 312}
+				name = "sell_stockpile_label"
+				font = "vic_18_black"
+				text = "TRADE_SELL"	
+				maxWidth = 60
+				maxHeight = 20
+				format = centre
+			}
+        
+			scrollbarType = {
+				name = "sell_slider"
+				slider = "slider"
+				track= "track"
+				leftbutton = "up"
+				rightbutton = "down"
+				position = {x= 50 y =290}
+				size = {x = 220 y = 20 }
+				priority = 100			
+				minValue = 0
+				maxValue = 2000
+				stepSize = 2
+				startValue = 0
+				horizontal = 1
+				
+				guiButtonType = {
+					name = "slider"	
+					quadTextureSprite = "GFX_slider_circle"
+					position = { x=0 y =0}
+				}
+				guiButtonType = {
+					name = "track"
+					quadTextureSprite = "GFX_bg_horizontal_slider_220wide"
+					position = { x=0 y =0}	
+				}	
+				guiButtonType = {
+					name = "up"
+					quadTextureSprite = "GFX_slider_left"
+					position = { x=0 y =0}	
+				}
+				guiButtonType = {
+					name = "down"
+					quadTextureSprite = "GFX_slider_right"
+					position = { x=0 y =220}	
+				}		
+			}
+			
+			instantTextBoxType = {
+				position = {x= 362 y =291}
+				name = "slider_value"
+				font = "vic_22_black"
+				text = "1000"	
+				maxWidth = 50
+				maxHeight = 40
+				format = centre
+			}
+			
+			guiButtonType = {
+				name = "confirm_trade"
+				position = { x=145 y =323}
+				quadTextureSprite ="GFX_button_standard_200"
+				buttonText = "TRADE_CONFIRM_TRADE"
+				buttonFont = "vic_18_black"
+			}
+			
+			guiButtonType = {
+				name = "goods_details"
+				position = { x = 100 y = 135}
+				quadTextureSprite ="GFX_button_standard_144"
+				buttonText = "TRADE_FLOW_DETAILS"
+				buttonFont = "vic_18_black"
+			}
+			
+			instantTextBoxType = {
+				position = { x= 50 y = 178 }
+				name = "goods_need_gov_desc"
+				font = "vic_18_black"
+				text = "GOV_NEED_DETAIL"	
+				maxWidth = 300
+				maxHeight = 40
+			}
+			
+			instantTextBoxType = {
+				position = { x= 50 y = 194 }
+				name = "goods_need_factory_desc"
+				font = "vic_18_black"
+				text = "FACTORY_NEED_DETAIL"	
+				maxWidth = 300
+				maxHeight = 40
+			}
+			instantTextBoxType = {
+				position = { x= 50 y = 210 }
+				name = "produced_detail_desc"
+				font = "vic_18_black"
+				text = "PRODUCED_DETAIL"	
+				maxWidth = 300
+				maxHeight = 40
+			}
+			
+			instantTextBoxType = {
+				position = { x= 50 y = 235 }
+				name = "goods_need_pop_desc"
+				font = "vic_18_black"
+				text = "POP_NEED_DETAIL"	
+				maxWidth = 300
+				maxHeight = 40
+			}
+			
+		}
+	}  
+    
+    instantTextBoxType = {
+        name = "thin_cell_name"
+        size = { 100 16 }
+        font = "vic_18_black"
+        format = left
+    }
+    
+    instantTextBoxType = {
+        name = "thin_cell_number"
+        size = { 60 16 }
+        font = "vic_18_black"
+        format = right
+    }
+    
+    windowType = {
+		name = "alice_build_up_to_template_window"
+		position = { 5 312 }
+		size = { 150 24 }
+        
+		guiButtonType = {
+			name = "background"
+			position = { 0 0 }
+			size = { 105 24 }
+			quadTextureSprite = "console_background"
+		}
+		
+        instantTextBoxType = {
+            name = "composition"            
+            position = { 10 4 }
+            font = "vic_22"
+            borderSize = { 0 0 }
+            maxsize = { 150 24 }
+            format = center
+        }
+        
+        extends = "sup_buttons_window"
+	}
+    
+    guiButtonType = {
+        name = "alice_exit_battleplanner"
+        position = { -100 50 }
+        Orientation = "CENTER_UP"
+        quadTextureSprite ="GFX_frontend_button_236"
+        buttonText = "alice_exit_battleplanner"
+        buttonFont = "vic_22_black"
+    }    
+    guiButtonType = {
+        name = "alice_armygroup_exit_units_selection"
+        position = { -100 50 }
+        Orientation = "CENTER_UP"
+        quadTextureSprite ="GFX_frontend_button_236"
+        buttonText = "alice_exit_battleplanner_selection"
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_exit_deselection"
+        position = { -100 50 }
+        Orientation = "CENTER_UP"
+        quadTextureSprite ="GFX_frontend_button_236"
+        buttonText = "alice_exit_battleplanner_deselection"
+        buttonFont = "vic_22_black"
+    }
+    
+    
+    windowType = {
+		name = "alice_battleplanner_control_panel"
+		position = { -340 10 }
+		size = { 600 100 }
+		moveable = 0
+		Orientation = "upper_right"
+        
+        iconType = {
+            name = "background"
+            spriteType = "bg-310-410-border-gold-paper"
+            position = { 0 0 }
+            Orientation = "UPPER_LEFT"
+        }
+        
+        guiButtonType = {
+            name = "alice_armygroup_new_button"
+            position = { 40 10  }
+            quadTextureSprite ="GFX_frontend_button_236"
+            buttonText = "alice_battleplanner_new_army_group"
+            buttonFont = "vic_22_black"
+        }
+
+		guiButtonType = {
+            name = "alice_armygroup_delete_button"
+            position = { 40 40  }
+            quadTextureSprite ="GFX_frontend_button_236"
+            buttonText = "alice_battleplanner_delete_army_group"
+            buttonFont = "vic_22_black"
+        }
+        
+        windowType = {
+            name = "alice_army_group_listbox_wrapper"
+            position = { 0 80 }
+            Orientation = "UPPER_LEFT"
+            size = { 310 410 }
+            
+            iconType = {
+                name = "background"
+                spriteType = "bg-310-410-border-gold-paper"
+                position = { 0 0 }
+                Orientation = "UPPER_LEFT"
+            }
+            
+            listboxType = 	{
+                name ="alice_army_group_listbox"
+                position = { 25 4 }
+                size = { 310 404 }
+                Orientation = "UPPER_LEFT"
+                spacing = 0
+                scrollbartype = "standardlistbox_slider"
+                borderSize = { 0 0 }                
+            }            
+        }
+	}
+    
+    windowType = {
+        name = "alice_army_group_entry" 
+        position = { 0 0 }
+        Orientation = "upper_left"
+        size = { 280 50 }
+        
+        guiButtonType = {
+            name = "alice_select_army_group_button"
+            position = { 0 0  }
+            size = { 280 50 }
+            quadTextureSprite ="button-280-50-border-gold-paper"
+            Orientation = "UPPER_LEFT"
+            buttonText = ""
+            buttonFont = "vic_22_black"
+        }
+        
+        instantTextBoxType = { 
+			name = "alice_army_group_label"
+			position = { x = 10 y = 10 }
+			font = "Arial16_black"
+			text = "HQ"	
+			maxWidth = 50
+			maxHeight = 25	
+			fixedsize = yes
+			format = left
+		}
+        
+        instantTextBoxType = { 
+			name = "alice_army_group_location"
+			position = { x = 40 y = 10 }
+			font = "Arial12_black"
+			text = "Unknown"	
+			maxWidth = 90
+			maxHeight = 25	
+			fixedsize = yes
+			format = left
+		}
+    }
+    
+    windowType = {
+        name = "alice_armygroup_selection_control_panel"
+		position = { 50 250 }
+		size = { 600 100 }
+		moveable = 0
+		Orientation = "upper_left"
+        
+        guiButtonType = {
+            name = "alice_battleplanner_add_selected"
+            position = { 0 0 }
+            quadTextureSprite ="GFX_frontend_button_236"
+            buttonText = "alice_battleplanner_add_selected"
+            buttonFont = "vic_22_black"
+        }
+        guiButtonType = {
+            name = "alice_battleplanner_remove_selected"
+            position = { 0 30 }
+            quadTextureSprite ="GFX_frontend_button_236"
+            buttonText = "alice_battleplanner_remove_selected"
+            buttonFont = "vic_22_black"
+        }
+    }
+    
+    windowType = {
+        name = "alice_army_group_regiments_list"
+        position = { 10 10 }
+        Orientation = "upper_left"
+        size = { 1 1 }
+        
+        windowType = {
+            name = "alice_army_group_regiments_list_header"            
+            position = { 0 0 }
+            Orientation = "UPPER_LEFT"
+            size = { 310 80 }
+            
+            iconType = {
+                name = "background"
+                spriteType = "bg-310-410-border-gold-paper"
+                position = { 0 0 }
+                Orientation = "UPPER_LEFT"
+            }
+        }
+        
+        
+        windowType = {
+            name = "alice_army_group_control"            
+            position = { 0 190 }
+            Orientation = "UPPER_LEFT"
+            size = { 310 80 }
+            
+            iconType = {
+                name = "background"
+                spriteType = "bg-310-410-border-gold-paper"
+                position = { 0 -60 }
+                Orientation = "UPPER_LEFT"
+            }
+            
+            guiButtonType = {
+                name = "alice_armygroup_go_to_selection"
+                position = { 40 305 }
+                quadTextureSprite ="GFX_frontend_button_236"
+                buttonText = "alice_armygroup_go_to_selection"
+                buttonFont = "vic_22_black"
+            }
+            
+            iconType = {
+                name = "background"
+                spriteType = "bg-90-50-border-bronze-paper-mirror"
+                position = { 270 10 }
+                Orientation = "UPPER_LEFT"
+            }
+            iconType = {
+                name = "background"
+                spriteType = "bg-90-50-border-bronze-paper-mirror"
+                position = { 270 70 }
+                Orientation = "UPPER_LEFT"
+            }
+            iconType = {
+                name = "background"
+                spriteType = "bg-90-50-border-bronze-paper-mirror"
+                position = { 270 130 }
+                Orientation = "UPPER_LEFT"
+            }
+            
+            guiButtonType = {
+                name = "alice_armygroup_defend_button"
+                position = { 310 15 }
+                quadTextureSprite ="button-40-40-tower"
+                buttonText = ""
+                buttonFont = "vic_22_black"
+            }      
+            
+            guiButtonType = {
+                name = "alice_armygroup_enforce_control_button"
+                position = { 310 75 }
+                quadTextureSprite ="button-40-40-cannon"
+                buttonText = ""
+                buttonFont = "vic_22_black"
+            }      
+            
+            guiButtonType = {
+                name = "alice_armygroup_naval_travel_origin_button"
+                position = { 310 135 }
+                quadTextureSprite ="button-40-40-ship"
+                buttonText = ""
+                buttonFont = "vic_22_black"
+            }  
+        }
+        
+        
+        windowType = {
+            name = "alice_army_group_unit_listbox_wrapper"
+            position = { 0 80 }
+            Orientation = "UPPER_LEFT"
+            size = { 310 410 }
+            
+            iconType = {
+                name = "background"
+                spriteType = "bg-310-410-border-gold-paper"
+                position = { 0 0 }
+                Orientation = "UPPER_LEFT"
+            }
+            
+            listboxType = 	{
+                name ="alice_army_group_unit_listbox"
+                position = { 10 20 }
+                size = { 310 404 }
+                Orientation = "UPPER_LEFT"
+                spacing = 10
+                scrollbartype = "standardlistbox_slider"
+                borderSize = { 0 0 }                
+            }            
+        }
+               
+        
+        
+    }
+    
+    windowType = {
+        name = "alice_army_group_navies_list"
+        position = { -400 550 }
+        Orientation = "upper_right"
+        size = { 1 1 }
+    }
+    
+    windowType = {
+        name = "alice_army_group_unit_type_row"
+        position = { 0 0 }
+        size = { 200 50 }  
+    }
+    
+    windowType = {
+        name = "alice_army_group_unit_type_grid_item"
+        
+        position = { 0 0 }
+        
+        size = { 90 50 } 
+        
+        iconType = {
+            name = "alice_army_group_unit_type_entry_bg"
+            spriteType = "shadow-90-50"
+            position = { -5 5 }
+        }
+        
+        iconType = {
+            name = "alice_army_group_unit_type_entry_bg"
+            spriteType = "bg-90-50-border-bronze-paper"
+            position = { 0 0 }
+        }      
+    
+        iconType = {
+            name = "alice_army_group_unit_type_entry_icon"
+            spriteType = "GFX_unit_strip"
+            position = { 3 3 }
+        }
+        
+        instantTextBoxType = { 
+			name = "alice_army_group_unit_type_entry_name"
+			position = { x = 35 y = 3 }
+			font = "Arial12_black"
+			text = "Unknown"	
+			maxWidth = 50
+			maxHeight = 25	
+			fixedsize = yes
+			format = left
+		}
+        
+        instantTextBoxType = { 
+			name = "alice_army_group_unit_type_entry_amount"
+			position = { x = 25 y = 25 }
+            size = { 25 25 }
+			font = "Arial12_black"
+			text = "???"	
+			maxWidth = 50
+			maxHeight = 25	
+			fixedsize = yes
+			format = right
+		}
+    }
+
+	checkboxType = {
+		name = "call_allies_checkbox"
+		position = { x= 115 y = 471 }
+		quadTextureSprite = "GFX_checkbox_default"
+	}
+		
+	instantTextBoxType = {
+		name = "call_allies_text"
+		position = { x = 118 y = 474 }
+		textureFile = ""
+		font = "vic_18"
+		borderSize = {x = 0 y = 0}
+		text = "DIPLO_CALL_ALLIES"	
+		maxWidth = 200
+		maxHeight = 20
+		format = centre
+	}
+
+	checkboxType = {
+		name = "run_conference_checkbox"
+		position = { x= 347 y = 471 }
+		quadTextureSprite = "GFX_checkbox_default"
+		extends = "DeclareWarDialog"
+	}
+		
+	instantTextBoxType = {
+		name = "run_conferences_text"
+		position = { x = 340 y = 474 }
+		textureFile = ""
+		font = "vic_18"
+		borderSize = {x = 0 y = 0}
+		text = "DIPLO_RUN_CONFERENCE"	
+		maxWidth = 200
+		maxHeight = 20
+		format = centre
+		extends = "DeclareWarDialog"
+	}
+
+	guiButtonType = {
+		name = "crisis_add_wg"
+		position = { x = 10 y = 110 }
+		quadTextureSprite = "GFX_button_thin_160"
+		buttonFont = "vic_18_black"
+		Orientation = "UPPER_LEFT"
+		buttonText = "DIPLOMACY_ADD_WARGOAL"
+		clicksound = click
+		extends = "attacker_win"
+	}
+
+	guiButtonType = {
+		name = "crisis_add_wg"
+		position = { x = 10 y = 110 }
+		quadTextureSprite = "GFX_button_thin_160"
+		buttonFont = "vic_18_black"
+		Orientation = "UPPER_LEFT"
+		buttonText = "DIPLOMACY_ADD_WARGOAL"
+		clicksound = click
+		extends = "defender_win"
+	}
+
+	windowType = {
+		name = "unit_upgrade_window"
+		position = { x=320 y=-80 }	
+		size = { x=240 y=490 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+
+		iconType =
+		{
+			name ="unit_upgrade_window_bg"
+			spriteType = "bg-factory-type"
+			position = { x= 0 y = 0 }
+			Orientation = "UPPER_LEFT"
+		}
+			
+		listboxType = 	{
+			name ="unit_type_list"
+			position = { x = 6 y = 10 }
+			backGround=""
+			size = { x=240 y =490 }
+			Orientation = "UPPER_LEFT"
+			spacing = 1
+			scrollbartype = "standardlistbox_slider"
+			borderSize = {x = 0 y = 0}
+		}
+	}
+
+	windowType = {
+		name = "unit_type_item"
+		position = { x=0 y=0 }	
+		size = { x=220 y=40 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+		
+		iconType =	{
+			name ="unit_type_icon"
+			spriteType = "GFX_unit_strip"
+			position = { x= 0 y = 0 }
+		}
+	
+		guiButtonType = {
+			name = "unit_type_select"
+			position = { x = 40 y = 0 }
+			size = { x=180 y=40 }
+			quadTextureSprite ="GFX_diplo_wargoal_button"
+			buttonFont = "vic_18_black"
+			buttonText = "Test"
+			clicksound = click
+		}
+	}
+
+	guiButtonType = {
+		name = "unit_upgrade_button"
+		position = { x = 193 y = 6 }
+		quadTextureSprite ="GFX_unit_upgrade_button"
+		extends="unitpanel"
+	}
+
+    guiButtonType = {
+        name = "alice_button_factory_type_priority"
+        position = { 0 0 }
+        size = { 25 15 }
+        quadTextureSprite ="button-25-15"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_button_economy_viewer_page"
+        position = { 0 0 }
+        size = { 25 25 }
+        quadTextureSprite ="button-25-25"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_button_economy_item_selector"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="economy-item-selector"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_page_selector_bg"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="bg-page-selector"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_factory_type_bg"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="bg-factory-type"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "commodity_bg"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="bg-commodity"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    
+    guiButtonType = {
+        name = "alice_factory_type_name_bg"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="bg-factory-type-name"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    
+    guiButtonType = {
+        name = "alice_factory_type_priority_bg"
+        position = { 0 0 }
+        size = { 0 0 }
+        quadTextureSprite ="bg-factory-type-priority-info"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    
+    guiButtonType = {
+        name = "alice_economy_view_close_button"
+        position = { 0 0 }
+        size = { 20 20 }
+        quadTextureSprite ="economy-close-button"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    guiButtonType = {
+        name = "alice_economy_view_top_bar"
+        position = { 0 0 }
+        size = { 150 100 }
+        quadTextureSprite ="economy-top-bar-button"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+    
+    guiButtonType = {
+        name = "alice_economy_view_map_label"
+        position = { 0 0 }
+        size = { 60 20 }
+        quadTextureSprite ="map-label"
+        Orientation = "UPPER_LEFT"
+        buttonText = ""
+        buttonFont = "vic_22_black"
+    }
+	listboxType = {
+		name = "diplomacy_actions_list"
+		position = { x=677 y =395 }
+        size = { 320 216 }
+	}
+	windowType = {
+		name = "diplomacy_actions_list_entry"
+		position = { x=0 y=0 }	
+		size = { x=320 y=24 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+
+		guiButtonType = {
+				position = { x=0 y=0 }	
+				size = { x=160 y=24 }
+				name = "action_option_1"
+				quadTextureSprite = "GFX_button_thin_160"
+				buttonFont = "vic_18_black"
+				Orientation = "UPPER_LEFT"
+				clicksound = click
+		}
+
+		guiButtonType = {
+				position = { x=160 y=0 }	
+				size = { x=160 y=24 }
+				name = "action_option_2"
+				quadTextureSprite = "GFX_button_thin_160"
+				buttonFont = "vic_18_black"
+				Orientation = "UPPER_LEFT"
+				clicksound = click
+		}
+	}
+
+	windowType = {
+		name = "factory_refit_window"
+		position = { x=320 y=-80 }	
+		size = { x=240 y=490 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+
+		iconType =
+		{
+			name ="factory_refit_window_bg"
+			spriteType = "bg-factory-type"
+			position = { x= 0 y = 0 }
+			Orientation = "UPPER_LEFT"
+		}
+			
+		listboxType = 	{
+			name ="factory_refit_type_list"
+			position = { x = 6 y = 10 }
+			backGround=""
+			size = { x=230 y =490 }
+			Orientation = "UPPER_LEFT"
+			spacing = 1
+			scrollbartype = "standardlistbox_slider"
+			borderSize = {x = 0 y = 0}
+		}
+	}
+
+	windowType = {
+		name = "factory_refit_type_item"
+		position = { x=0 y=0 }	
+		size = { x=220 y=40 }
+		horizontalBorder = "0"
+		orientation="UPPER_LEFT"
+		
+		iconType =	{
+			name ="factory_type_icon"
+			spriteType = "GFX_resources"
+			position = { x= 0 y = 3 }
+		}
+	
+		guiButtonType = {
+			name = "factory_type_select"
+			position = { x = 35 y = 0 }
+			size = { x=180 y=40 }
+			quadTextureSprite ="GFX_diplo_wargoal_button"
+			buttonFont = "vic_18_black"
+			buttonText = "Test"
+			clicksound = click
+		}
+	}
+
+	guiButtonType = {
+		name = "factory_refit_button"
+		position = { x = 60 y = 15 }
+		quadTextureSprite ="GFX_unit_upgrade_button"
+		extends="factory_info"
+	}
+
+	iconType = {
+        name = "industry_size_icon"
+        spriteType = "GFX_budget_ind_sup_icon"
+        position = { x= 32 y = 233 }
+		Orientation = "UPPER_LEFT"
+		extends="diplomacy_country_facts"
+    }
+
+	iconType = {
+        name = "trade_size_icon"
+        spriteType = "GFX_budget_nat_stock_icon"
+        position = { x= 55 y = 233 }
+		Orientation = "UPPER_LEFT"
+		extends="diplomacy_country_facts"
+    }
 }

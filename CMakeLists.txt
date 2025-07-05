@@ -14,25 +14,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CTest)
 
-# Copy everything from the assets directory into the CMAKE_CURRENT_BINARY_DIR/assets directory
-file(GLOB_RECURSE TESTING ${PROJECT_SOURCE_DIR}/assets/*)
-foreach(file ${TESTING})
-	string(LENGTH "${PROJECT_SOURCE_DIR}/" SOURCE_DIR_LENGHT)
-	string(SUBSTRING ${file} ${SOURCE_DIR_LENGHT} -1 file)
-	list(APPEND ASSET_FILES "${CMAKE_CURRENT_BINARY_DIR}/${file}")
-
-	add_custom_command(
-			OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file}
-			DEPENDS ${PROJECT_SOURCE_DIR}/${file}
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-					${PROJECT_SOURCE_DIR}/${file}
-					${CMAKE_CURRENT_BINARY_DIR}/${file})
-endforeach()
-
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 list(APPEND ALICE_CORE_SOURCES_LIST
 	"src/main.cpp"
+	"src/gui/alice_ui.cpp"
 	"src/map/map_state.cpp"
 	"src/map/map_data_loading.cpp"
 	"src/map/map_borders.cpp"
@@ -43,6 +29,13 @@ list(APPEND ALICE_CORE_SOURCES_LIST
 list(APPEND ALICE_INCREMENTAL_SOURCES_LIST
 	${ALICE_CORE_SOURCES_LIST}
 	"src/ai/ai.cpp"
+	"src/ai/ai_campaign.cpp"
+	"src/ai/ai_campaign_values.cpp"
+	"src/ai/ai_focuses.cpp"
+	"src/ai/ai_influence.cpp"
+	"src/ai/ai_alliances.cpp"
+	"src/ai/ai_economy.cpp"
+	"src/ai/ai_war.cpp"
 	"src/common_types/blake2.cpp"
 	"src/common_types/date_interface.cpp"
 	"src/common_types/prng.cpp"
@@ -50,7 +43,13 @@ list(APPEND ALICE_INCREMENTAL_SOURCES_LIST
 	"src/culture/politics.cpp"
 	"src/culture/rebels.cpp"
 	"src/economy/demographics.cpp"
+	"src/economy/economy_stats.cpp"
 	"src/economy/economy.cpp"
+	"src/economy/economy_trade_routes.cpp"
+	"src/economy/economy_government.cpp"
+	"src/economy/economy_production.cpp"
+	"src/economy/construction.cpp"
+	"src/economy/advanced_province_buildings.cpp"
 	"src/gamestate/commands.cpp"
 	"src/gamestate/diplomatic_messages.cpp"
 	"src/gamestate/modifiers.cpp"
@@ -60,21 +59,27 @@ list(APPEND ALICE_INCREMENTAL_SOURCES_LIST
 	"src/graphics/texture.cpp"
 	"src/gui/gui_common_elements.cpp"
 	"src/gui/gui_effect_tooltips.cpp"
+	"src/gui/widgets/table.cpp"
 	"src/gui/gui_graphics.cpp"
 	"src/gui/gui_leader_select.cpp"
 	"src/gui/gui_leader_tooltip.cpp"
 	"src/gui/gui_modifier_tooltips.cpp"
+	"src/gui/province_tiles/province_tiles.cpp"
 	"src/gui/gui_province_window.cpp"
 	"src/gui/gui_trigger_tooltips.cpp"
+	"src/gui/gui_error_window.cpp"
 	"src/gui/map_tooltip.cpp"
 	"src/gui/topbar_subwindows/gui_population_window.cpp"
 	"src/gui/topbar_subwindows/gui_production_window.cpp"
 	"src/gui/topbar_subwindows/gui_technology_window.cpp"
-	"src/gui/topbar_subwindows/gui_budget_window.cpp"
+	"src/gui/immediate_mode.cpp"
+	"src/gui/economy_viewer.cpp"
 	"src/gui/unit_tooltip.cpp"
+	"src/gui/gui_context_window.cpp"
 	"src/map/map_modes.cpp"
 	"src/military/military.cpp"
 	"src/nations/nations.cpp"
+	"src/network/SHA512.cpp"
 	"src/network/network.cpp"
 	"src/parsing/float_from_chars.cpp"
 	"src/parsing/parsers.cpp"
@@ -83,10 +88,13 @@ list(APPEND ALICE_INCREMENTAL_SOURCES_LIST
 	"src/scripting/effects.cpp"
 	"src/scripting/events.cpp"
 	"src/scripting/triggers.cpp"
+	"src/scripting/fif_triggers.cpp"
 	"src/text/bmfont.cpp"
 	"src/text/fonts.cpp"
 	"src/text/text.cpp"
 	"src/zstd/zstd.cpp"
+	"src/network/pcp.cpp"
+	"src/gamestate/game_scene.cpp"
 )
 
 if(WIN32)
@@ -116,15 +124,9 @@ endif()
 # Include sub-projects.
 add_subdirectory(dependencies)
 add_subdirectory(ParserGenerator)
+add_subdirectory(FifInterfaceGenerator)
 
 add_library(AliceCommon INTERFACE)
-# Used for storing the local path to the Victoria 2 directory
-if(EXISTS ${PROJECT_SOURCE_DIR}/src/local_user_settings.hpp)
-	target_compile_definitions(AliceCommon INTERFACE LOCAL_USER_SETTINGS)
-else()
-	target_compile_definitions(AliceCommon INTERFACE "GAME_DIR=\"NONE\"")
-	target_compile_definitions(AliceCommon INTERFACE "IGNORE_REAL_FILES_TESTS=1")
-endif()
 target_compile_definitions(AliceCommon INTERFACE "PROJECT_ROOT=\"${PROJECT_SOURCE_DIR}\"")
 if(WIN32)
 	# string(REPLACE "/GR" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
@@ -144,16 +146,16 @@ if(WIN32)
 		if(OPTIMIZE_MODE STREQUAL "On")
 			message(STATUS "Optimizing with PGO data")
 			target_compile_options(AliceCommon INTERFACE
-				/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX -march=nehalem /GF /w34388 /w34389 -Wno-unused-macros -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type /DNDEBUG /wd4530 /MT /O2 /Oi /sdl- /GS- /Gy /Gw /Zc:inline -Wno-profile-instr-missing -Wno-profile-instr-out-of-date -fprofile-instr-use=code.profdata)
+				/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX /arch:AVX2 /GF /w34388 /w34389 -Wno-unused-macros -Wno-zero-length-array -Wno-switch-default -Wno-reserved-identifier -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type -Wno-invalid-offsetof -Wno-microsoft-cast -Wno-reserved-identifier -Wno-unused-but-set-variable /DNDEBUG /wd4530 /MT /O2 /Oi /sdl- /GS- /Gy /Gw /Zc:inline -Wno-profile-instr-missing -Wno-profile-instr-out-of-date -fprofile-instr-use=code.profdata)
 			target_link_options(AliceCommon INTERFACE /OPT:REF /OPT:ICF /LTCG -fprofile-instr-use=code.profdata)
 		elseif(PROFILE_MODE STREQUAL "On")
 			message(STATUS "Compiling for PGO instrumentation")
 			target_compile_options(AliceCommon INTERFACE
-				/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX /arch:AVX2 /GF /w34388 /w34389 -Wno-unused-macros -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type /DNDEBUG /wd4530 /MT /O2 /Oi /sdl- /GS- /Gy /Gw /Zc:inline -fprofile-instr-generate)
+				/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX /arch:AVX2 /GF /w34388 /w34389 -Wno-unused-macros -Wno-zero-length-array -Wno-switch-default -Wno-reserved-identifier -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type -Wno-invalid-offsetof -Wno-microsoft-cast -Wno-reserved-identifier -Wno-unused-but-set-variable /DNDEBUG /wd4530 /MT /O2 /Oi /sdl- /GS- /Gy /Gw /Zc:inline -fprofile-instr-generate)
 			target_link_options(AliceCommon INTERFACE /DEBUG:FULL /OPT:REF /OPT:ICF /LTCG -fprofile-instr-generate)
 		else()
 			target_compile_options(AliceCommon INTERFACE
-											/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX /d2archSSE42 /GF /w34388 /w34389 -Wno-unused-macros -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type
+											/bigobj /wd4100 /wd4189 /wd4065 /wd4201 /wd4324 /GR- /W4 /permissive- /WX /GF /w34388 /w34389 -Wno-unused-macros -Wno-unused-parameter -Wno-unused-variable -Wno-unused-private-field /Z7 -Wno-invalid-offsetof -Wno-deprecated-volatile -Wno-missing-prototypes -Wno-reserved-identifier -Wno-implicit-int-float-conversion -Wno-unsafe-buffer-usage -Wno-float-equal -Wno-shadow-field-in-constructor -Wno-gnu-anonymous-struct -Wno-nested-anon-types -Wno-double-promotion -Wno-shadow-uncaptured-local -Wno-nonportable-system-include-path -Wno-format-nonliteral -Wno-shorten-64-to-32 -Wno-ctad-maybe-unsupported -Wno-implicit-int-conversion -Wno-disabled-macro-expansion -Wno-comma -Wno-cast-function-type-strict -Wno-cast-function-type -Wno-invalid-offsetof -Wno-switch-default -Wno-zero-length-array -Wno-microsoft-cast -Wno-reserved-identifier -Wno-unused-but-set-variable /arch:AVX2
 				$<$<CONFIG:Debug>:			/RTC1 /EHsc /MTd /Od>
 				$<$<NOT:$<CONFIG:Debug>>: 	/DNDEBUG /wd4530 /MT /O2 /Oi /sdl- /GS- /Gy /Gw /Zc:inline>)
 			target_link_options(AliceCommon INTERFACE
@@ -189,7 +191,7 @@ else() # GCC or CLANG
 	# See for FMA support: https://stackoverflow.com/questions/21001388/fma3-in-gcc-how-to-enable
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 		target_compile_options(AliceCommon INTERFACE
-			-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-switch -Wdangling-else -Wno-unused-private-field -std=c++20
+			-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-switch -Wdangling-else -Wno-unused-private-field -Wno-invalid-offsetof -Wno-unused-but-set-variable -Wno-microsoft-cast -std=c++20
 			$<$<CONFIG:Debug>:			-mfpmath=sse -mavx2 -mfma -g -pipe>
 			$<$<NOT:$<CONFIG:Debug>>: 	-mfpmath=sse -mavx2 -mfma -O3 -pipe -fno-rtti -DNDEBUG>)
 	else()
@@ -203,6 +205,7 @@ target_link_libraries(AliceCommon INTERFACE dependency_DataContainer)
 target_link_libraries(AliceCommon INTERFACE libglew_static)
 target_link_libraries(AliceCommon INTERFACE stb_image)
 target_link_libraries(AliceCommon INTERFACE freetype)
+target_link_libraries(AliceCommon INTERFACE harfbuzz)
 target_link_libraries(AliceCommon INTERFACE glm)
 if (WIN32)
 	target_link_libraries(AliceCommon INTERFACE ws2_32)
@@ -211,6 +214,7 @@ else()
 	target_link_libraries(AliceCommon INTERFACE dependency_tbb)
 	target_link_libraries(AliceCommon INTERFACE glfw)
 	target_link_libraries(AliceCommon INTERFACE miniaudio)
+	target_link_libraries(AliceCommon INTERFACE dependency_icu)
 endif()
 target_include_directories(AliceCommon INTERFACE
 	${PROJECT_SOURCE_DIR}/src
@@ -219,6 +223,7 @@ target_include_directories(AliceCommon INTERFACE
 	${PROJECT_SOURCE_DIR}/src/filesystem
 	${PROJECT_SOURCE_DIR}/src/gamestate
 	${PROJECT_SOURCE_DIR}/src/gui
+	${PROJECT_SOURCE_DIR}/src/gui/province_tiles
 	${PROJECT_SOURCE_DIR}/src/gui/topbar_subwindows
 	${PROJECT_SOURCE_DIR}/src/gui/topbar_subwindows/diplomacy_subwindows
 	${PROJECT_SOURCE_DIR}/src/gui/topbar_subwindows/production_subwindows
@@ -243,6 +248,11 @@ target_include_directories(AliceCommon INTERFACE
 
 target_link_libraries(Alice PRIVATE AliceCommon)
 target_link_libraries(AliceIncremental PRIVATE AliceCommon)
+
+if (WIN32)
+	target_link_libraries(Alice PRIVATE ${PROJECT_SOURCE_DIR}/libs/LLVM-C.lib)
+	target_link_libraries(AliceIncremental PRIVATE ${PROJECT_SOURCE_DIR}/libs/LLVM-C.lib)
+endif()
 
 # System headers
 target_precompile_headers(Alice
@@ -369,10 +379,20 @@ add_custom_command(
 	DEPENDS ${CONTAINER_PATH}.txt
 	VERBATIM)
 
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/gamestate/fif_dcon_generated.hpp
+	COMMAND DCONINTERFACEGEN ${CONTAINER_PATH}.txt
+	DEPENDS ${CONTAINER_PATH}.txt
+	VERBATIM)
+
 # Sets a dependency on the generated file
 add_custom_target(GENERATE_CONTAINER DEPENDS ${CONTAINER_PATH}.hpp)
 add_dependencies(Alice GENERATE_CONTAINER ParserGenerator)
 add_dependencies(AliceIncremental GENERATE_CONTAINER ParserGenerator)
+
+add_custom_target(GENERATE_CONTAINERIFACE DEPENDS ${PROJECT_SOURCE_DIR}/src/gamestate/fif_dcon_generated.hpp)
+add_dependencies(Alice GENERATE_CONTAINERIFACE)
+add_dependencies(AliceIncremental GENERATE_CONTAINERIFACE)
 
 # The command to build the generated parsers file
 add_custom_command(
@@ -382,10 +402,40 @@ add_custom_command(
 	VERBATIM)
 
 add_custom_command(
-  OUTPUT ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs_generated.hpp
-  COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs.txt
-  DEPENDS ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs.txt
-  VERBATIM)
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/tutorial_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/tutorial_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/tutorial_parser_defs.txt
+	VERBATIM)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/gui_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/gui_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/gui_parser_defs.txt
+	VERBATIM)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/save_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/save_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/save_parser_defs.txt
+	VERBATIM)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/news_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/news_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/news_parser_defs.txt
+	VERBATIM)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/effect_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/effect_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/effect_parser_defs.txt
+	VERBATIM)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/parsing/trigger_parser_defs_generated.hpp
+	COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/parsing/trigger_parser_defs.txt
+	DEPENDS ${PROJECT_SOURCE_DIR}/src/parsing/trigger_parser_defs.txt
+	VERBATIM)
 
 add_custom_command(
   OUTPUT ${PROJECT_SOURCE_DIR}/src/text/font_defs_generated.hpp
@@ -393,9 +443,21 @@ add_custom_command(
   DEPENDS ${PROJECT_SOURCE_DIR}/src/text/font_defs.txt
   VERBATIM)
 
+add_custom_command(
+  OUTPUT ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs_generated.hpp
+  COMMAND ParserGenerator ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs.txt
+  DEPENDS ${PROJECT_SOURCE_DIR}/src/text/bmfont_defs.txt
+  VERBATIM)
+
 # Sets a dependency on the generated file
 add_custom_target(GENERATE_PARSERS DEPENDS
 	${PROJECT_SOURCE_DIR}/src/parsing/parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/save_parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/tutorial_parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/gui_parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/news_parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/effect_parser_defs_generated.hpp
+	${PROJECT_SOURCE_DIR}/src/parsing/trigger_parser_defs_generated.hpp
 	${PROJECT_SOURCE_DIR}/src/text/bmfont_defs_generated.hpp
 	${PROJECT_SOURCE_DIR}/src/text/font_defs_generated.hpp)
 add_dependencies(Alice GENERATE_PARSERS)

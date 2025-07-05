@@ -36,8 +36,7 @@ public:
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto nation_id = retrieve<dcon::nation_id>(state, parent);
 		auto fat_id = dcon::fatten(state.world, nation_id);
-		auto name = fat_id.get_national_value().get_name();
-		if(bool(name)) {
+		if(auto name = fat_id.get_national_value().get_name(); state.key_is_localized(name)) {
 			auto box = text::open_layout_box(contents, 0);
 			text::localised_single_sub_box(state, contents, box, "politics_nationalvalue_tooltip", text::variable_type::nationalvalue, name);
 			text::close_layout_box(contents, box);
@@ -67,6 +66,10 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto box = text::open_layout_box(contents);
+		text::localised_format_box(state, contents, box, "plurality");
+		text::add_line_break_to_layout_box(state, contents, box);
+		text::localised_format_box(state, contents, box, "plurality_explanation");
+		text::add_line_break_to_layout_box(state, contents, box);
 		text::localised_format_box(state, contents, box, "plurality_change");
 		text::add_space_to_layout_box(state, contents, box);
 		text::add_to_layout_box(state, contents, box, std::string_view{"+"}, text::text_color::green);
@@ -89,11 +92,11 @@ public:
 	}
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "revanchism");
+		text::add_line(state, contents, "revanchism_explanation");
 		text::add_line(state, contents, "revanchism_reason");
 	}
 };
-
-
 
 class politics_unciv_overlay : public standard_nation_icon {
 public:
@@ -234,7 +237,6 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto party = retrieve<dcon::political_party_id>(state, parent);
-
 		{
 			auto box = text::open_layout_box(contents);
 			text::add_to_layout_box(state, contents, box, state.world.political_party_get_name(party));
@@ -245,14 +247,39 @@ public:
 			text::close_layout_box(contents, box);
 		}
 
+		/*
+		* We do not need to list party issues with full descriptions here since they are displayed literally below the party name with separate working tooltips.
 		for(auto pi : state.culture_definitions.party_issues) {
-			auto box = text::open_layout_box(contents);
-			text::add_to_layout_box(state, contents, box, state.world.political_party_get_party_issues(party, pi).get_name(),
-					text::text_color::yellow);
-			text::close_layout_box(contents, box);
 			reform_description(state, contents, state.world.political_party_get_party_issues(party, pi));
 			text::add_line_break_to_layout(state, contents);
 		}
+		*/
+
+		auto cond_0 = (state.current_date >= state.world.political_party_get_start_date(party)) && (state.current_date <= state.world.political_party_get_end_date(party));
+		if(state.world.political_party_get_trigger(party)) {
+			text::add_line_with_condition(state, contents, "alice_political_party_trigger", cond_0, text::variable_type::date_long_0, state.world.political_party_get_start_date(party),
+				text::variable_type::date_long_1, state.world.political_party_get_end_date(party));
+			ui::trigger_description(state, contents, state.world.political_party_get_trigger(party), trigger::to_generic(state.local_player_nation), trigger::to_generic(state.local_player_nation), -1);
+		} else {
+			text::add_line_with_condition(state, contents, "alice_political_party_no_trigger", cond_0, text::variable_type::date_long_0, state.world.political_party_get_start_date(party),
+				text::variable_type::date_long_1, state.world.political_party_get_end_date(party));
+		}
+
+		// Requirements for changing the party with vanilla texts
+		auto cond_1 = politics::can_appoint_ruling_party(state, state.local_player_nation);
+		text::add_line_with_condition(state, contents, "POLITICS_CANNOT_SET_RULING_PARTY_RULE", cond_1);
+
+		auto gov = state.world.nation_get_government_type(state.local_player_nation);
+		auto new_ideology = state.world.political_party_get_ideology(party);
+		auto cond_2 = (state.world.government_type_get_ideologies_allowed(gov) & ::culture::to_bits(new_ideology)) != 0;
+		text::add_line_with_condition(state, contents, "POLITICS_NOT_ACCEPTED", cond_2, text::variable_type::which, state.world.ideology_get_name(new_ideology), 0);
+
+		auto cond_3 = politics::is_election_ongoing(state, state.local_player_nation);
+		text::add_line_with_condition(state, contents, "POLITICS_CANNOT_SET_RULING_PARTY_IN_ELECTION", cond_3);
+
+		auto last_change = state.world.nation_get_ruling_party_last_appointed(state.local_player_nation);
+		auto cond_4 = (!last_change) || (state.current_date >= last_change + 365);
+		text::add_line_with_condition(state, contents, "POLITICS_NOT_BEFORE", cond_4, text::variable_type::date, (last_change + 365), 0);
 	}
 };
 
@@ -286,7 +313,8 @@ protected:
 	}
 
 	void on_update(sys::state& state) noexcept override {
-		nations::get_active_political_parties(state, state.local_player_nation).swap(row_contents);
+		row_contents.clear();
+		nations::get_active_political_parties(state, state.local_player_nation, row_contents);
 		update(state);
 	}
 };
@@ -327,8 +355,9 @@ public:
 		} else {
 			all_party_window->set_visible(state, !all_party_window->is_visible());
 		}
-		if(all_party_window && all_party_window->is_visible())
+		if(all_party_window && all_party_window->is_visible()) {
 			all_party_window->impl_on_update(state);
+		}
 	}
 
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -337,10 +366,16 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto ruling_party = state.world.nation_get_ruling_party(state.local_player_nation);
-		for(auto pi : state.culture_definitions.party_issues) {
+		{
 			auto box = text::open_layout_box(contents);
-			text::add_to_layout_box(state, contents, box, ruling_party.get_party_issues(pi).get_name(), text::text_color::yellow);
+			text::add_to_layout_box(state, contents, box, state.world.political_party_get_name(ruling_party));
+			text::add_space_to_layout_box(state, contents, box);
+			text::add_to_layout_box(state, contents, box, std::string_view{ "(" });
+			text::add_to_layout_box(state, contents, box, state.world.ideology_get_name(state.world.political_party_get_ideology(ruling_party)));
+			text::add_to_layout_box(state, contents, box, std::string_view{ ")" });
 			text::close_layout_box(contents, box);
+		}
+		for(auto pi : state.culture_definitions.party_issues) {
 			reform_description(state, contents, ruling_party.get_party_issues(pi));
 			text::add_line_break_to_layout(state, contents);
 		}
@@ -351,7 +386,7 @@ class politics_ruling_party_window : public window_element_base {
 public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
-		base_data.position = state.ui_defs.gui[state.ui_state.defs_by_name.find("ruling_party_pos")->second.definition].position;
+		base_data.position = state.ui_defs.gui[state.ui_state.defs_by_name.find(state.lookup_key("ruling_party_pos"))->second.definition].position;
 	}
 
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
@@ -451,7 +486,6 @@ protected:
 	std::string_view get_row_element_name() override {
 		return "issue_option_window";
 	}
-
 public:
 	void on_create(sys::state& state) noexcept override {
 		listbox_element_base<politics_issue_support_item, dcon::issue_option_id>::on_create(state);
@@ -473,6 +507,10 @@ class politics_hold_election_button : public button_element_base {
 
 class national_modifier_icon : public image_element_base {
 public:
+	bool get_horizontal_flip(sys::state& state) noexcept override {
+		return false; //never flip
+	}
+
 	void on_update(sys::state& state) noexcept override {
 		sys::dated_modifier mod = retrieve< sys::dated_modifier>(state, parent);
 		if(mod.mod_id) {
@@ -550,12 +588,8 @@ public:
 class politics_issue_sort_button : public button_element_base {
 public:
 	politics_issue_sort_order order = politics_issue_sort_order::name;
-
 	void button_action(sys::state& state) noexcept override {
-		if(parent) {
-			Cyto::Any payload = order;
-			parent->impl_get(state, payload);
-		}
+		send(state, parent, order);
 	}
 };
 
@@ -585,7 +619,11 @@ public:
 		set_visible(state, false);
 	}
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
-		if(name == "close_button") {
+		if(name == "main_bg") {
+			return make_element_by_type<image_element_base>(state, id);
+		} else if(name == "bg_politics") {
+			return make_element_by_type<opaque_element_base>(state, id);
+		} else if(name == "close_button") {
 			return make_element_by_type<generic_close_button>(state, id);
 		} else if(name == "reforms_tab") {
 			auto ptr = make_element_by_type<generic_tab_button<politics_window_tab>>(state, id);
@@ -719,6 +757,8 @@ public:
 			case politics_window_tab::releasables:
 				release_nation_win->set_visible(state, true);
 				break;
+			default:
+				break;
 			}
 			active_tab = enum_val;
 			return message_result::consumed;
@@ -762,6 +802,8 @@ public:
 							return a_support > b_support;
 						});
 				issues_listbox->update(state);
+				break;
+			default:
 				break;
 			}
 			return message_result::consumed;

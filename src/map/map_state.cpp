@@ -11,6 +11,9 @@
 #include "gui_graphics.hpp"
 #include "gui_element_base.hpp"
 
+
+#include <set>
+
 namespace map {
 
 dcon::province_id map_state::get_selected_province() {
@@ -54,7 +57,7 @@ glm::vec2 get_port_location(sys::state& state, dcon::province_id p) {
 	auto id = adj.index();
 	auto& map_data = state.map_state.map_data;
 	auto& border = map_data.borders[id];
-	auto& vertex = map_data.border_vertices[border.start_index + border.count / 2];
+	auto& vertex = map_data.border_vertices[border.start_index + border.count / 4];
 	glm::vec2 map_size = glm::vec2(map_data.size_x, map_data.size_y);
 
 	return vertex.position * map_size;
@@ -75,90 +78,1277 @@ glm::vec2 get_army_location(sys::state& state, dcon::province_id prov_id) {
 	return state.world.province_get_mid_point(prov_id);
 }
 
+void register_trade_flow(display_data& map_data, int node1, int node2, float volume) {
+	if(map_data.particle_next_node_probability.contains(node1)) {
+		if(map_data.particle_next_node_probability[node1].contains(node2)) {
+			map_data.particle_next_node_probability[node1][node2] += volume;
+		} else {
+			map_data.particle_next_node_probability[node1][node2] = volume;
+		}
+	} else {
+		map_data.particle_next_node_probability[node1] = { };
+		map_data.particle_next_node_probability[node1][node2] = volume;
+	}
+}
+
+void update_trade_flow_arrows(sys::state& state, display_data& map_data) {
+	// idea:
+	// trade graph emits particles which move from the start of edge to the end of edge
+	// when particle reaches the node, it has a chance to dissappear
+	// depending on difference between trade inflow and outflow
+	// or it can be redirected to one of other nodes depending on the volume
+
+	map_data.trade_particles_positions.clear();
+	map_data.particle_next_node_probability.clear();
+	map_data.particle_creation_probability.clear();
+
+	auto size_x = float(map_data.size_x);
+	auto size_y = float(map_data.size_y);
+
+	map_data.trade_flow_vertices.clear();
+	map_data.trade_flow_arrow_counts.clear();
+	map_data.trade_flow_arrow_starts.clear();
+
+	auto cid = state.selected_trade_good;
+
+	if(!cid) {
+		return;
+	}
+
+	// we start with getting some stats on trade routes:
+	// we do not want to display too many of them
+
+	auto total = 0.f;
+	auto count = 0.f;
+
+	std::vector<float> volume_sample;
+	float total_volume = 0.f;
+
+	state.world.for_each_trade_route([&](dcon::trade_route_id trade_route) {
+		auto current_volume = state.world.trade_route_get_volume(trade_route, cid);
+		auto origin =
+			current_volume > 0.f
+			? state.world.trade_route_get_connected_markets(trade_route, 0)
+			: state.world.trade_route_get_connected_markets(trade_route, 1);
+		auto target =
+			current_volume <= 0.f
+			? state.world.trade_route_get_connected_markets(trade_route, 0)
+			: state.world.trade_route_get_connected_markets(trade_route, 1);
+		auto sat = state.world.market_get_direct_demand_satisfaction(origin, cid);
+		auto absolute_volume = std::abs(sat * current_volume);
+		total_volume += absolute_volume;
+		volume_sample.push_back(absolute_volume);
+	});
+
+	if(total_volume == 0.f) {
+		return;
+	}
+
+	std::sort(volume_sample.begin(), volume_sample.end());
+	// we are interested only in the most significant routes
+	auto cutoff = std::max(0.05f, volume_sample[9 * volume_sample.size() / 10] * 0.5f);
+
+	// start with construction of trade_graph
+	std::map<int32_t, std::map<int32_t, float>> trade_graph;
+	std::map<int32_t, float> trade_graph_toward_port;
+
+	state.world.for_each_trade_route([&](dcon::trade_route_id trade_route) {
+		auto current_volume = state.world.trade_route_get_volume(trade_route, cid);
+		auto origin =
+			current_volume > 0.f
+			? state.world.trade_route_get_connected_markets(trade_route, 0)
+			: state.world.trade_route_get_connected_markets(trade_route, 1);
+		auto target =
+			current_volume <= 0.f
+			? state.world.trade_route_get_connected_markets(trade_route, 0)
+			: state.world.trade_route_get_connected_markets(trade_route, 1);
+		auto s_origin = state.world.market_get_zone_from_local_market(origin);
+		auto s_target = state.world.market_get_zone_from_local_market(target);
+		auto p_origin = state.world.state_instance_get_capital(s_origin);
+		auto p_target = state.world.state_instance_get_capital(s_target);
+		auto sat = state.world.market_get_direct_demand_satisfaction(origin, cid);
+		auto absolute_volume = std::abs(sat * current_volume);
+
+		if(absolute_volume < cutoff) {
+			return;
+		}
+
+		bool is_sea = state.world.trade_route_get_distance(trade_route) == state.world.trade_route_get_sea_distance(trade_route);
+		if(is_sea) {
+			auto coast_origin = province::state_get_coastal_capital(state, s_origin);
+			auto coast_target = province::state_get_coastal_capital(state, s_target);
+
+			auto path = province::make_naval_path(state, coast_origin, coast_target);
+			auto start = coast_origin;
+			for(int i = int(path.size()) - 1; i >= 0; i--) {
+				auto end = path[i];
+				if(trade_graph.contains(start.index())) {
+					if(trade_graph[start.index()].contains(end.index())) {
+						trade_graph[start.index()][end.index()] += absolute_volume;
+					} else {
+						trade_graph[start.index()][end.index()] = absolute_volume;
+					}
+				} else {
+					trade_graph[start.index()] = std::map<int32_t, float>{ };
+					trade_graph[start.index()][end.index()] = absolute_volume;
+				}
+
+				auto start_index = start.index();
+				if(start.index() < state.province_definitions.first_sea_province.index()) {
+					start_index += state.world.province_size();
+				}
+				auto end_index = end.index();
+				if(end.index() < state.province_definitions.first_sea_province.index()) {
+					end_index += state.world.province_size();
+				}
+				register_trade_flow(map_data, start_index, end_index, absolute_volume);
+
+				start = end;
+			}
+		} else {
+			auto path = province::make_unowned_path(state, p_origin, p_target);
+			auto start = p_origin.id;
+			for(int i = int(path.size()) - 1; i >= 0; i--) {
+				auto end = path[i];
+				if(trade_graph.contains(start.index())) {
+					if(trade_graph[start.index()].contains(end.index())) {
+						trade_graph[start.index()][end.index()] += absolute_volume;
+					} else {
+						trade_graph[start.index()][end.index()] = absolute_volume;
+					}
+				} else {
+					trade_graph[start.index()] = { };
+					trade_graph[start.index()][end.index()] = absolute_volume;
+				}
+
+				register_trade_flow(map_data, start.index(), end.index(), absolute_volume);
+
+				start = end;
+			}
+		}
+	});
+
+	state.world.for_each_market([&](dcon::market_id mid) {
+		auto trade_balance_sea = 0.f;
+		auto trade_balance_land = 0.f;
+
+		auto total_in = 0.f;
+		auto total_out = 0.f;
+
+		state.world.market_for_each_trade_route(mid, [&](auto route) {
+			auto current_volume = state.world.trade_route_get_volume(route, cid);		
+			auto origin =
+				current_volume > 0.f
+				? state.world.trade_route_get_connected_markets(route, 0)
+				: state.world.trade_route_get_connected_markets(route, 1);
+			auto target =
+				current_volume <= 0.f
+				? state.world.trade_route_get_connected_markets(route, 0)
+				: state.world.trade_route_get_connected_markets(route, 1);
+			auto sat = state.world.market_get_direct_demand_satisfaction(origin, cid);
+
+			if(state.world.trade_route_get_connected_markets(route, 1) == mid) {
+				current_volume = -current_volume;
+			}
+
+			bool is_sea = state.world.trade_route_get_distance(route) == state.world.trade_route_get_sea_distance(route);
+
+			if(is_sea) {
+				trade_balance_sea += current_volume * sat;
+			} else {
+				trade_balance_land += current_volume * sat;
+			}
+
+			if(current_volume > 0) {
+				total_out += current_volume * sat;
+			} else {
+				total_in -= current_volume * sat;
+			}
+		});
+
+		
+
+		// if total in > total out
+		// we assume that commodity has a chance to be consumed
+		// it will be represented by a loop edge
+		// so we can assume that total out is actually total in
+
+		auto disappear_weight = 0.f;
+		if(total_in > total_out) {
+			total_out = total_in;
+			disappear_weight = total_in - total_out;
+		}
+
+		
+
+		auto sid = state.world.market_get_zone_from_local_market(mid);
+		auto port = province::state_get_coastal_capital(state, sid);
+		auto stockpile_location = state.world.state_instance_get_capital(sid);
+		auto absolute_volume = std::abs(trade_balance_sea);
+
+
+		// set trade graph edges
+
+		auto stockpile_index = stockpile_location.id.index();
+		register_trade_flow(map_data, stockpile_index, stockpile_index, disappear_weight);
+
+
+		if(total_out > total_in) {
+			map_data.particle_creation_probability[stockpile_index] = total_out - total_in;
+		}
+
+		if(trade_balance_sea > cutoff) {
+			auto path = province::make_unowned_path(state, stockpile_location, port);
+			auto start = stockpile_location.id;
+			for(int i = int(path.size()) - 1; i >= 0; i--) {
+				auto end = path[i];
+				if(trade_graph.contains(start.index())) {
+					if(trade_graph[start.index()].contains(end.index())) {
+						trade_graph[start.index()][end.index()] += absolute_volume;
+					} else {
+						trade_graph[start.index()][end.index()] = absolute_volume;
+					}
+				} else {
+					trade_graph[start.index()] = { };
+					trade_graph[start.index()][end.index()] = absolute_volume;
+				}
+
+				register_trade_flow(map_data, start.index(), end.index(), absolute_volume);
+
+				start = end;
+			}
+			trade_graph_toward_port[port.index()] = absolute_volume;
+
+			auto port_index = port.index() + state.world.province_size();
+			auto city_index = port.index();
+			register_trade_flow(map_data, city_index, port_index, absolute_volume);
+		} else if(trade_balance_sea < -cutoff) {
+			auto path = province::make_unowned_path(state, port, stockpile_location);
+			auto start = port;
+			for(int i = int(path.size()) - 1; i >= 0; i--) {
+				auto end = path[i];
+
+				if(trade_graph.contains(start.index())) {
+					if(trade_graph[start.index()].contains(end.index())) {
+						trade_graph[start.index()][end.index()] += absolute_volume;
+					} else {
+						trade_graph[start.index()][end.index()] = absolute_volume;
+					}
+				} else {
+					trade_graph[start.index()] = { };
+					trade_graph[start.index()][end.index()] = absolute_volume;
+				}
+
+				register_trade_flow(map_data, start.index(), end.index(), absolute_volume);
+
+				start = end;
+			}
+
+			trade_graph_toward_port[port.index()] = -absolute_volume;
+
+			auto port_index = port.index() + state.world.province_size();
+			auto city_index = port.index();
+			register_trade_flow(map_data, port_index, city_index, absolute_volume);
+		}
+	});
+
+	// generate some particles:
+
+	for(int i = 0; i < std::min(std::max(300, (int)total_volume), 5000); i++) {
+		trade_particle data{
+			{ },
+			{ },
+			-1,
+			-1,
+			-1
+		};
+		map_data.trade_particles_positions.push_back(data);
+	}
+
+	// normalisation:
+
+	{
+		float total_score = 0.f;
+		for(auto const& [candidate, probability] : map_data.particle_creation_probability) {
+			total_score += probability;
+		}
+
+		if(total_score > 0.f) {
+			for(auto const& [candidate, probability] : map_data.particle_creation_probability) {
+				map_data.particle_creation_probability[candidate] /= total_score;
+			}
+		}
+	}
+
+	state.world.for_each_province([&](dcon::province_id origin) {
+		// normal prov
+
+		auto base_index = origin.index();
+		if(map_data.particle_next_node_probability.contains(base_index)) {
+			float total_volume_out = 0.f;
+			for(auto const& [target_index, volume] : map_data.particle_next_node_probability[base_index]) {
+				total_volume_out += volume;
+			}
+
+			for(auto const& [target_index, volume] : map_data.particle_next_node_probability[base_index]) {
+				map_data.particle_next_node_probability[base_index][target_index] = volume / total_volume_out;
+			}
+		}
+
+		map_data.trade_node_position[base_index] = get_army_location(state, origin);
+
+		// port prov
+
+		base_index += state.world.province_size();
+		if(map_data.particle_next_node_probability.contains(base_index)) {
+			float total_volume_out = 0.f;
+			for(auto const& [target_index, volume] : map_data.particle_next_node_probability[base_index]) {
+				total_volume_out += volume;
+			}
+
+			if(total_volume_out > 0.f)
+				for(auto const& [target_index, volume] : map_data.particle_next_node_probability[base_index]) {
+					map_data.particle_next_node_probability[base_index][target_index] = volume / total_volume_out;
+				}
+		}
+
+		if(state.world.province_get_port_to(origin)) {
+			map_data.trade_node_position[base_index] = get_port_location(state, origin) ;
+		}
+	});
+
+	// now we are building vertices
+
+	for(auto const& [coastal_province_index, volume] : trade_graph_toward_port) {
+		auto coastal_province = dcon::province_id{ dcon::province_id::value_base_t(coastal_province_index) };
+
+		glm::vec2 current_pos = get_army_location(state, coastal_province);
+		glm::vec2 next_pos = put_in_local(get_port_location(state, coastal_province), current_pos, size_x);
+
+		if(volume < 0.f) {
+			next_pos = put_in_local(get_port_location(state, coastal_province), current_pos, size_x);
+			current_pos = put_in_local(get_port_location(state, coastal_province), current_pos, size_x);
+		}
+
+		glm::vec2 prev_tangent = glm::normalize(next_pos - current_pos);
+
+		auto start_normal = glm::vec2(-prev_tangent.y, prev_tangent.x);
+		auto norm_pos = current_pos / glm::vec2(size_x, size_y);
+		auto norm_next_pos = next_pos / glm::vec2(size_x, size_y);
+
+		auto old_size = map_data.trade_flow_vertices.size();
+		map_data.trade_flow_arrow_starts.push_back(GLint(old_size));
+
+		auto width = std::min(std::sqrt(std::abs(volume)) / cutoff, 5.f) * 1000.f;
+
+		map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+			norm_pos,
+			+start_normal,
+			0.f,
+			0.0f,
+			width
+		});
+		map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+			norm_pos,
+			-start_normal,
+			1.f,
+			0.0f,
+			width
+		});
+
+		// assume that province is a square
+		auto distance =
+			std::sqrt(float(state.map_state.map_data.province_area[province::to_map_id(coastal_province)]))
+			/ 20000.f;
+
+		map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+			norm_next_pos,
+			+start_normal,
+			0.f,
+			distance,
+			width
+		});
+		map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+			norm_next_pos,
+			-start_normal,
+			1.f,
+			distance,
+			width
+		});
+
+		map_data.trade_flow_arrow_counts.push_back(
+			GLsizei(map_data.trade_flow_vertices.size() - old_size)
+		);
+	}
+
+	state.world.for_each_province([&](dcon::province_id origin) {
+		if(trade_graph.contains(origin.index())) {
+			for(auto const& [target_index, volume] : trade_graph[origin.index()]) {
+				auto target = dcon::province_id{ dcon::province_id::value_base_t(target_index) };
+				glm::vec2 current_pos = get_army_location(state, origin);
+				glm::vec2 next_pos = put_in_local(get_army_location(state, target), current_pos, size_x);
+
+				if(
+					origin.value < state.province_definitions.first_sea_province.value
+					&& target.value >= state.province_definitions.first_sea_province.value
+				) {
+					current_pos = put_in_local(get_port_location(state, origin), current_pos, size_x);
+				}
+
+				if(
+					target.value < state.province_definitions.first_sea_province.value
+					&& origin.value >= state.province_definitions.first_sea_province.value
+				) {
+					next_pos = put_in_local(get_port_location(state, target), current_pos, size_x);
+				}
+
+				glm::vec2 prev_tangent = glm::normalize(next_pos - current_pos);
+
+				auto start_normal = glm::vec2(-prev_tangent.y, prev_tangent.x);
+				auto norm_pos = current_pos / glm::vec2(size_x, size_y);
+				auto norm_next_pos = next_pos / glm::vec2(size_x, size_y);
+
+				auto old_size = map_data.trade_flow_vertices.size();
+				map_data.trade_flow_arrow_starts.push_back(GLint(old_size));
+
+				auto width = std::min(std::sqrt(std::abs(volume)) / cutoff, 5.f) * 1000.f;
+
+				map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+					norm_pos,
+					+start_normal,
+					0.f,
+					0.0f,
+					width
+				});
+				map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+					norm_pos,
+					-start_normal,
+					1.f,
+					0.0f,
+					width
+				});
+
+				auto distance = province::direct_distance(state, origin, target) / width;
+
+				map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+					norm_next_pos,
+					+start_normal,
+					0.f,
+					distance,
+					width
+				});
+				map_data.trade_flow_vertices.emplace_back(map::textured_line_with_width_vertex{
+					norm_next_pos,
+					-start_normal,
+					1.f,
+					distance,
+					width
+				});
+
+				map_data.trade_flow_arrow_counts.push_back(
+					GLsizei(map_data.trade_flow_vertices.size() - old_size)
+				);
+			}
+		}
+	});
+
+	if(!map_data.trade_flow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_trade_flow]);
+		glBufferData(
+			GL_ARRAY_BUFFER,
+			sizeof(textured_line_with_width_vertex)
+			* map_data.trade_flow_vertices.size(),
+			map_data.trade_flow_vertices.data(),
+			GL_STATIC_DRAW
+		);
+	}
+}
+
 void update_unit_arrows(sys::state& state, display_data& map_data) {
 	map_data.unit_arrow_vertices.clear();
 	map_data.unit_arrow_counts.clear();
 	map_data.unit_arrow_starts.clear();
 
+	map_data.attack_unit_arrow_vertices.clear();
+	map_data.attack_unit_arrow_counts.clear();
+	map_data.attack_unit_arrow_starts.clear();
+
+	map_data.retreat_unit_arrow_vertices.clear();
+	map_data.retreat_unit_arrow_counts.clear();
+	map_data.retreat_unit_arrow_starts.clear();
+
+	map_data.strategy_unit_arrow_vertices.clear();
+	map_data.strategy_unit_arrow_counts.clear();
+	map_data.strategy_unit_arrow_starts.clear();
+
+	map_data.objective_unit_arrow_vertices.clear();
+	map_data.objective_unit_arrow_counts.clear();
+	map_data.objective_unit_arrow_starts.clear();
+
+	map_data.other_objective_unit_arrow_vertices.clear();
+	map_data.other_objective_unit_arrow_counts.clear();
+	map_data.other_objective_unit_arrow_starts.clear();
+
 	for(auto selected_army : state.selected_armies) {
-		auto old_size = map_data.unit_arrow_vertices.size();
-		map_data.unit_arrow_starts.push_back(GLint(old_size));
-		map::make_army_path(state, map_data.unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
-		map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+		if(auto ps = state.world.army_get_path(selected_army); ps.size() > 0) {
+			auto dest_controller = state.world.province_get_nation_from_province_control(ps[0]);
+			if(state.world.army_get_black_flag(selected_army) || state.world.army_get_is_retreating(selected_army)) {
+				auto old_size = map_data.retreat_unit_arrow_vertices.size();
+				map_data.retreat_unit_arrow_starts.push_back(GLint(old_size));
+				map::make_army_path(state, map_data.retreat_unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
+				map_data.retreat_unit_arrow_counts.push_back(GLsizei(map_data.retreat_unit_arrow_vertices.size() - old_size));
+			} else if(state.world.army_get_is_ai_controlled(selected_army)) {
+				if(state.local_player_nation && dest_controller && military::are_at_war(state, dest_controller, state.local_player_nation)) {
+					auto old_size = map_data.other_objective_unit_arrow_vertices.size();
+					map_data.other_objective_unit_arrow_starts.push_back(GLint(old_size));
+					map::make_army_path(state, map_data.other_objective_unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
+					map_data.other_objective_unit_arrow_counts.push_back(GLsizei(map_data.other_objective_unit_arrow_vertices.size() - old_size));
+				} else {
+					auto old_size = map_data.objective_unit_arrow_vertices.size();
+					map_data.objective_unit_arrow_starts.push_back(GLint(old_size));
+					map::make_army_path(state, map_data.objective_unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
+					map_data.objective_unit_arrow_counts.push_back(GLsizei(map_data.objective_unit_arrow_vertices.size() - old_size));
+				}
+			} else if(state.local_player_nation && dest_controller && military::are_at_war(state, dest_controller, state.local_player_nation)) {
+				auto old_size = map_data.attack_unit_arrow_vertices.size();
+				map_data.attack_unit_arrow_starts.push_back(GLint(old_size));
+				map::make_army_path(state, map_data.attack_unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
+				map_data.attack_unit_arrow_counts.push_back(GLsizei(map_data.attack_unit_arrow_vertices.size() - old_size));
+			} else {
+				auto old_size = map_data.unit_arrow_vertices.size();
+				map_data.unit_arrow_starts.push_back(GLint(old_size));
+				map::make_army_path(state, map_data.unit_arrow_vertices, selected_army, float(map_data.size_x), float(map_data.size_y));
+				map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+			}
+		}
 	}
 	for(auto selected_navy : state.selected_navies) {
-		auto old_size = map_data.unit_arrow_vertices.size();
-		map_data.unit_arrow_starts.push_back(GLint(old_size));
-		map::make_navy_path(state, map_data.unit_arrow_vertices, selected_navy, float(map_data.size_x), float(map_data.size_y));
-		map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+		if(state.world.navy_get_is_retreating(selected_navy)) {
+			auto old_size = map_data.retreat_unit_arrow_vertices.size();
+			map_data.retreat_unit_arrow_starts.push_back(GLint(old_size));
+			map::make_navy_path(state, map_data.retreat_unit_arrow_vertices, selected_navy, float(map_data.size_x), float(map_data.size_y));
+			map_data.retreat_unit_arrow_counts.push_back(GLsizei(map_data.retreat_unit_arrow_vertices.size() - old_size));
+		} else {
+			auto old_size = map_data.unit_arrow_vertices.size();
+			map_data.unit_arrow_starts.push_back(GLint(old_size));
+			map::make_navy_path(state, map_data.unit_arrow_vertices, selected_navy, float(map_data.size_x), float(map_data.size_y));
+			map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+		}
+	}
+
+	for(auto map_army : state.world.in_army) {
+		if(!state.world.army_is_valid(map_army)) {
+			return;
+		}
+		// Exclude if out of FOW
+		if(state.user_settings.fow_enabled || state.network_mode != sys::network_mode_type::single_player) {
+			auto pc = map_army.get_army_location().get_location().id;
+			if(!state.map_state.visible_provinces[province::to_map_id(pc)]) {
+				continue;
+			}
+		}
+		// Exclude if in battle
+		if(map_army.get_battle_from_army_battle_participation()) {
+			continue;
+		}
+		// Exclude if selected
+		if(std::find(state.selected_armies.begin(), state.selected_armies.end(), map_army) != state.selected_armies.end()) {
+			continue;
+		}
+		// TODO: arrow for allied units
+		if(auto ps = state.world.army_get_path(map_army); ps.size() > 0) {
+			auto army_controller = state.world.army_get_controller_from_army_control(map_army);
+			if(state.local_player_nation && army_controller && military::are_at_war(state, army_controller, state.local_player_nation)) {
+				if(state.world.army_get_is_retreating(map_army)) {
+					auto old_size = map_data.retreat_unit_arrow_vertices.size();
+					map_data.retreat_unit_arrow_starts.push_back(GLint(old_size));
+					map::make_army_direction(state, map_data.retreat_unit_arrow_vertices, map_army, float(map_data.size_x), float(map_data.size_y));
+					map_data.retreat_unit_arrow_counts.push_back(GLsizei(map_data.retreat_unit_arrow_vertices.size() - old_size));
+				} else {
+					auto old_size = map_data.attack_unit_arrow_vertices.size();
+					map_data.attack_unit_arrow_starts.push_back(GLint(old_size));
+					map::make_army_direction(state, map_data.attack_unit_arrow_vertices, map_army, float(map_data.size_x), float(map_data.size_y));
+					map_data.attack_unit_arrow_counts.push_back(GLsizei(map_data.attack_unit_arrow_vertices.size() - old_size));
+				}
+			}
+			else if (state.local_player_nation == army_controller) {
+				auto old_size = map_data.unit_arrow_vertices.size();
+				map_data.unit_arrow_starts.push_back(GLint(old_size));
+				map::make_army_direction(state, map_data.unit_arrow_vertices, map_army, float(map_data.size_x), float(map_data.size_y));
+				map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+			}
+		}
+	}
+	for(auto map_navy : state.world.in_navy) {
+		if(!state.world.navy_is_valid(map_navy)) {
+			return;
+		}
+		// Exclude if out of FOW
+		if(state.user_settings.fow_enabled || state.network_mode != sys::network_mode_type::single_player) {
+			auto pc = map_navy.get_navy_location().get_location().id;
+			if(!state.map_state.visible_provinces[province::to_map_id(pc)]) {
+				continue;
+			}
+		}
+		// Exclude if in battle
+		if(map_navy.get_battle_from_navy_battle_participation()) {
+			continue;
+		}
+		// Exclude if selected
+		if(std::find(state.selected_navies.begin(), state.selected_navies.end(), map_navy) != state.selected_navies.end()) {
+			continue;
+		}
+		// TODO: arrow for allied units
+		if(auto ps = state.world.navy_get_path(map_navy); ps.size() > 0) {
+			auto navy_controller = state.world.navy_get_controller_from_navy_control(map_navy);
+			if(military::are_at_war(state, navy_controller, state.local_player_nation)) {
+				if(state.world.navy_get_is_retreating(map_navy)) {
+					auto old_size = map_data.retreat_unit_arrow_vertices.size();
+					map_data.retreat_unit_arrow_starts.push_back(GLint(old_size));
+					map::make_navy_direction(state, map_data.retreat_unit_arrow_vertices, map_navy, float(map_data.size_x), float(map_data.size_y));
+					map_data.retreat_unit_arrow_counts.push_back(GLsizei(map_data.retreat_unit_arrow_vertices.size() - old_size));
+				} else {
+					auto old_size = map_data.unit_arrow_vertices.size();
+					map_data.unit_arrow_starts.push_back(GLint(old_size));
+					map::make_navy_direction(state, map_data.unit_arrow_vertices, map_navy, float(map_data.size_x), float(map_data.size_y));
+					map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+				}
+			} else if (state.local_player_nation == navy_controller) {
+				auto old_size = map_data.unit_arrow_vertices.size();
+				map_data.unit_arrow_starts.push_back(GLint(old_size));
+				map::make_navy_direction(state, map_data.unit_arrow_vertices, map_navy, float(map_data.size_x), float(map_data.size_y));
+				map_data.unit_arrow_counts.push_back(GLsizei(map_data.unit_arrow_vertices.size() - old_size));
+			}
+		}
 	}
 
 	if(!map_data.unit_arrow_vertices.empty()) {
 		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_unit_arrow]);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.unit_arrow_vertices.size(), map_data.unit_arrow_vertices.data(), GL_STATIC_DRAW);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+	if(!map_data.attack_unit_arrow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_attack_unit_arrow]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.attack_unit_arrow_vertices.size(), map_data.attack_unit_arrow_vertices.data(), GL_STATIC_DRAW);
+	}
+	if(!map_data.retreat_unit_arrow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_retreat_unit_arrow]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.retreat_unit_arrow_vertices.size(), map_data.retreat_unit_arrow_vertices.data(), GL_STATIC_DRAW);
+	}
+	if(!map_data.strategy_unit_arrow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_strategy_unit_arrow]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.strategy_unit_arrow_vertices.size(), map_data.strategy_unit_arrow_vertices.data(), GL_STATIC_DRAW);
+	}
+	if(!map_data.objective_unit_arrow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_objective_unit_arrow]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.objective_unit_arrow_vertices.size(), map_data.objective_unit_arrow_vertices.data(), GL_STATIC_DRAW);
+	}
+	if(!map_data.other_objective_unit_arrow_vertices.empty()) {
+		glBindBuffer(GL_ARRAY_BUFFER, map_data.vbo_array[map_data.vo_other_objective_unit_arrow]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(curved_line_vertex) * map_data.other_objective_unit_arrow_vertices.size(), map_data.other_objective_unit_arrow_vertices.data(), GL_STATIC_DRAW);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void update_bbox(std::array<glm::vec2, 5>& bbox, glm::vec2 p) {
+	if(p.x <= bbox[1].x) {
+		bbox[1] = p;
+	} if(p.y <= bbox[2].y) {
+		bbox[2] = p;
+	} if(p.x >= bbox[3].x) {
+		bbox[3] = p;
+	} if(p.y >= bbox[4].y) {
+		bbox[4] = p;
 	}
 }
 
+bool is_inside_bbox(std::array<glm::vec2, 5>& bbox, glm::vec2 p) {
+	if(p.x <= bbox[1].x) {
+		return false;
+	} if(p.y <= bbox[2].y) {
+		return false;
+	} if(p.x >= bbox[3].x) {
+		return false;
+	} if(p.y >= bbox[4].y) {
+		return false;
+	}
+
+	return true;
+}
+
+void update_bbox_negative(std::array<glm::vec2, 5>& bbox, glm::vec2 p) {
+	if(!is_inside_bbox(bbox, p))
+		return;
+
+	//auto mp = p.get_mid_point();
+	//if(mp.x <= bbox[0].x)
+	//	bbox[1].x = mp.x * 0.1f + bbox[1].x * 0.9f;
+	//if(mp.x >= bbox[0].x)
+	//	bbox[3].x = mp.x * 0.1f + bbox[3].x * 0.9f;
+}
+
+dcon::nation_id get_top_overlord(sys::state& state, dcon::nation_id n) {
+	auto olr = state.world.nation_get_overlord_as_subject(n);
+	auto ol = state.world.overlord_get_ruler(olr);
+	auto ol_temp = n;
+
+	while(ol && state.world.nation_get_owned_province_count(ol) > 0) {
+		olr = state.world.nation_get_overlord_as_subject(ol);
+		ol_temp = ol;
+		ol = state.world.overlord_get_ruler(olr);
+	}
+
+	return ol_temp;
+}
+
 void update_text_lines(sys::state& state, display_data& map_data) {
+	auto& f = state.font_collection.get_font(state, text::font_selection::map_font);
+
 	// retroscipt
 	std::vector<text_line_generator_data> text_data;
 	std::vector<bool> visited(65536, false);
+	std::vector<bool> visited_sea_provinces(65536, false);
+	std::vector<bool> friendly_sea_provinces(65536, false);
+	std::vector<uint16_t> group_of_regions;
+
+	std::unordered_map<uint16_t, std::set<uint16_t>> regions_graph;
+
+	int samples_N = 200;
+	int samples_M = 100;
+	float step_x = float(map_data.size_x) / float(samples_N);
+	float step_y = float(map_data.size_y) / float(samples_M);
+
+	// generate additional points
+	/*std::vector<uint16_t> samples_regions;
+	for(int i = 0; i < samples_N; i++)
+		for(int j = 0; j < samples_M; j++) {
+			float x = float(i) * step_x;
+			float y = float(map_data.size_y) - float(j) * step_y;
+			auto idx = int32_t(y) * int32_t(map_data.size_x) + int32_t(x);
+
+			if(0 <= idx && size_t(idx) < map_data.province_id_map.size()) {
+				auto fat_id = dcon::fatten(state.world, province::from_map_id(map_data.province_id_map[idx]));
+				samples_regions.push_back(fat_id.get_connected_region_id());
+			} else {
+				samples_regions.push_back(0);
+			}
+		}*/
+
+	// generate graph of regions:
+	for(auto candidate : state.world.in_province) {
+		auto rid = candidate.get_connected_region_id();
+
+		auto nation = get_top_overlord(state, state.world.province_get_nation_from_province_ownership(candidate));
+
+		for(auto adj : candidate.get_province_adjacency()) {
+			auto indx = adj.get_connected_provinces(0) != candidate.id ? 0 : 1;
+			auto neighbor = adj.get_connected_provinces(indx);
+
+			// if sea, try to jump to the next province
+			if(neighbor.id.index() >= state.province_definitions.first_sea_province.index()) {
+				for(auto adj_of_neighbor : neighbor.get_province_adjacency()) {
+					auto indx2 = adj_of_neighbor.get_connected_provinces(0) != neighbor.id ? 0 : 1;
+					auto neighbor_of_neighbor = adj_of_neighbor.get_connected_provinces(indx2);
+
+					// check for a "cut line"
+					glm::vec2 point_candidate = candidate.get_mid_point();
+					glm::vec2 point_potential_friend = neighbor_of_neighbor.get_mid_point();
+
+					if(glm::distance(point_candidate, point_potential_friend) > map_data.size_x * 0.5f) {
+						// do nothing
+					} else if(neighbor_of_neighbor.id.index() < state.province_definitions.first_sea_province.index()) {
+						auto nation_2 = get_top_overlord(state, state.world.province_get_nation_from_province_ownership(neighbor_of_neighbor));
+						if(nation == nation_2)
+							regions_graph[rid].insert(neighbor_of_neighbor.get_connected_region_id());
+					}
+				}
+			} else {
+				auto nation_2 = get_top_overlord(state, state.world.province_get_nation_from_province_ownership(neighbor));
+				if(nation == nation_2)
+					regions_graph[rid].insert(neighbor.get_connected_region_id());
+			}
+		}
+	}
 	for(auto p : state.world.in_province) {
+		if(p.id.index() >= state.province_definitions.first_sea_province.index())
+			break;
 		auto rid = p.get_connected_region_id();
 		if(visited[uint16_t(rid)])
 			continue;
 		visited[uint16_t(rid)] = true;
-		//
+
 		auto n = p.get_nation_from_province_ownership();
-		if(!n || !n.get_name())
-			continue;
-		std::array<glm::vec2, 5> key_provs{
-			p.get_mid_point(), //capital
-			p.get_mid_point(), //min x
-			p.get_mid_point(), //min y
-			p.get_mid_point(), //max x
-			p.get_mid_point() //max y
-		};
-		for(auto p2 : state.world.in_province) {
-			if(p2.get_connected_region_id() == rid) {
-				if(p2.get_mid_point().x <= key_provs[1].x) {
-					key_provs[1] = p2.get_mid_point();
-				} if(p2.get_mid_point().y <= key_provs[2].y) {
-					key_provs[2] = p2.get_mid_point();
-				} if(p2.get_mid_point().x >= key_provs[3].x) {
-					key_provs[3] = p2.get_mid_point();
-				} if(p2.get_mid_point().y >= key_provs[4].y) {
-					key_provs[4] = p2.get_mid_point();
+		n = get_top_overlord(state, n.id);
+
+		//flood fill regions
+		group_of_regions.clear();
+		group_of_regions.push_back(rid);
+		int first_index = 0;
+		int vacant_index = 1;
+		while(first_index < vacant_index) {
+			auto current_region = group_of_regions[first_index];
+			first_index++;
+			for(auto neighbour_region : regions_graph[current_region]) {
+				if(!visited[neighbour_region]) {
+					group_of_regions.push_back(neighbour_region);
+					visited[neighbour_region] = true;
+					vacant_index++;
 				}
 			}
 		}
+		if(!n || n.get_owned_province_count() == 0)
+			continue;
+
+		auto nation_name = text::produce_simple_string(state, text::get_name(state, n));
+		auto prefix_remove = text::produce_simple_string(state, "map_remove_prefix");
+		if(nation_name.starts_with(prefix_remove)) {
+			nation_name.erase(0, prefix_remove.size());
+		}
+		auto acronym_expand = text::produce_simple_string(state, "map_expand_acronym");
+		if(acronym_expand.size() > 0 && nation_name.starts_with(acronym_expand)) {
+			nation_name.erase(0, acronym_expand.size());
+			auto acronym_expand_to = text::produce_simple_string(state, "map_expand_acronym_to");
+			nation_name.insert(0, acronym_expand_to.data(), acronym_expand_to.size());
+		}
+
+		std::string name = nation_name;
+		bool connected_to_capital = false;
+		for(auto visited_region : group_of_regions) {
+			if(n.get_capital().get_connected_region_id() == visited_region) {
+				connected_to_capital = true;
+			}
+		}
+		text::substitution_map sub{};
+		text::add_to_substitution_map(sub, text::variable_type::adj, text::get_adjective(state, n));
+		text::add_to_substitution_map(sub, text::variable_type::country, std::string_view(nation_name));
+		text::add_to_substitution_map(sub, text::variable_type::province, p);
+		text::add_to_substitution_map(sub, text::variable_type::state, p.get_state_membership());
+		text::add_to_substitution_map(sub, text::variable_type::continentname, p.get_continent().get_name());
+		if(!connected_to_capital) {
+			// Adjective + " " + Continent
+			name = text::resolve_string_substitution(state, "map_label_adj_continent", sub);
+			// 66% of the provinces correspond to a single national identity
+			// then it gets named after that identity
+			ankerl::unordered_dense::map<int32_t, uint32_t> map;
+			uint32_t total_provinces = 0;
+			dcon::province_id last_province;
+			bool in_same_state = true;
+			for(auto visited_region : group_of_regions) {
+				for(auto candidate : state.world.in_province) {
+					if(candidate.get_connected_region_id() == visited_region) {
+						if(candidate.get_state_membership() != p.get_state_membership())
+							in_same_state = false;
+						++total_provinces;
+						for(const auto core : candidate.get_core_as_province()) {
+							uint32_t v = 1;
+							if(auto const it = map.find(core.get_identity().id.index()); it != map.end()) {
+								v += it->second;
+							}
+							map.insert_or_assign(core.get_identity().id.index(), v);
+						}
+					}
+				}
+			}
+			if(in_same_state == true) {
+				name = text::resolve_string_substitution(state, "map_label_adj_state", sub);
+			}
+			if(total_provinces <= 2) {
+				// Adjective + Province name
+				name = text::resolve_string_substitution(state, "map_label_adj_province", sub);
+			} else {
+				for(const auto& e : map) {
+					if(float(e.second) / float(total_provinces) >= 0.75f) {
+						// Adjective + " " + National identity
+						auto const nid = dcon::national_identity_id(dcon::national_identity_id::value_base_t(e.first));
+						if(auto k = state.world.national_identity_get_name(nid); state.key_is_localized(k)) {
+							if(nid == n.get_primary_culture().get_group_from_culture_group_membership().get_identity_from_cultural_union_of()
+							|| nid == n.get_identity_from_identity_holder()) {
+								if(n.get_capital().get_continent() == p.get_continent()) {
+									//cultural union tag -> use our name
+									name = text::produce_simple_string(state, text::get_name(state, n));
+									//Get cardinality
+									auto p1 = n.get_capital().get_mid_point();
+									auto p2 = p.get_mid_point();
+									auto radians = glm::atan(p1.y - p2.y, p2.x - p1.x);
+									auto degrees = std::fmod(glm::degrees(radians) + 45.f, 360.f);
+									if(degrees < 0.f) {
+										degrees = 360.f + degrees;
+									}
+									assert(degrees >= 0.f && degrees <= 360.f);
+									//fallback just in the very unlikely case
+									name = text::resolve_string_substitution(state, "map_label_adj_state", sub);
+									if(degrees >= 0.f && degrees < 90.f) {
+										name = text::resolve_string_substitution(state, "map_label_east_country", sub);
+									} else if(degrees >= 90.f && degrees < 180.f) {
+										name = text::resolve_string_substitution(state, "map_label_south_country", sub);
+									} else if(degrees >= 180.f && degrees < 270.f) {
+										name = text::resolve_string_substitution(state, "map_label_west_country", sub);
+									} else if(degrees >= 270.f && degrees < 360.f) {
+										name = text::resolve_string_substitution(state, "map_label_north_country", sub);
+									}
+									break;
+								}
+							} else {
+								text::add_to_substitution_map(sub, text::variable_type::tag, state.world.national_identity_get_name(nid));
+								name = text::resolve_string_substitution(state, "map_label_adj_tag", sub);
+							}
+						}
+					}
+				}
+			}
+		}
+		//name = "جُمْهُورِيَّة ٱلْعِرَاق";
+		//name = "在标准状况下";
+		if(name.empty())
+			continue;
+
+		float rough_box_left = std::numeric_limits<float>::max();
+		float rough_box_right = 0;
+		float rough_box_bottom = std::numeric_limits<float>::max();
+		float rough_box_top = 0;
+
+		for(auto visited_region : group_of_regions) {
+			for(auto candidate : state.world.in_province) {
+				if(candidate.get_connected_region_id() == visited_region) {
+					glm::vec2 mid_point = candidate.get_mid_point();
+
+					if(mid_point.x < rough_box_left) {
+						rough_box_left = mid_point.x;
+					}
+					if(mid_point.x > rough_box_right) {
+						rough_box_right = mid_point.x;
+					}
+					if(mid_point.y < rough_box_bottom) {
+						rough_box_bottom = mid_point.y;
+					}
+					if(mid_point.y > rough_box_top) {
+						rough_box_top = mid_point.y;
+					}
+				}
+			}
+		}
+
+		if(rough_box_right - rough_box_left > map_data.size_x * 0.9f) {
+			continue;
+		}
+
+
+		std::vector<glm::vec2> points;
+		std::vector<glm::vec2> bad_points;
+
+		rough_box_bottom = std::max(0.f, rough_box_bottom - step_y);
+		rough_box_top = std::min(float(map_data.size_y), rough_box_top + step_y);
+		rough_box_left = std::max(0.f, rough_box_left - step_x);
+		rough_box_right = std::min(float(map_data.size_x), rough_box_right + step_x);
+
+		float rough_box_width = rough_box_right - rough_box_left;
+		float rough_box_height = rough_box_top - rough_box_bottom;
+
+		float rough_box_ratio = rough_box_width / rough_box_height;
+		float height_steps = 15.f;
+		float width_steps = std::max(10.f, height_steps * rough_box_ratio);
+
+		glm::vec2 local_step = glm::vec2(rough_box_width, rough_box_height) / glm::vec2(width_steps, height_steps);
+
+		float best_y = 0.f;
+		//float best_y_length = 0.f;
+		float counter_from_the_bottom = 0.f;
+		float best_y_length_real = 0.f;
+		float best_y_left_x = 0.f;
+
+		// prepare points for a local grid
+		for(int j = 0; j < height_steps; j++) {
+			float y = rough_box_bottom + j * local_step.y;
+
+			for(int i = 0; i < width_steps; i++) {
+				float x = rough_box_left + float(i) * local_step.x;
+				glm::vec2 candidate = { x, y };
+				auto idx = int32_t(y) * int32_t(map_data.size_x) + int32_t(x);
+				if(0 <= idx && size_t(idx) < map_data.province_id_map.size()) {
+					auto fat_id = dcon::fatten(state.world, province::from_map_id(map_data.province_id_map[idx]));
+					for(auto visited_region : group_of_regions) {
+						if(fat_id.get_connected_region_id() == visited_region) {
+							points.push_back(candidate);
+						}
+					}
+				}
+			}
+		}
+
+		float points_above = 0.f;
+
+		for(int j = 0; j < height_steps; j++) {
+			float y = rough_box_bottom + j * local_step.y;
+
+			float current_length = 0.f;
+			float left_x = (float)(map_data.size_x);
+
+			for(int i = 0; i < width_steps; i++) {
+				float x = rough_box_left + float(i) * local_step.x;
+
+				glm::vec2 candidate = { x, y };
+
+				auto idx = int32_t(y) * int32_t(map_data.size_x) + int32_t(x);
+				if(0 <= idx && size_t(idx) < map_data.province_id_map.size()) {
+					auto fat_id = dcon::fatten(state.world, province::from_map_id(map_data.province_id_map[idx]));
+					for(auto visited_region : group_of_regions)
+						if(fat_id.get_connected_region_id() == visited_region) {
+							points_above++;
+							current_length += local_step.x;
+							if(x < left_x) {
+								left_x = x;
+							}
+						}
+				}
+			}
+
+			if(points_above * 2.f > points.size()) {
+				//best_y_length = current_length_adjusted;
+				best_y_length_real = current_length;
+				best_y = y;
+				best_y_left_x = left_x;
+				break;
+			}
+		}
+
+		if(points.size() < 2) {
+			continue;
+		}
+
+		// clustering points into num_of_clusters parts
+		size_t min_amount = 2;
+		if(state.user_settings.map_label == sys::map_label_mode::cubic) {
+			min_amount = 4;
+		}
+		if(state.user_settings.map_label == sys::map_label_mode::quadratic) {
+			min_amount = 3;
+		}
+		size_t num_of_clusters = std::max(min_amount, (size_t)(points.size() / 40));
+		size_t neighbours_requirement = std::clamp(int(std::log(num_of_clusters + 1)), 1, 3);
+
+		if(points.size() < num_of_clusters) {
+			num_of_clusters = points.size();
+		}
+
+		std::vector<glm::vec2> centroids;
+
+		for(size_t i = 0; i < num_of_clusters; i++) {
+			centroids.push_back(points[i]);
+		}
+
+		for(int step = 0; step < 100; step++) {
+			std::vector<glm::vec2> new_centroids;
+			std::vector<int> counters;
+			for(size_t i = 0; i < num_of_clusters; i++) {
+				new_centroids.push_back(glm::vec2(0, 0));
+				counters.push_back(0);
+			}
+
+
+			for(size_t i = 0; i < points.size(); i++) {
+				size_t closest = 0;
+				float best_dist = std::numeric_limits<float>::max();
+
+				//finding the closest centroid
+				for(size_t cluster = 0; cluster < num_of_clusters; cluster++) {
+					if(best_dist > glm::distance(centroids[cluster], points[i])) {
+						closest = cluster;
+						best_dist = glm::distance(centroids[cluster], points[i]);
+					}
+				}
+
+				new_centroids[closest] += points[i];
+				counters[closest] += 1;
+			}
+
+			for(size_t i = 0; i < num_of_clusters; i++) {
+				new_centroids[i] /= counters[i];
+			}
+
+			centroids = new_centroids;
+		}
+
+		std::vector<size_t> good_centroids;
+		float min_cross = 1;
+
+		std::vector<glm::vec2> final_points;
+
+		for(size_t i = 0; i < num_of_clusters; i++) {
+			float locally_good_distance = std::numeric_limits<float>::max();
+			for(size_t j = 0; j < num_of_clusters; j++) {
+				if(i == j) continue;
+				if(locally_good_distance > glm::distance(centroids[i], centroids[j]))
+					locally_good_distance = glm::distance(centroids[i], centroids[j]);
+			}
+
+			size_t counter_of_neighbors = 0;
+			for(size_t j = 0; j < num_of_clusters; j++) {
+				if(i == j) {
+					continue;
+				}
+				if(glm::distance(centroids[i], centroids[j]) < locally_good_distance * 1.2f) {
+					counter_of_neighbors++;
+				}
+			}
+			if(counter_of_neighbors >= neighbours_requirement) {
+				good_centroids.push_back(i);
+				final_points.push_back(centroids[i]);
+			}
+		}
+
+
+		if(good_centroids.size() <= 1) {
+			good_centroids.clear();
+			final_points.clear();
+			for(size_t i = 0; i < num_of_clusters; i++) {
+				good_centroids.push_back(i);
+				final_points.push_back(centroids[i]);
+			}
+		}
+
+		//throwing away bad cluster
+
+		std::vector<glm::vec2> good_points;
+
+		glm::vec2 sum_points = { 0.f, 0.f };
+
+		//OutputDebugStringA("\n\n");
+
+		for(auto point : points) {
+			size_t closest = 0;
+			float best_dist = std::numeric_limits<float>::max();
+
+			//finding the closest centroid
+			for(size_t cluster = 0; cluster < num_of_clusters; cluster++) {
+				if(best_dist > glm::distance(centroids[cluster], point)) {
+					closest = cluster;
+					best_dist = glm::distance(centroids[cluster], point);
+				}
+			}
+
+
+			bool is_good = false;
+			for(size_t i = 0; i < good_centroids.size(); i++) {
+				if(closest == good_centroids[i])
+					is_good = true;
+			}
+
+			if (is_good) {
+				good_points.push_back(point);
+				sum_points += point;
+			}
+		}
+
+		points = good_points;
 		
+
+		//initial center:
+		glm::vec2 center = sum_points / (float)(points.size());
+
+		//calculate deviation
+		float total_sum = 0;
+
+		for(auto point : points) {
+			auto dif_v = point - center;
+			total_sum += dif_v.x * dif_v.x;
+		}
+
+		float mse = total_sum / points.size();
+		//ignore points beyond 3 std
+		float limit = mse * 3;
+
+		//calculate radius
+		//OutputDebugStringA("\n");
+		//OutputDebugStringA("\n");
+		float right = 0.f;
+		float left = 0.f;
+		float top = 0.f;
+		float bottom = 0.f;
+		for(auto point: points) {
+			//OutputDebugStringA((std::to_string(point.x) + ", " + std::to_string(point.y) + ", \n").c_str());
+			glm::vec2 current = point - center;
+			if((current.x > right) && (current.x * current.x < limit)) {
+				right = current.x;
+			}
+			if(current.y > top) {
+				top = current.y;
+			}
+			if((current.x < left) && (current.x * current.x < limit)) {
+				left = current.x;
+			}
+			if(current.y < bottom) {
+				bottom = current.y;
+			}
+		}
+
+		std::vector<glm::vec2> key_points;
+
+		key_points.push_back(center + glm::vec2(left, 0));
+		key_points.push_back(center + glm::vec2(0, bottom + local_step.y));
+		key_points.push_back(center + glm::vec2(right, 0));
+		key_points.push_back(center + glm::vec2(0, top - local_step.y));
+
+		std::array<glm::vec2, 5> key_provs{
+			center, //capital
+			center, //min x
+			center, //min y
+			center, //max x
+			center //max y
+		};
+
+		for(auto key_point : key_points) {
+			//if (glm::length(key_point - center) < 100.f * glm::length(eigenvector_1)) 
+			update_bbox(key_provs, key_point);
+		}
+
+
 		glm::vec2 map_size{ float(state.map_state.map_data.size_x), float(state.map_state.map_data.size_y) };
 		glm::vec2 basis{ key_provs[1].x, key_provs[2].y };
 		glm::vec2 ratio{ key_provs[3].x - key_provs[1].x, key_provs[4].y - key_provs[2].y };
 
+		if(ratio.x < 0.001f || ratio.y < 0.001f)
+			continue;
+
+		points = final_points;
+
+		//regularisation parameters
+		float lambda = 0.00001f;
+
+		float l_0 = 1.f;
+		float l_1 = 1.f;
+		float l_2 = 1 / 4.f;
+		float l_3 = 1 / 8.f;
+
 		// Populate common dataset points
-		std::vector<float> my;
+		std::vector<float> out_y;
+		std::vector<float> out_x;
 		std::vector<float> w;
-		std::vector<std::array<float, 4>> mx;
+		std::vector<std::array<float, 4>> in_x;
+		std::vector<std::array<float, 4>> in_y;
 
-		for(auto p2 : state.world.in_province) {
-			if(p2.get_connected_region_id() == rid) {
-				auto e = p2.get_mid_point();
-				e -= basis;
-				e /= ratio;
-				my.push_back(e.y);
-				w.push_back(float(map_data.province_area[province::to_map_id(p2)]));
-				mx.push_back(std::array<float, 4>{ 1.f, e.x, e.x* e.x, e.x* e.x* e.x });
+		for (auto point : points) {
+			auto e = point;
+
+			if(e.x < basis.x) {
+				continue;
 			}
+			if(e.x > basis.x + ratio.x) {
+				continue;
+			}
+
+			w.push_back(1);
+
+			e -= basis;
+			e /= ratio;
+			out_y.push_back(e.y);
+			out_x.push_back(e.x);
+			//w.push_back(10 * float(map_data.province_area[province::to_map_id(p2)]));
+					
+			in_x.push_back(std::array<float, 4>{ l_0 * 1.f, l_1* e.x, l_1* e.x* e.x, l_3* e.x* e.x* e.x});
+			in_y.push_back(std::array<float, 4>{ l_0 * 1.f, l_1* e.y, l_1* e.y* e.y, l_3* e.y* e.y* e.y});
 		}
 
-		std::string name = text::produce_simple_string(state, n.get_name());
-		if(n.get_capital().get_connected_region_id() != rid) {
-			// Adjective + " " + Continent
-			name = text::produce_simple_string(state, n.get_adjective()) + " " + text::produce_simple_string(state, p.get_continent().get_name());
-		}
+		auto prepared_name = text::stored_glyphs(state, text::font_selection::map_font, name);
+		float name_extent = f.text_extent(state, prepared_name, 0, uint32_t(prepared_name.glyph_info.size()), 1);
 
 		bool use_quadratic = false;
 		// We will try cubic regression first, if that results in very
@@ -179,13 +1369,15 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			glm::mat4x4 m0(0.f);
 			for(glm::length_t i = 0; i < m0.length(); i++)
 				for(glm::length_t j = 0; j < m0.length(); j++)
-					for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-						m0[i][j] += mx[r][j] * w[r] * mx[r][i];
-			m0 = glm::inverse(m0); // m0 = (T(X)*X)^-1
-			glm::vec4 m1(0.f); // m1 = T(X)*Y
+					for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+						m0[i][j] += in_x[r][j] * w[r] * in_x[r][i] / in_x.size();
+			for(glm::length_t i = 0; i < m0.length(); i++)
+				m0[i][i] += lambda;
+			m0 = glm::inverse(m0); // m0 = (T(X)*X/n + I*lambda)^-1
+			glm::vec4 m1(0.f); // m1 = T(X)*Y / n
 			for(glm::length_t i = 0; i < m1.length(); i++)
-				for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-					m1[i] += mx[r][i] * w[r] * my[r];
+				for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+					m1[i] += in_x[r][i] * w[r] * out_y[r] / in_x.size();
 			glm::vec4 mo(0.f); // mo = m1 * m0
 			for(glm::length_t i = 0; i < mo.length(); i++)
 				for(glm::length_t j = 0; j < mo.length(); j++)
@@ -193,12 +1385,21 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			// y = a + bx + cx^2 + dx^3
 			// y = mo[0] + mo[1] * x + mo[2] * x * x + mo[3] * x * x * x
 			auto poly_fn = [&](float x) {
-				return mo[0] + mo[1] * x + mo[2] * x * x + mo[3] * x * x * x;
+				return mo[0] * l_0 + mo[1] * x * l_1 + mo[2] * x * x * l_2 + mo[3] * x * x * x * l_3;
 			};
 			auto dx_fn = [&](float x) {
-				return 1.f + 2.f * mo[2] * x + 3.f * mo[3] * x * x;
+				return mo[1] * l_1 + 2.f * mo[2] * x * l_2 + 3.f * mo[3] * x * x * l_3;
 			};
-			float xstep = (1.f / float(name.length() * 4.f));
+			auto error_grad = [&](float x, float y) {
+				float error_linear = poly_fn(x) - y;				
+				return glm::vec4(error_linear * error_linear * error_linear * error_linear * error_linear * mo);
+			};
+
+			auto regularisation_grad = [&]() {
+				return glm::vec4(0, 0, mo[2] / 4.f, mo[3] / 6.f);
+			};
+
+			float xstep = (1.f / float(name_extent * 2.f));
 			for(float x = 0.f; x <= 1.f; x += xstep) {
 				float y = poly_fn(x);
 				if(y < 0.f || y > 1.f) {
@@ -207,13 +1408,14 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 				}
 				// Steep change in curve => use cuadratic
 				float dx = glm::abs(dx_fn(x) - dx_fn(x - xstep));
-				if(dx >= 0.45f) {
+				if(dx / xstep >= 0.45f) {
 					use_quadratic = true;
 					break;
 				}
-			}
+			}			
+
 			if(!use_quadratic)
-				text_data.emplace_back(name, mo, basis, ratio);
+				text_data.emplace_back(std::move(prepared_name), mo, basis, ratio);
 		}
 
 		bool use_linear = false;
@@ -222,13 +1424,15 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			glm::mat3x3 m0(0.f);
 			for(glm::length_t i = 0; i < m0.length(); i++)
 				for(glm::length_t j = 0; j < m0.length(); j++)
-					for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-						m0[i][j] += mx[r][j] * w[r] * mx[r][i];
+					for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+						m0[i][j] += in_x[r][j] * w[r] * in_x[r][i] / in_x.size();
+			for(glm::length_t i = 0; i < m0.length(); i++)
+				m0[i][i] += lambda;
 			m0 = glm::inverse(m0); // m0 = (T(X)*X)^-1
 			glm::vec3 m1(0.f); // m1 = T(X)*Y
 			for(glm::length_t i = 0; i < m1.length(); i++)
-				for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-					m1[i] += mx[r][i] * w[r] * my[r];
+				for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+					m1[i] += in_x[r][i] * w[r] * out_y[r] / in_x.size();
 			glm::vec3 mo(0.f); // mo = m1 * m0
 			for(glm::length_t i = 0; i < mo.length(); i++)
 				for(glm::length_t j = 0; j < mo.length(); j++)
@@ -236,12 +1440,12 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			// y = a + bx + cx^2
 			// y = mo[0] + mo[1] * x + mo[2] * x * x
 			auto poly_fn = [&](float x) {
-				return mo[0] + mo[1] * x + mo[2] * x * x;
+				return mo[0] * l_0 + mo[1] * x * l_1 + mo[2] * x * x * l_2;
 			};
 			auto dx_fn = [&](float x) {
-				return 1.f + 2.f * mo[2] * x;
+				return mo[1] * l_1 + 2.f * mo[2] * x * l_2;
 			};
-			float xstep = (1.f / float(name.length() * 4.f));
+			float xstep = (1.f / float(name_extent * 2.f));
 			for(float x = 0.f; x <= 1.f; x += xstep) {
 				float y = poly_fn(x);
 				if(y < 0.f || y > 1.f) {
@@ -250,13 +1454,13 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 				}
 				// Steep change in curve => use cuadratic
 				float dx = glm::abs(dx_fn(x) - dx_fn(x - xstep));
-				if(dx >= 0.45f) {
+				if(dx / xstep >= 0.45f) {
 					use_linear = true;
 					break;
 				}
 			}
 			if(!use_linear)
-				text_data.emplace_back(name, glm::vec4(mo, 0.f), basis, ratio);
+				text_data.emplace_back(std::move(prepared_name), glm::vec4(mo, 0.f), basis, ratio);
 		}
 
 		if(state.user_settings.map_label == sys::map_label_mode::linear || use_linear) {
@@ -264,13 +1468,15 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			glm::mat2x2 m0(0.f);
 			for(glm::length_t i = 0; i < m0.length(); i++)
 				for(glm::length_t j = 0; j < m0.length(); j++)
-					for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-						m0[i][j] += mx[r][j] * w[r] * mx[r][i];
+					for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+						m0[i][j] += in_x[r][j] * w[r] * in_x[r][i];
+			for(glm::length_t i = 0; i < m0.length(); i++)
+				m0[i][i] += lambda;
 			m0 = glm::inverse(m0); // m0 = (T(X)*X)^-1
 			glm::vec2 m1(0.f); // m1 = T(X)*Y
 			for(glm::length_t i = 0; i < m1.length(); i++)
-				for(glm::length_t r = 0; r < glm::length_t(mx.size()); r++)
-					m1[i] += mx[r][i] * w[r] * my[r];
+				for(glm::length_t r = 0; r < glm::length_t(in_x.size()); r++)
+					m1[i] += in_x[r][i] * w[r] * out_y[r];
 			glm::vec2 mo(0.f); // mo = m1 * m0
 			for(glm::length_t i = 0; i < mo.length(); i++)
 				for(glm::length_t j = 0; j < mo.length(); j++)
@@ -279,13 +1485,56 @@ void update_text_lines(sys::state& state, display_data& map_data) {
 			// y = a + bx
 			// y = mo[0] + mo[1] * x
 			auto poly_fn = [&](float x) {
-				return mo[0] + mo[1] * x;
+				return mo[0] * l_0 + mo[1] * x * l_1;
 			};
+
+
+			// check if this is really better than taking the longest horizontal
+
+			// firstly check if we are already horizontal
+			if(abs(mo[1]) > 0.05) {
+				// calculate where our line will start and end:
+				float left_side = 0.f;
+				float right_side = 1.f;
+
+				if(mo[1] > 0.01f) {
+					left_side = -mo[0] / mo[1];
+					right_side = (1.f - mo[0]) / mo[1];
+				} else if(mo[1] < -0.01f) {
+					left_side = (1.f - mo[0]) / mo[1];
+					right_side = -mo[0] / mo[1];
+				}
+
+				left_side = std::clamp(left_side, 0.f, 1.f);
+				right_side = std::clamp(right_side, 0.f, 1.f);
+
+				float length_in_box_units = glm::length(ratio * glm::vec2(poly_fn(left_side), poly_fn(right_side)));
+
+				if(best_y_length_real * 1.05f >= length_in_box_units) {
+					basis.x = best_y_left_x;
+					ratio.x = best_y_length_real;
+					mo[0] = (best_y - basis.y) / ratio.y;
+					mo[1] = 0;
+				}
+			}
+
+
 			if(ratio.x <= map_size.x * 0.75f && ratio.y <= map_size.y * 0.75f)
-				text_data.emplace_back(name, glm::vec4(mo, 0.f, 0.f), basis, ratio);
+				text_data.emplace_back(std::move(prepared_name), glm::vec4(mo, 0.f, 0.f), basis, ratio);
 		}
 	}
 	map_data.set_text_lines(state, text_data);
+
+	if(state.cheat_data.province_names) {
+		std::vector<text_line_generator_data> p_text_data;
+		for(auto p : state.world.in_province) {
+			if(p.get_name()) {
+				std::string name = text::produce_simple_string(state, p.get_name());
+				p_text_data.emplace_back(text::stored_glyphs(state, text::font_selection::map_font, name), glm::vec4(0.f, 0.f, 0.f, 0.f), p.get_mid_point() - glm::vec2(5.f, 0.f), glm::vec2(10.f, 10.f));
+			}
+		}
+		map_data.set_province_text_lines(state, p_text_data);
+	}
 }
 
 void map_state::update(sys::state& state) {
@@ -294,12 +1543,16 @@ void map_state::update(sys::state& state) {
 	if(last_update_time == std::chrono::time_point<std::chrono::steady_clock>{})
 		last_update_time = now;
 
-	update_unit_arrows(state, map_data);
+	if(state.selected_trade_good && state.update_trade_flow.load(std::memory_order::acquire)) {
+		update_trade_flow_arrows(state, map_data);
+		state.update_trade_flow.store(false, std::memory_order_release);
+	}
+	update_unit_arrows(state, map_data);	
 
 	// Update railroads, only if railroads are being built and we have 'em enabled
-	if(state.user_settings.railroads_enabled && state.railroad_built.load(std::memory_order::acquire)) {
-		state.map_state.map_data.update_railroad_paths(state);
-		state.railroad_built.store(false, std::memory_order::release);
+	if(state.user_settings.railroads_enabled && state.sprawl_update_requested.load(std::memory_order::acquire)) {
+		state.map_state.map_data.update_sprawl(state);
+		state.sprawl_update_requested.store(false, std::memory_order::release);
 	}
 
 	auto microseconds_since_last_update = std::chrono::duration_cast<std::chrono::microseconds>(now - last_update_time);
@@ -325,6 +1578,8 @@ void map_state::update(sys::state& state) {
 		}
 		arrow_key_velocity_vector = glm::normalize(arrow_key_velocity_vector);
 		arrow_key_velocity_vector *= 0.175f;
+		if(shift_key_down)
+			arrow_key_velocity_vector *= glm::e<float>();
 		pos_velocity += arrow_key_velocity_vector;
 	}
 
@@ -370,7 +1625,7 @@ void map_state::update(sys::state& state) {
 
 	auto zoom_diff = (zoom_change * seconds_since_last_update) / (1 / zoom);
 	zoom += zoom_diff;
-	zoom_change *= std::exp(-seconds_since_last_update * 20);
+	zoom_change *= std::exp(-seconds_since_last_update * state.user_settings.zoom_speed);
 	zoom = glm::clamp(zoom, min_zoom, max_zoom);
 
 	glm::vec2 pos_after_zoom;
@@ -382,8 +1637,24 @@ void map_state::update(sys::state& state) {
 		case sys::map_zoom_mode::inverted:
 			pos -= pos_before_zoom - pos_after_zoom;
 			break;
+		case sys::map_zoom_mode::to_cursor:
+			if(zoom_change < 0.f) {
+				pos -= pos_before_zoom - pos_after_zoom;
+			} else {
+				pos += pos_before_zoom - pos_after_zoom;
+			}
+			break;
+		case sys::map_zoom_mode::away_from_cursor:
+			if(zoom_change < 0.f) {
+				pos += pos_before_zoom - pos_after_zoom;
+			} else {
+				pos -= pos_before_zoom - pos_after_zoom;
+			}
+			break;
 		case sys::map_zoom_mode::centered:
 			//no pos change
+			break;
+		default:
 			break;
 		}
 	}
@@ -401,7 +1672,7 @@ void map_state::update(sys::state& state) {
 
 	auto keyboard_zoom_diff = (keyboard_zoom_change * seconds_since_last_update) / (1 / zoom);
 	zoom += keyboard_zoom_diff;
-	keyboard_zoom_change *= std::exp(-seconds_since_last_update * 20);
+	keyboard_zoom_change *= std::exp(-seconds_since_last_update * state.user_settings.zoom_speed);
 	zoom = glm::clamp(zoom, min_zoom, max_zoom);
 
 	glm::vec2 pos_after_keyboard_zoom;
@@ -421,13 +1692,16 @@ void map_state::update(sys::state& state) {
 
 	if(unhandled_province_selection) {
 		map_mode::update_map_mode(state);
+		state.update_trade_flow.store(true, std::memory_order::release);
+
 		map_data.set_selected_province(state, selected_province);
 		unhandled_province_selection = false;
 	}
 }
 
 void map_state::set_province_color(std::vector<uint32_t> const& prov_color, map_mode::mode new_map_mode) {
-	active_map_mode = new_map_mode;
+	if (new_map_mode != map_mode::mode::handled_from_outside)
+		active_map_mode = new_map_mode;
 	map_data.set_province_color(prov_color);
 }
 
@@ -455,6 +1729,9 @@ void map_state::on_key_down(sys::virtual_key keycode, sys::key_modifiers mod) {
 	case sys::virtual_key::NEXT:
 		pgdn_key_down = true;
 		break;
+	case sys::virtual_key::SHIFT:
+		shift_key_down = true;
+		break;
 	default:
 		break;
 	}
@@ -479,6 +1756,9 @@ void map_state::on_key_up(sys::virtual_key keycode, sys::key_modifiers mod) {
 		break;
 	case sys::virtual_key::NEXT:
 		pgdn_key_down = false;
+		break;
+	case sys::virtual_key::SHIFT:
+		shift_key_down = false;
 		break;
 	default:
 		break;
@@ -649,11 +1929,12 @@ void map_state::on_lbutton_up(sys::state& state, int32_t x, int32_t y, int32_t s
 		map_pos *= glm::vec2(float(map_data.size_x), float(map_data.size_y));
 		auto idx = int32_t(map_data.size_y - map_pos.y) * int32_t(map_data.size_x) + int32_t(map_pos.x);
 		if(0 <= idx && size_t(idx) < map_data.province_id_map.size()) {
-			sound::play_interface_sound(state, sound::get_click_sound(state),
-					state.user_settings.interface_volume * state.user_settings.master_volume);
+			sound::play_interface_sound(state, sound::get_random_province_select_sound(state),
+				state.user_settings.interface_volume * state.user_settings.master_volume);
 			auto fat_id = dcon::fatten(state.world, province::from_map_id(map_data.province_id_map[idx]));
 			if(map_data.province_id_map[idx] < province::to_map_id(state.province_definitions.first_sea_province)) {
 				set_selected_province(province::from_map_id(map_data.province_id_map[idx]));
+				//state.current_scene.
 			} else {
 				set_selected_province(dcon::province_id{});
 			}
@@ -702,7 +1983,23 @@ dcon::province_id map_state::get_province_under_mouse(sys::state& state, int32_t
 	}
 }
 
-bool map_state::map_to_screen(sys::state& state, glm::vec2 map_pos, glm::vec2 screen_size, glm::vec2& screen_pos) {
+bool validate_screen_position(glm::vec2 screen_size, glm::vec2& screen_pos, glm::vec2 tolerance) {
+	if(screen_pos.x < -tolerance.x) {
+		return false;
+	}
+	if(screen_pos.y < -tolerance.y) {
+		return false;
+	}
+	if(screen_pos.x > screen_size.x + tolerance.x) {
+		return false;
+	}
+	if(screen_pos.y > screen_size.y + tolerance.y) {
+		return false;
+	}
+	return true;
+}
+
+bool map_state::map_to_screen(sys::state& state, glm::vec2 map_pos, glm::vec2 screen_size, glm::vec2& screen_pos, glm::vec2 tolerance) {
 	switch(state.user_settings.map_is_globe) {
 	case sys::projection_mode::globe_ortho:
 		{
@@ -749,7 +2046,7 @@ bool map_state::map_to_screen(sys::state& state, glm::vec2 map_pos, glm::vec2 sc
 			screen_pos.x *= screen_size.y / screen_size.x;
 			screen_pos = ((screen_pos + glm::vec2(1.f)) * 0.5f);
 			screen_pos *= screen_size;
-			return true;
+			return validate_screen_position(screen_size, screen_pos, tolerance);
 		}
 	case sys::projection_mode::globe_perpect:
 		{
@@ -826,7 +2123,7 @@ bool map_state::map_to_screen(sys::state& state, glm::vec2 map_pos, glm::vec2 sc
 			screen_pos.x *= screen_size.y / screen_size.x;
 			screen_pos = ((screen_pos + glm::vec2(1.f)) * 0.5f);
 			screen_pos *= screen_size;
-			return true;
+			return validate_screen_position(screen_size, screen_pos, tolerance);
 		}
 	case sys::projection_mode::flat:
 		{
@@ -852,7 +2149,7 @@ bool map_state::map_to_screen(sys::state& state, glm::vec2 map_pos, glm::vec2 sc
 				return false;
 			if(screen_pos.y <= float(std::numeric_limits<int16_t>::min() / 2))
 				return false;
-			return true;
+			return validate_screen_position(screen_size, screen_pos, tolerance);
 		}
 	case sys::projection_mode::num_of_modes:
 		return false;

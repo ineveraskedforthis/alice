@@ -40,7 +40,8 @@ void update_movement_values(sys::state& state) { // simply updates cached values
 	state.world.for_each_pop([&](dcon::pop_id p) {
 		if(auto m = state.world.pop_get_movement_from_pop_movement_membership(p); m) {
 			auto i = state.world.movement_get_associated_issue_option(m);
-			state.world.movement_get_pop_support(m) += state.world.pop_get_size(p) * (i ? state.world.pop_get_demographics(p, pop_demographics::to_key(state, i)) : 1.0f);
+			auto& cur_pop_support = state.world.movement_get_pop_support(m);
+			state.world.movement_set_pop_support(m, cur_pop_support + state.world.pop_get_size(p) * (i ? pop_demographics::get_demo(state, p, pop_demographics::to_key(state, i)) : 1.0f));
 		}
 	});
 
@@ -114,14 +115,16 @@ void update_movement_values(sys::state& state) { // simply updates cached values
 void add_pop_to_movement(sys::state& state, dcon::pop_id p, dcon::movement_id m) {
 	remove_pop_from_movement(state, p);
 	auto i = state.world.movement_get_associated_issue_option(m);
-	state.world.movement_get_pop_support(m) += state.world.pop_get_size(p) * (i ? state.world.pop_get_demographics(p, pop_demographics::to_key(state, i)) : 1.0f);
+	auto& cur_pop_support = state.world.movement_get_pop_support(m);
+	state.world.movement_set_pop_support(m, cur_pop_support + state.world.pop_get_size(p) * (i ? pop_demographics::get_demo(state, p, pop_demographics::to_key(state, i)) : 1.0f));
 	state.world.try_create_pop_movement_membership(p, m);
 }
 void remove_pop_from_movement(sys::state& state, dcon::pop_id p) {
 	auto prior_movement = state.world.pop_get_movement_from_pop_movement_membership(p);
 	if(prior_movement) {
 		auto i = state.world.movement_get_associated_issue_option(prior_movement);
-		state.world.movement_get_pop_support(prior_movement) -= state.world.pop_get_size(p) * (i ? state.world.pop_get_demographics(p, pop_demographics::to_key(state, i)) : 1.0f);
+		auto& cur_pop_support = state.world.movement_get_pop_support(prior_movement);
+		state.world.movement_set_pop_support(prior_movement, cur_pop_support - state.world.pop_get_size(p) * (i ? pop_demographics::get_demo(state, p, pop_demographics::to_key(state, i)) : 1.0f));
 		state.world.delete_pop_movement_membership(state.world.pop_get_pop_movement_membership(p));
 	}
 }
@@ -134,8 +137,8 @@ void suppress_movement(sys::state& state, dcon::nation_id n, dcon::movement_id m
 	*/
 	state.world.movement_get_transient_radicalism(m) += state.defines.suppression_radicalisation_hit;
 	for(auto p : state.world.movement_get_pop_movement_membership(m)) {
-		auto old_con = p.get_pop().get_consciousness();
-		p.get_pop().set_consciousness(1.0f);
+		//auto old_con = pop_demographics::get_consciousness(state, p.get_pop());
+		pop_demographics::set_consciousness(state, p.get_pop().id, 1.0f);
 	}
 	state.world.movement_remove_all_pop_movement_membership(m);
 }
@@ -148,7 +151,7 @@ void turn_movement_into_rebels(sys::state& state, dcon::movement_id m) {
 	*/
 
 	for(auto p : state.world.movement_get_pop_movement_membership(m)) {
-		p.get_pop().set_militancy(std::max(p.get_pop().get_militancy(), state.defines.mil_on_reb_move));
+		pop_demographics::set_militancy(state, p.get_pop().id, std::max(pop_demographics::get_militancy(state, p.get_pop()), state.defines.mil_on_reb_move));
 	}
 	// and then they will automatically be picked up by updating rebels
 
@@ -211,7 +214,7 @@ void update_pop_movement_membership(sys::state& state) {
 			return;
 
 		auto existing_movement = state.world.pop_get_movement_from_pop_movement_membership(p);
-		auto mil = state.world.pop_get_militancy(p);
+		auto mil = pop_demographics::get_militancy(state, p);
 
 		// -Pops with define : MIL_TO_JOIN_REBEL or greater militancy cannot join a movement
 		if(mil >= state.defines.mil_to_join_rebel) {
@@ -222,7 +225,7 @@ void update_pop_movement_membership(sys::state& state) {
 			auto i =
 					state.world.movement_get_associated_issue_option(existing_movement);
 			if(i) {
-				auto support = state.world.pop_get_demographics(p, pop_demographics::to_key(state, i));
+				auto support = pop_demographics::get_demo(state, p, pop_demographics::to_key(state, i));
 				if(support * 100.0f < state.defines.issue_movement_leave_limit) {
 					// If the pop's support of the issue for an issue-based movement drops below define:ISSUE_MOVEMENT_LEAVE_LIMIT
 					// the pop will leave the movement.
@@ -239,8 +242,8 @@ void update_pop_movement_membership(sys::state& state) {
 			return;
 		}
 
-		auto con = state.world.pop_get_consciousness(p);
-		auto lit = state.world.pop_get_literacy(p);
+		auto con = pop_demographics::get_consciousness(state, p);
+		auto lit = pop_demographics::get_literacy(state, p);
 
 		// a pop with a consciousness of at least 1.5 or a literacy of at least 0.25 may join a movement
 		if(con >= 1.5f || lit >= 0.25f) {
@@ -256,7 +259,7 @@ void update_pop_movement_membership(sys::state& state) {
 				auto co = state.world.nation_get_issues(owner, parent);
 				auto allow = state.world.issue_option_get_allow(io);
 				if(co != io && (state.world.issue_get_issue_type(parent) == uint8_t(culture::issue_type::social) || state.world.issue_get_issue_type(parent) == uint8_t(culture::issue_type::political))) { // filter out currently active issue
-					auto sup = state.world.pop_get_demographics(p, pop_demographics::to_key(state, io));
+					auto sup = pop_demographics::get_demo(state, p, pop_demographics::to_key(state, io));
 					if(sup * 100.0f >= state.defines.issue_movement_join_limit && sup > max_support) { // filter out -- above limit thersholds
 						/*
 						then the pop has a chance to join an issue-based movement at probability: issue-support x 9 x define:MOVEMENT_LIT_FACTOR x pop-literacy + issue-support x 9 x define:MOVEMENT_CON_FACTOR x pop-consciousness
@@ -339,16 +342,20 @@ void update_movements(sys::state& state) { // updates cached values and then pos
 void remove_pop_from_rebel_faction(sys::state& state, dcon::pop_id p) {
 	if(auto m = state.world.pop_get_pop_rebellion_membership(p); m) {
 		auto fac = state.world.pop_rebellion_membership_get_rebel_faction(m);
-		state.world.rebel_faction_get_possible_regiments(fac) -=
-				int32_t(state.world.pop_get_size(p) / state.defines.pop_size_per_regiment);
+		// if the faction the pop is a member of is invalid, don't modify it.
+		if(fac) {
+			auto& cur_reg = state.world.rebel_faction_get_possible_regiments(fac);
+			state.world.rebel_faction_set_possible_regiments(fac, cur_reg - int32_t(state.world.pop_get_size(p) / state.defines.pop_size_per_regiment));	
+		}
 		state.world.delete_pop_rebellion_membership(m);
+		
 	}
 }
 void add_pop_to_rebel_faction(sys::state& state, dcon::pop_id p, dcon::rebel_faction_id m) {
 	remove_pop_from_rebel_faction(state, p);
 	state.world.try_create_pop_rebellion_membership(p, m);
-	state.world.rebel_faction_get_possible_regiments(m) +=
-			int32_t(state.world.pop_get_size(p) / state.defines.pop_size_per_regiment);
+	auto& cur_reg = state.world.rebel_faction_get_possible_regiments(m);
+	state.world.rebel_faction_set_possible_regiments(m, cur_reg + int32_t(state.world.pop_get_size(p) / state.defines.pop_size_per_regiment));
 }
 
 bool rebel_faction_is_valid(sys::state& state, dcon::rebel_faction_id m) {
@@ -407,6 +414,8 @@ bool pop_is_compatible_with_rebel_faction(sys::state& state, dcon::pop_id p, dco
 		return false;
 	if(fac.get_type().get_ideology() && fac.get_type().get_ideology_restriction() && fac.get_type().get_ideology() != pop.get_dominant_ideology())
 		return false;
+	if(fac.get_type().get_ideology() && pop.get_province_from_pop_location().get_is_colonial())
+		return false;
 	return true;
 }
 
@@ -448,7 +457,7 @@ void update_pop_rebel_membership(sys::state& state) {
 		if(!owner)
 			return;
 
-		auto mil = state.world.pop_get_militancy(p);
+		auto mil = pop_demographics::get_militancy(state, p);
 		auto existing_faction = state.world.pop_get_rebel_faction_from_pop_rebellion_membership(p);
 
 		// -Pops with define : MIL_TO_JOIN_REBEL will join a rebel_faction
@@ -724,7 +733,7 @@ void update_factions(sys::state& state) {
 		dcon::rebel_faction_id m{dcon::rebel_faction_id::value_base_t(last)};
 		if(!rebel_faction_is_valid(state, m)) {
 			for(auto members : state.world.rebel_faction_get_pop_rebellion_membership(m)) {
-				members.get_pop().set_militancy(0.0f);
+				pop_demographics::set_militancy(state, members.get_pop().id, 0.0f);
 			}
 			delete_faction(state, m);
 		}
@@ -756,14 +765,14 @@ void daily_update_rebel_organization(sys::state& state) {
 		float total_change = 0;
 		for(auto pop : state.world.rebel_faction_get_pop_rebellion_membership(rf)) {
 			auto mil_factor = [&]() {
-				auto m = pop.get_pop().get_militancy();
+				auto m = pop_demographics::get_militancy(state, pop.get_pop());
 				if(m > state.defines.mil_to_autorise)
 					return 10.0f;
 				else if(m > state.defines.mil_to_join_rising)
 					return 5.0f;
 				return 1.0f;
 			}();
-			total_change += pop.get_pop().get_savings() * pop.get_pop().get_literacy() * mil_factor * org_gain_factor;
+			total_change += pop.get_pop().get_savings() * pop_demographics::get_literacy(state, pop.get_pop()) * mil_factor * org_gain_factor;
 		}
 		auto reg_count = state.world.rebel_faction_get_possible_regiments(rf);
 		auto within = state.world.rebel_faction_get_ruler_from_rebellion_within(rf);
@@ -925,7 +934,7 @@ void rebel_risings_check(sys::state& state) {
 				if(counter == 0)
 					break;
 
-				if(pop.get_pop().get_militancy() >= state.defines.mil_to_join_rising) {
+				if(pop_demographics::get_militancy(state, pop.get_pop()) >= state.defines.mil_to_join_rising) {
 					auto location = pop.get_pop().get_province_from_pop_location();
 
 					// this is the logic we would use if we were creating rebel regiments
@@ -1206,7 +1215,7 @@ void execute_rebel_victories(sys::state& state) {
 			}
 			//The pops won, reset their militancy to avoid death spiraling
 			for(auto members : state.world.rebel_faction_get_pop_rebellion_membership(reb)) {
-				members.get_pop().set_militancy(std::max(members.get_pop().get_militancy() - 8.0f, 0.0f));
+				pop_demographics::set_militancy(state, members.get_pop().id, std::max(pop_demographics::get_militancy(state, members.get_pop()) - 8.0f, 0.0f));
 			}
 
 			/*
@@ -1278,7 +1287,7 @@ std::string rebel_name(sys::state& state, dcon::rebel_faction_id reb) {
 	auto religion = state.world.rebel_faction_get_religion(reb);
 	auto defection_target = state.world.rebel_faction_get_defection_target(reb);
 	auto in_nation = state.world.rebel_faction_get_ruler_from_rebellion_within(reb);
-	auto rebel_adj = state.world.nation_get_adjective(in_nation);
+	auto rebel_adj = text::get_adjective(state, in_nation);
 	auto adjective = defection_target.get_adjective();
 
 	text::add_to_substitution_map(sub, text::variable_type::country, rebel_adj);

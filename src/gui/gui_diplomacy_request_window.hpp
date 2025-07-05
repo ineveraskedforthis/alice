@@ -56,8 +56,9 @@ public:
 			return text::produce_simple_string(state, "crisis_offer_di");
 		case diplomatic_message::type_t::state_transfer:
 			return text::produce_simple_string(state, "state_transfer_di");
+		default:
+			return std::string("???");
 		}
-		return std::string("???");
 	}
 	void on_update(sys::state& state) noexcept override {
 		auto diplomacy_request = retrieve< diplomatic_message::message>(state, parent);
@@ -83,9 +84,9 @@ class diplomacy_request_desc_text : public scrollable_text {
 			dcon::nation_id primary_defender = state.world.war_get_primary_defender(war);
 			text::substitution_map wsub;
 			text::add_to_substitution_map(wsub, text::variable_type::order, std::string_view(""));
-			text::add_to_substitution_map(wsub, text::variable_type::second, state.world.nation_get_adjective(primary_defender));
+			text::add_to_substitution_map(wsub, text::variable_type::second, text::get_adjective(state, primary_defender));
 			text::add_to_substitution_map(wsub, text::variable_type::second_country, primary_defender);
-			text::add_to_substitution_map(wsub, text::variable_type::first, state.world.nation_get_adjective(primary_attacker));
+			text::add_to_substitution_map(wsub, text::variable_type::first, text::get_adjective(state, primary_attacker));
 			text::add_to_substitution_map(wsub, text::variable_type::third, war.get_over_tag());
 			text::add_to_substitution_map(wsub, text::variable_type::state, war.get_over_state());
 			auto war_name = text::resolve_string_substitution(state, state.world.war_get_name(war), wsub);
@@ -138,16 +139,16 @@ class diplomacy_request_desc_text : public scrollable_text {
 		case diplomatic_message::type_t::take_crisis_side_offer:
 			text::add_line(state, contents, "alice_join_crisis_offer", text::variable_type::actor, diplomacy_request.from);
 			{
-				dcon::cb_type_id cbt = diplomacy_request.data.crisis_offer.wargoal_type;
+				dcon::cb_type_id cbt = diplomacy_request.data.crisis_offer.cb;
 
 				text::substitution_map sub;
-				text::add_to_substitution_map(sub, text::variable_type::recipient, diplomacy_request.data.crisis_offer.target);
+				text::add_to_substitution_map(sub, text::variable_type::recipient, diplomacy_request.data.crisis_offer.target_nation);
 				text::add_to_substitution_map(sub, text::variable_type::from, diplomacy_request.to);
-				if(diplomacy_request.data.crisis_offer.wargoal_secondary_nation)
-					text::add_to_substitution_map(sub, text::variable_type::third, diplomacy_request.data.crisis_offer.wargoal_secondary_nation);
-				else if(diplomacy_request.data.crisis_offer.wargoal_tag)
-					text::add_to_substitution_map(sub, text::variable_type::third, diplomacy_request.data.crisis_offer.wargoal_tag);
-				text::add_to_substitution_map(sub, text::variable_type::state, diplomacy_request.data.crisis_offer.wargoal_state);
+				if(diplomacy_request.data.crisis_offer.secondary_nation)
+					text::add_to_substitution_map(sub, text::variable_type::third, diplomacy_request.data.crisis_offer.secondary_nation);
+				else if(diplomacy_request.data.crisis_offer.wg_tag)
+					text::add_to_substitution_map(sub, text::variable_type::third, diplomacy_request.data.crisis_offer.wg_tag);
+				text::add_to_substitution_map(sub, text::variable_type::state, diplomacy_request.data.crisis_offer.state);
 
 				auto box = text::open_layout_box(contents);
 				text::add_to_layout_box(state, contents, box, state.world.cb_type_get_shortest_desc(cbt), sub);
@@ -189,10 +190,14 @@ class diplomacy_request_desc_text : public scrollable_text {
 			}
 		} break;
 		case diplomatic_message::type_t::state_transfer:
+		{
 			text::add_line(state, contents, "state_transfer_offer", text::variable_type::actor, diplomacy_request.from);
 			auto box = text::open_layout_box(contents);
 			text::add_to_layout_box(state, contents, box, diplomacy_request.data.state);
 			text::close_layout_box(contents, box);
+		}
+			break;
+		default:
 			break;
 		}
 	}
@@ -217,7 +222,7 @@ public:
 
 		auto content = retrieve<diplomatic_message::message>(state, parent);
 		auto color = delegate->black_text ? text::text_color::black : text::text_color::white;
-		auto container = text::create_endless_layout(
+		auto container = text::create_endless_layout(state,
 			delegate->internal_layout,
 			text::layout_parameters{
 				border.x,
@@ -259,12 +264,12 @@ public:
 			gid = base_data.data.button.button_image;
 		}
 		if(gid && flag_texture_handle > 0) {
-			auto& gfx_def = state.ui_defs.gfx[gid];
+			auto const& gfx_def = state.ui_defs.gfx[gid];
 			auto mask_handle = ogl::get_texture_handle(state, dcon::texture_id(gfx_def.type_dependent - 1), true);
 			auto& mask_tex = state.open_gl.asset_textures[dcon::texture_id(gfx_def.type_dependent - 1)];
 			ogl::render_masked_rect(state, get_color_modification(this == state.ui_state.under_mouse, disabled, interactable), float(x),
-					float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
-					gfx_def.is_vertically_flipped());
+				float(y), float(base_data.size.x), float(base_data.size.y), flag_texture_handle, mask_handle, base_data.get_rotation(),
+				gfx_def.is_vertically_flipped(), false);
 		}
 		image_element_base::render(state, x, y);
 	}
@@ -290,7 +295,7 @@ public:
 		xy_pair cur_pos{0, 0};
 		{
 			auto ptr = make_element_by_type<diplomacy_request_lr_button<false>>(state,
-					state.ui_state.defs_by_name.find("alice_left_right_button")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("alice_left_right_button"))->second.definition);
 			cur_pos.x = base_data.size.x - (ptr->base_data.size.x * 2);
 			cur_pos.y = ptr->base_data.size.y * 1;
 			ptr->base_data.position = cur_pos;
@@ -298,7 +303,7 @@ public:
 		}
 		{
 			auto ptr = make_element_by_type<diplomacy_request_count_text>(state,
-					state.ui_state.defs_by_name.find("alice_page_count")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("alice_page_count"))->second.definition);
 			cur_pos.x -= ptr->base_data.size.x;
 			ptr->base_data.position = cur_pos;
 			count_text = ptr.get();
@@ -306,7 +311,7 @@ public:
 		}
 		{
 			auto ptr = make_element_by_type<diplomacy_request_lr_button<true>>(state,
-					state.ui_state.defs_by_name.find("alice_left_right_button")->second.definition);
+					state.ui_state.defs_by_name.find(state.lookup_key("alice_left_right_button"))->second.definition);
 			cur_pos.x -= ptr->base_data.size.x;
 			ptr->base_data.position = cur_pos;
 			add_child_to_front(std::move(ptr));
@@ -337,9 +342,10 @@ public:
 	}
 
 	void on_update(sys::state& state) noexcept override {
-		auto it = std::remove_if(messages.begin(), messages.end(),
-				[&](auto& m) { return m.when + diplomatic_message::expiration_in_days <= state.current_date; });
-		auto r = std::distance(it, messages.end());
+		auto it = std::remove_if(messages.begin(), messages.end(), [&](auto& m) {
+			return m.when + (int32_t) state.defines.alice_message_expiration_days <= state.current_date
+				|| !diplomatic_message::can_accept(state, m);
+		});
 		messages.erase(it, messages.end());
 
 		if(messages.empty()) {

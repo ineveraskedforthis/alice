@@ -45,46 +45,6 @@ constexpr inline uint32_t build_university = 0x80000000; // independent
 
 namespace culture {
 
-enum class flag_type : uint8_t {
-	default_flag = 0,
-	republic,
-	communist,
-	fascist,
-	monarchy,
-	// Non-vanilla flags
-	theocracy,
-	special,
-	spare,
-	populist,
-	realm,
-	other,
-	monarchy2,
-	monarchy3,
-	republic2,
-	republic3,
-	communist2,
-	communist3,
-	fascist2,
-	fascist3,
-	theocracy2,
-	theocracy3,
-	cosmetic_1,
-	cosmetic_2,
-	colonial,
-	nationalist,
-	sectarian,
-	socialist,
-	dominion,
-	agrarism,
-	national_syndicalist,
-	theocratic,
-	slot1,
-	slot2,
-	slot3,
-	slot4,
-	count
-};
-
 constexpr inline uint64_t to_bits(dcon::ideology_id id) {
 	if(id)
 		return uint64_t(uint64_t(1) << uint64_t(id.index()));
@@ -93,16 +53,19 @@ constexpr inline uint64_t to_bits(dcon::ideology_id id) {
 }
 
 struct crime_info {
-	dcon::text_sequence_id name;
+	dcon::text_key name;
 	dcon::modifier_id modifier;
 	dcon::trigger_key trigger;
 	bool available_by_default = false;
 };
 
-enum class tech_category : uint8_t { army, navy, commerce, culture, industry, unknown };
+enum class tech_category : uint8_t { army, navy, commerce, culture, industry, military_theory, population, diplomacy, flavor, unknown };
+
+std::string get_tech_category_name(tech_category t);
+std::vector<culture::tech_category> get_active_tech_categories(sys::state& state);
 
 struct folder_info {
-	dcon::text_sequence_id name;
+	dcon::text_key name;
 	tech_category category = tech_category::army;
 };
 
@@ -158,6 +121,14 @@ struct global_cultural_state {
 	dcon::value_modifier_key emigration_chance;
 	dcon::value_modifier_key assimilation_chance;
 	dcon::value_modifier_key conversion_chance;
+
+	uint64_t promotion_chance_fn = 0;
+	uint64_t demotion_chance_fn = 0;
+	uint64_t migration_chance_fn = 0;
+	uint64_t colonialmigration_chance_fn = 0;
+	uint64_t emigration_chance_fn = 0;
+	uint64_t assimilation_chance_fn = 0;
+	uint64_t conversion_chance_fn = 0;
 };
 
 enum class issue_category : uint8_t { party, political, social, military, economic };
@@ -176,9 +147,8 @@ void apply_technology(sys::state& state, dcon::nation_id target_nation, dcon::te
 void apply_invention(sys::state& state, dcon::nation_id target_nation, dcon::invention_id inv_id);
 void remove_technology(sys::state& state, dcon::nation_id target_nation, dcon::technology_id tech_id);
 void remove_invention(sys::state& state, dcon::nation_id target_nation, dcon::invention_id inv_id);
-uint32_t get_remapped_flag_type(sys::state const& state, flag_type type);
-flag_type get_current_flag_type(sys::state const& state, dcon::nation_id target_nation);
-flag_type get_current_flag_type(sys::state const& state, dcon::national_identity_id identity);
+dcon::government_flag_id  get_current_flag_type(sys::state const& state, dcon::nation_id target_nation);
+dcon::government_flag_id  get_current_flag_type(sys::state const& state, dcon::national_identity_id identity);
 void update_nation_issue_rules(sys::state& state, dcon::nation_id n_id); // note: does react to changes in slavery rule
 void update_all_nations_issue_rules(sys::state& state);									 // note: doesn't react to changes in slavery rule
 
@@ -186,7 +156,8 @@ void create_initial_ideology_and_issues_distribution(sys::state& state);
 void set_default_issue_and_reform_options(sys::state& state);
 void restore_unsaved_values(sys::state& state);
 
-float effective_technology_cost(sys::state& state, uint32_t current_year, dcon::nation_id target_nation, dcon::technology_id tech_id);
+float effective_technology_lp_cost(sys::state& state, uint32_t current_year, dcon::nation_id target_nation, dcon::technology_id tech_id);
+float effective_technology_rp_cost(sys::state& state, uint32_t current_year, dcon::nation_id target_nation, dcon::technology_id tech_id);
 void update_research(sys::state& state, uint32_t current_year);
 void discover_inventions(sys::state& state);
 void fix_slaves_in_province(sys::state& state, dcon::nation_id owner, dcon::province_id p);

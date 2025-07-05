@@ -63,20 +63,75 @@ public:
 			text::add_to_layout_box(state, contents, box, text::fp_percentage{ fat.get_strength() }, color);
 			text::close_layout_box(contents, box);
 		}
+
 		auto fat_id = dcon::fatten(state.world, retrieve<T>(state, parent));
+		float total_cost = 0.f;
+
+		// Reinforcement cost as % of construction cost
+		// Shows how many goods will it take to fully reinforce the unit
+		auto& build_cost = state.military_definitions.unit_base_definitions[fat_id.get_type()].build_cost;
+		auto hadheader = false;
+		for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+			if(build_cost.commodity_type[i]) {
+				float cost = state.world.commodity_get_cost(build_cost.commodity_type[i]);
+				float curstr = military::unit_get_strength(state, fat_id);
+				if(curstr >= 1.0f) {
+					continue;
+				}
+				auto box = text::open_layout_box(contents, 0);
+
+				if(!hadheader) {
+					hadheader = true;
+
+					text::localised_format_box(state, contents, box, "unit_reinforcement_needs");
+					text::close_layout_box(contents, box);
+					box = text::open_layout_box(contents, 0);
+				}
+
+				float amount = build_cost.commodity_amounts[i] * (1.0f - curstr);
+				text::substitution_map m;
+				text::add_to_substitution_map(m, text::variable_type::name, state.world.commodity_get_name(build_cost.commodity_type[i]));
+				text::add_to_substitution_map(m, text::variable_type::val, text::fp_currency{ cost });
+				text::add_to_substitution_map(m, text::variable_type::need, text::fp_four_places{ amount });
+				text::add_to_substitution_map(m, text::variable_type::cost, text::fp_currency{ cost * amount });
+
+				auto cid = build_cost.commodity_type[i];
+				std::string padding = cid.index() < 10 ? "0" : "";
+				std::string description = "@$" + padding + std::to_string(cid.index());
+				text::add_unparsed_text_to_layout_box(state, contents, box, description);
+
+				text::localised_format_box(state, contents, box, "alice_spending_commodity", m);
+				text::close_layout_box(contents, box);
+				total_cost += cost * amount;
+			} else {
+				break;
+			}
+		}
+		// Everyday supply costs
+		{
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, "unit_supply_needs");
+			text::close_layout_box(contents, box);
+		}
 		auto o_sc_mod = std::max(0.01f, state.world.nation_get_modifier_values(state.local_player_nation, sys::national_mod_offsets::supply_consumption) + 1.0f);
 		auto& supply_cost = state.military_definitions.unit_base_definitions[fat_id.get_type()].supply_cost;
-		float total_cost = 0.f;
 		for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 			if(supply_cost.commodity_type[i]) {
 				float cost = state.world.commodity_get_cost(supply_cost.commodity_type[i]);
-				float amount = supply_cost.commodity_amounts[i] * state.world.nation_get_unit_stats(state.local_player_nation, fat_id.get_type()).supply_consumption * o_sc_mod;
+				float curstr = military::unit_get_strength(state, fat_id);
+				float amount = supply_cost.commodity_amounts[i] * state.world.nation_get_unit_stats(state.local_player_nation, fat_id.get_type()).supply_consumption * o_sc_mod * curstr;
 				text::substitution_map m;
 				text::add_to_substitution_map(m, text::variable_type::name, state.world.commodity_get_name(supply_cost.commodity_type[i]));
 				text::add_to_substitution_map(m, text::variable_type::val, text::fp_currency{ cost });
 				text::add_to_substitution_map(m, text::variable_type::need, text::fp_four_places{ amount });
 				text::add_to_substitution_map(m, text::variable_type::cost, text::fp_currency{ cost * amount });
 				auto box = text::open_layout_box(contents, 0);
+
+				auto cid = supply_cost.commodity_type[i];
+				std::string padding = cid.index() < 10 ? "0" : "";
+				std::string description = "@$" + padding + std::to_string(cid.index());
+				text::add_unparsed_text_to_layout_box(state, contents, box, description);
+
 				text::localised_format_box(state, contents, box, "alice_spending_commodity", m);
 				text::close_layout_box(contents, box);
 				total_cost += cost * amount;
@@ -121,9 +176,10 @@ public:
 		auto base_pop = state.world.regiment_get_pop_from_regiment_source(reg_id);
 
 		if(!base_pop) {
-			text::add_line(state, contents, "alice_reinforce_rate_none");
+			text::add_line(state, contents, "reinforce_rate_none");
 		} else {
-			text::add_line(state, contents, "alice_x_from_y", text::variable_type::x, state.world.pop_get_poptype(base_pop).get_name(), text::variable_type::y, state.world.pop_get_province_from_pop_location(base_pop));
+			// Added culture name to the tooltip
+			text::add_line(state, contents, "x_from_y", text::variable_type::x, state.world.pop_get_poptype(base_pop).get_name(), text::variable_type::y, state.world.pop_get_province_from_pop_location(base_pop), text::variable_type::culture, state.world.pop_get_culture(base_pop).get_name());
 			text::add_line_break_to_layout(state, contents);
 
 			auto reg_range = state.world.pop_get_regiment_source(base_pop);
@@ -133,12 +189,12 @@ public:
 				text::variable_type::current, int64_t(reg_range.end() - reg_range.begin())
 			);
 
-			auto a = state.world.regiment_get_army_from_army_membership(reg_id);
-			auto reinf = state.defines.pop_size_per_regiment * military::reinforce_amount(state, a);
+			//auto a = state.world.regiment_get_army_from_army_membership(reg_id);
+			auto reinf = state.defines.pop_size_per_regiment * military::unit_calculate_reinforcement(state, reg_id, true);
 			if(reinf >= 2.0f) {
-				text::add_line(state, contents, "alice_reinforce_rate", text::variable_type::x, int64_t(reinf));
+				text::add_line(state, contents, "reinforce_rate", text::variable_type::x, int64_t(reinf));
 			} else {
-				text::add_line(state, contents, "alice_reinforce_rate_none");
+				text::add_line(state, contents, "reinforce_rate_none");
 			}
 		}
 	}
@@ -165,7 +221,7 @@ enum class reorg_win_action : uint8_t {
 };
 
 template<class T>
-class reorg_unit_transfer_button : public shift_button_element_base {
+class reorg_unit_transfer_button : public button_element_base {
 public:
 	void button_action(sys::state& state) noexcept override {
 		auto content = retrieve<T>(state, parent);
@@ -330,12 +386,28 @@ public:
 						listbox_left::row_contents.push_back(regi.get_regiment().id);
 					}
 				}
+				std::sort(listbox_left::row_contents.begin(), listbox_left::row_contents.end(), [&](dcon::regiment_id a, dcon::regiment_id b) {
+					auto av = state.world.regiment_get_type(a).index();
+					auto bv = state.world.regiment_get_type(b).index();
+					if(av != bv)
+						return av > bv;
+					else
+						return a.index() < b.index();
+				});
 			} else {
 				for(auto regi : fat.get_navy_membership()) {
 					if(auto result = std::find(begin(selectedunits), end(selectedunits), regi.get_ship().id); result == std::end(selectedunits)) {
 						listbox_left::row_contents.push_back(regi.get_ship().id);
 					}
 				}
+				std::sort(listbox_left::row_contents.begin(), listbox_left::row_contents.end(), [&](dcon::ship_id a, dcon::ship_id b) {
+					auto av = state.world.ship_get_type(a).index();
+					auto bv = state.world.ship_get_type(b).index();
+					if(av != bv)
+						return av > bv;
+					else
+						return a.index() < b.index();
+				});
 			}
 
 			listbox_left::update(state);
@@ -370,12 +442,28 @@ public:
 						listbox_right::row_contents.push_back(regi.get_regiment().id);
 					}
 				}
+				std::sort(listbox_right::row_contents.begin(), listbox_right::row_contents.end(), [&](dcon::regiment_id a, dcon::regiment_id b) {
+					auto av = state.world.regiment_get_type(a).index();
+					auto bv = state.world.regiment_get_type(b).index();
+					if(av != bv)
+						return av > bv;
+					else
+						return a.index() < b.index();
+				});
 			} else {
 				for(auto regi : fat.get_navy_membership()) {
 					if(auto result = std::find(begin(selectedunits), end(selectedunits), regi.get_ship().id); result != std::end(selectedunits)) {
 						listbox_right::row_contents.push_back(regi.get_ship().id);
 					}
 				}
+				std::sort(listbox_right::row_contents.begin(), listbox_right::row_contents.end(), [&](dcon::ship_id a, dcon::ship_id b) {
+					auto av = state.world.ship_get_type(a).index();
+					auto bv = state.world.ship_get_type(b).index();
+					if(av != bv)
+						return av > bv;
+					else
+						return a.index() < b.index();
+				});
 			}
 
 			listbox_right::update(state);

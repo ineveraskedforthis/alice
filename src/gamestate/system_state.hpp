@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <atomic>
 #include <chrono>
-
+#include <semaphore>
 
 #include "window.hpp"
 #include "constants.hpp"
 #include "dcon_generated.hpp"
 #include "gui_graphics.hpp"
+#include "game_scene.hpp"
 #include "simple_fs.hpp"
 #include "text.hpp"
 #include "opengl_wrapper.hpp"
@@ -30,6 +31,8 @@
 #include "events.hpp"
 #include "notifications.hpp"
 #include "network.hpp"
+#include "fif.hpp"
+#include "immediate_mode.hpp"
 
 // this header will eventually contain the highest-level objects
 // that represent the overall state of the program
@@ -56,7 +59,7 @@ struct user_settings_s {
 	uint8_t self_message_settings[int32_t(sys::message_setting_type::count)] = {
 		message_response::standard_pause,//revolt = 0,
 		message_response::standard_pause,//war_on_nation = 1,
-		message_response::ignore,//war_by_nation = 2,
+		message_response::standard_log,//war_by_nation = 2,
 		message_response::standard_popup,//wargoal_added = 3,
 		message_response::ignore,//siegeover_by_nation = 4,
 		message_response::ignore,//siegeover_on_nation = 5,
@@ -70,20 +73,20 @@ struct user_settings_s {
 		message_response::standard_popup,//breakcountry = 13,
 		message_response::ignore,//peace_accepted_from_nation = 14,
 		message_response::standard_popup,//peace_rejected_from_nation = 15,
-		message_response::ignore,//peace_accepted_by_nation = 16,
-		message_response::ignore,//peace_rejected_by_nation = 17,
+		message_response::standard_log,//peace_accepted_by_nation = 16,
+		message_response::standard_log,//peace_rejected_by_nation = 17,
 		message_response::standard_popup,//mobilization_start = 18,
 		message_response::standard_popup,//mobilization_end = 19,
-		message_response::log,//factory_complete = 20,
-		message_response::log,//rr_complete = 21,
-		message_response::log,//fort_complete = 22,
-		message_response::log,//naval_base_complete = 23,
-		message_response::log,//province_event = 24,
-		message_response::log,//national_event = 25,
-		message_response::log,//major_event = 26,
+		message_response::standard_log,//factory_complete = 20,
+		message_response::standard_log,//rr_complete = 21,
+		message_response::standard_log,//fort_complete = 22,
+		message_response::standard_log,//naval_base_complete = 23,
+		message_response::standard_log,//province_event = 24,
+		message_response::standard_log,//national_event = 25,
+		message_response::standard_log,//major_event = 26,
 		message_response::standard_popup,//invention = 27,
 		message_response::standard_popup,//tech = 28,
-		message_response::log,//leader_dies = 29,
+		message_response::standard_log,//leader_dies = 29,
 		message_response::ignore,//land_combat_starts_on_nation = 30,
 		message_response::ignore,//naval_combat_starts_on_nation = 31,
 		message_response::ignore,//land_combat_starts_by_nation = 32,
@@ -152,27 +155,29 @@ struct user_settings_s {
 		message_response::standard_popup,//cb_fab_finished = 95,
 		message_response::standard_popup,//cb_fab_cancelled = 96,
 		message_response::ignore,//crisis_voluntary_joi_on = 97,
-		message_response::log,//army_built = 98,
-		message_response::log,//navy_built = 99,
+		message_response::standard_log,//army_built = 98,
+		message_response::standard_log,//navy_built = 99,
 		message_response::standard_popup,//bankruptcy = 100,
+		message_response::standard_popup,//entered_automatic_alliance = 101,
+		message_response::standard_log,//chat_message = 102,
 	};
 	uint8_t interesting_message_settings[int32_t(sys::message_setting_type::count)] = {
-		message_response::log,//revolt = 0,
-		message_response::log,//war_on_nation = 1,
-		message_response::ignore,//war_by_nation = 2,
-		message_response::log,//wargoal_added = 3,
+		message_response::standard_log,//revolt = 0,
+		message_response::standard_log,//war_on_nation = 1,
+		message_response::standard_log,//war_by_nation = 2,
+		message_response::standard_log,//wargoal_added = 3,
 		message_response::ignore,//siegeover_by_nation = 4,
 		message_response::ignore,//siegeover_on_nation = 5,
-		message_response::log,//colony_finished = 6,
+		message_response::standard_log,//colony_finished = 6,
 		message_response::ignore,//reform_gained = 7,
 		message_response::ignore,//reform_lost = 8,
 		message_response::ignore,//ruling_party_change = 9,
-		message_response::log,//upperhouse = 10,
-		message_response::log,//electionstart = 11,
-		message_response::log,//electiondone = 12,
-		message_response::log,//breakcountry = 13,
+		message_response::standard_log,//upperhouse = 10,
+		message_response::standard_log,//electionstart = 11,
+		message_response::standard_log,//electiondone = 12,
+		message_response::standard_log,//breakcountry = 13,
 		message_response::ignore,//peace_accepted_from_nation = 14,
-		message_response::log,//peace_rejected_from_nation = 15,
+		message_response::standard_log,//peace_rejected_from_nation = 15,
 		message_response::ignore,//peace_accepted_by_nation = 16,
 		message_response::ignore,//peace_rejected_by_nation = 17,
 		message_response::standard_popup,//mobilization_start = 18,
@@ -181,11 +186,11 @@ struct user_settings_s {
 		message_response::ignore,//rr_complete = 21,
 		message_response::ignore,//fort_complete = 22,
 		message_response::ignore,//naval_base_complete = 23,
-		message_response::log,//province_event = 24,
-		message_response::log,//national_event = 25,
+		message_response::standard_log,//province_event = 24,
+		message_response::standard_log,//national_event = 25,
 		message_response::standard_popup,//major_event = 26,
-		message_response::log,//invention = 27,
-		message_response::log,//tech = 28,
+		message_response::standard_log,//invention = 27,
+		message_response::standard_log,//tech = 28,
 		message_response::ignore,//leader_dies = 29,
 		message_response::ignore,//land_combat_starts_on_nation = 30,
 		message_response::ignore,//naval_combat_starts_on_nation = 31,
@@ -193,53 +198,53 @@ struct user_settings_s {
 		message_response::ignore,//naval_combat_starts_by_nation = 33,
 		message_response::ignore,//movement_finishes = 34,
 		message_response::ignore,//decision = 35,
-		message_response::log,//lose_great_power = 36,
-		message_response::log,//become_great_power = 37,
-		message_response::log,//war_subsidies_start_by_nation = 38,
-		message_response::log,//war_subsidies_start_on_nation = 39,
-		message_response::log,//war_subsidies_end_by_nation = 40,
-		message_response::log,//war_subsidies_end_on_nation = 41,
-		message_response::log,//reparations_start_by_nation = 42,
-		message_response::log,//reparations_start_on_nation = 43,
-		message_response::log,//reparations_end_by_nation = 44,
-		message_response::log,//reparations_end_on_nation = 45,
+		message_response::standard_log,//lose_great_power = 36,
+		message_response::standard_log,//become_great_power = 37,
+		message_response::standard_log,//war_subsidies_start_by_nation = 38,
+		message_response::standard_log,//war_subsidies_start_on_nation = 39,
+		message_response::standard_log,//war_subsidies_end_by_nation = 40,
+		message_response::standard_log,//war_subsidies_end_on_nation = 41,
+		message_response::standard_log,//reparations_start_by_nation = 42,
+		message_response::standard_log,//reparations_start_on_nation = 43,
+		message_response::standard_log,//reparations_end_by_nation = 44,
+		message_response::standard_log,//reparations_end_on_nation = 45,
 		message_response::ignore,//mil_access_start_by_nation = 46,
 		message_response::ignore,//mil_access_start_on_nation = 47,
 		message_response::ignore,//mil_access_end_by_nation = 48,
 		message_response::ignore,//mil_access_end_on_nation = 49,
 		message_response::ignore,//mil_access_declined_by_nation = 50,
 		message_response::ignore,//mil_access_declined_on_nation = 51,
-		message_response::log,//alliance_starts = 52,
-		message_response::log,//alliance_ends = 53,
+		message_response::standard_log,//alliance_starts = 52,
+		message_response::standard_log,//alliance_ends = 53,
 		message_response::ignore,//alliance_declined_by_nation = 54,
 		message_response::ignore,//alliance_declined_on_nation = 55,
 		message_response::ignore,//ally_called_accepted_by_nation = 56,
 		message_response::ignore,//ally_called_declined_by_nation = 57,
 		message_response::ignore,//discredit_by_nation = 58,
-		message_response::log,//ban_by_nation = 59,
-		message_response::log,//expell_by_nation = 60,
-		message_response::log,//discredit_on_nation = 61,
+		message_response::standard_log,//ban_by_nation = 59,
+		message_response::standard_log,//expell_by_nation = 60,
+		message_response::standard_log,//discredit_on_nation = 61,
 		message_response::ignore,//ban_on_nation = 62,
 		message_response::ignore,//expell_on_nation = 63,
 		message_response::ignore,//increase_opinion = 64,
-		message_response::log,//decrease_opinion_by_nation = 65,
-		message_response::log,//decrease_opinion_on_nation = 66,
-		message_response::log,//rem_sphere_by_nation = 67,
-		message_response::log,//rem_sphere_on_nation = 68,
-		message_response::log,//removed_from_sphere = 69,
-		message_response::log,//add_sphere = 70,
-		message_response::log,//added_to_sphere = 71,
-		message_response::log,//increase_relation_by_nation = 72,
-		message_response::log,//increase_relation_on_nation = 73,
-		message_response::log,//decrease_relation_by_nation = 74,
-		message_response::log,//decrease_relation_on_nation = 75,
-		message_response::log,//join_war_by_nation = 76,
-		message_response::log,//join_war_on_nation = 77,
+		message_response::standard_log,//decrease_opinion_by_nation = 65,
+		message_response::standard_log,//decrease_opinion_on_nation = 66,
+		message_response::standard_log,//rem_sphere_by_nation = 67,
+		message_response::standard_log,//rem_sphere_on_nation = 68,
+		message_response::standard_log,//removed_from_sphere = 69,
+		message_response::standard_log,//add_sphere = 70,
+		message_response::standard_log,//added_to_sphere = 71,
+		message_response::standard_log,//increase_relation_by_nation = 72,
+		message_response::standard_log,//increase_relation_on_nation = 73,
+		message_response::standard_log,//decrease_relation_by_nation = 74,
+		message_response::standard_log,//decrease_relation_on_nation = 75,
+		message_response::standard_log,//join_war_by_nation = 76,
+		message_response::standard_log,//join_war_on_nation = 77,
 		message_response::ignore,//gw_unlocked = 78,
 		message_response::ignore,//war_becomes_great = 79,
 		message_response::ignore,//cb_detected_on_nation = 80,
 		message_response::standard_popup,//cb_detected_by_nation = 81,
-		message_response::log,//crisis_join_offer_accepted_by_nation = 82,
+		message_response::standard_log,//crisis_join_offer_accepted_by_nation = 82,
 		message_response::ignore,//crisis_join_offer_declined_by_nation = 83,
 		message_response::ignore,//crisis_join_offer_accepted_from_nation = 84,
 		message_response::ignore,//crisis_join_offer_declined_from_nation = 85,
@@ -250,7 +255,7 @@ struct user_settings_s {
 		message_response::standard_popup,//crisis_attacker_backer = 90,
 		message_response::standard_popup,//crisis_defender_backer = 91,
 		message_response::ignore,//crisis_fizzle = 92,
-		message_response::log,//war_join_by = 93,
+		message_response::standard_log,//war_join_by = 93,
 		message_response::ignore,//war_join_on = 94,
 		message_response::ignore,//cb_fab_finished = 95,
 		message_response::ignore,//cb_fab_cancelled = 96,
@@ -258,6 +263,8 @@ struct user_settings_s {
 		message_response::ignore,//army_built = 98,
 		message_response::ignore,//navy_built = 99,
 		message_response::standard_popup,//bankruptcy = 100,
+		message_response::ignore,//entered_automatic_alliance = 101,
+		message_response::standard_log,//chat_message = 102,
 	};
 	uint8_t other_message_settings[int32_t(sys::message_setting_type::count)] = {
 		message_response::ignore,//revolt = 0,
@@ -341,7 +348,7 @@ struct user_settings_s {
 		message_response::ignore,//gw_unlocked = 78,
 		message_response::ignore,//war_becomes_great = 79,
 		message_response::ignore,//cb_detected_on_nation = 80,
-		message_response::log,//cb_detected_by_nation = 81,
+		message_response::standard_log,//cb_detected_by_nation = 81,
 		message_response::ignore,//crisis_join_offer_accepted_by_nation = 82,
 		message_response::ignore,//crisis_join_offer_declined_by_nation = 83,
 		message_response::ignore,//crisis_join_offer_accepted_from_nation = 84,
@@ -361,10 +368,12 @@ struct user_settings_s {
 		message_response::ignore,//army_built = 98,
 		message_response::ignore,//navy_built = 99,
 		message_response::standard_popup,//bankruptcy = 100,
+		message_response::ignore,//entered_automatic_alliance = 101,
+		message_response::standard_log,//chat_message = 102,
 	};
 	bool fow_enabled = false;
 	map_label_mode map_label = map_label_mode::quadratic;
-	uint8_t antialias_level = 0;
+	uint8_t antialias_level = 4;
 	float gaussianblur_level = 1.f;
 	float gamma = 1.f;
 	bool railroads_enabled = true;
@@ -375,38 +384,70 @@ struct user_settings_s {
 	bool mouse_edge_scrolling = false;
 	bool black_map_font = true;
 	bool spoilers = true;
+	float zoom_speed = 20.f;
+	bool mute_on_focus_lost = true;
+	bool diplomatic_message_popup = false;
+	bool wasd_for_map_movement = false;
+	bool notify_rebels_defeat = true;
+	sys::color_blind_mode color_blind_mode = sys::color_blind_mode::none;
+	sys::graphics_mode graphics_mode = sys::graphics_mode::classic;
+	uint32_t UNUSED_UINT32_T = 0;
+	char locale[16] = "en-US";
+};
+
+struct host_settings_s {
+	float alice_persistent_server_mode = 0.0f;
+	float alice_persistent_server_unpause = 12.f;
+	float alice_persistent_server_pause = 20.f;
+	float alice_expose_webui = 0.0f;
+	float alice_place_ai_upon_disconnection = 1.0f;
+	float alice_lagging_behind_days_to_slow_down = 30.f;
+	float alice_lagging_behind_days_to_drop = 90.f;
 };
 
 struct global_scenario_data_s { // this struct holds miscellaneous global properties of the scenario
 };
 
 struct cheat_data_s {
+	bool disable_ai = false;
+	bool disable_economy = false;
+	bool disable_demography = false;
 	bool always_allow_wargoals = false;
 	bool always_allow_reforms = false;
 	bool always_accept_deals = false;
 	bool show_province_id_tooltip = false;
-	bool wasd_move_cam = false;
 	bool instant_army = false;
 	bool instant_industry = false;
 	std::vector<dcon::nation_id> instant_research_nations;
+	bool daily_oos_check = false;
+	bool province_names = false;
+
+	bool ecodump = false;
+
+	std::string national_economy_dump_buffer;
+	std::string savings_buffer;
+	std::string prices_dump_buffer;
+	std::string demand_dump_buffer;
+	std::string supply_dump_buffer;
+
+	bool instant_navy = false;
+	bool always_allow_decisions = false;
+	bool always_potential_decisions = false;
 };
 
 struct crisis_member_def {
 	dcon::nation_id id;
-
-	crisis_join_offer joined_with_offer;
 
 	bool supports_attacker = false;
 	bool merely_interested = false;
 };
 static_assert(sizeof(crisis_member_def) ==
 	sizeof(crisis_member_def::id)
-	+ sizeof(crisis_member_def::joined_with_offer)
 	+ sizeof(crisis_member_def::supports_attacker)
 	+ sizeof(crisis_member_def::merely_interested));
 
-enum class crisis_type : uint32_t { none = 0, claim = 1, liberation = 2, colonial = 3, influence = 4 };
-enum class crisis_mode : uint32_t { inactive = 0, finding_attacker = 1, finding_defender = 2, heating_up = 3 };
+enum class crisis_type : uint32_t { none = 0, claim = 1, liberation = 2, colonial = 3, influence = 4, wargoals = 5 };
+enum class crisis_state : uint32_t { inactive = 0, finding_attacker = 1, finding_defender = 2, heating_up = 3 };
 
 struct great_nation {
 	sys::date last_greatness = sys::date(0);
@@ -440,8 +481,11 @@ struct player_data { // currently this data is serialized via memcpy, to make su
 // so that bits of the ui, for example, can control the overall state of
 // the game
 
-struct alignas(64) state {
-	dcon::data_container world;
+/// <summary>
+/// Holds important data about the game world, state, and other data regarding windowing, audio, and more.
+/// </summary>
+struct alignas(64) state { 
+	dcon::data_container world; // Holds data regarding the game world. Also contains user locales.
 
 	// scenario data
 
@@ -463,11 +507,10 @@ struct alignas(64) state {
 	std::vector<value_modifier_segment> value_modifier_segments;
 	tagged_vector<value_modifier_description, dcon::value_modifier_key> value_modifiers;
 
-	std::vector<char> text_data; // stores string data in the win1250 codepage
-	std::vector<text::text_component> text_components;
-	tagged_vector<text::text_sequence, dcon::text_sequence_id> text_sequences;
-	ankerl::unordered_dense::map<dcon::text_key, dcon::text_sequence_id, text::vector_backed_hash, text::vector_backed_eq>
-			key_to_text_sequence;
+	std::vector<char> key_data;
+	std::vector<char> locale_text_data;
+	ankerl::unordered_dense::set<dcon::text_key, text::vector_backed_ci_hash, text::vector_backed_ci_eq> untrans_key_to_text_sequence;
+	ankerl::unordered_dense::map<dcon::text_key, uint32_t, text::vector_backed_ci_hash, text::vector_backed_ci_eq> locale_key_to_text_sequence;
 
 	bool adjacency_data_out_of_date = true;
 	bool national_cached_values_out_of_date = false;
@@ -479,29 +522,37 @@ struct alignas(64) state {
 	std::vector<great_nation> great_nations;
 
 	uint64_t scenario_time_stamp = 0;	// for identifying the scenario file
-	uint32_t scenario_counter = 0;		// as above
+	uint32_t scenario_counter = 0;		// for identifying the scenario file
 	int32_t autosave_counter = 0; // which autosave file is next
 	sys::checksum_key scenario_checksum;// for checksum for savefiles
 	sys::checksum_key session_host_checksum;// for checking that the client can join a session
 	native_string loaded_scenario_file;
 	native_string loaded_save_file;
 
+#ifdef USE_LLVM
+	std::unique_ptr<fif::environment> jit_environment;
+#endif
+
 	//
 	// Crisis data
 	//
 
-	dcon::state_instance_id crisis_state;
-	std::vector<crisis_member_def> crisis_participants;
+	dcon::nation_id crisis_attacker;
+	dcon::nation_id crisis_defender;
+	// For legacy reasons (compatibility with mods) save state_instance_id separately. It's only filled for Liberation crises.
+	dcon::state_instance_id crisis_state_instance;
+	// For legacy triggers save crisis type separately
 	crisis_type current_crisis = crisis_type::none;
+	std::vector<crisis_member_def> crisis_participants;
+	std::vector<sys::full_wg> crisis_attacker_wargoals;
+	std::vector<sys::full_wg> crisis_defender_wargoals;
 	float crisis_temperature = 0;
 	dcon::nation_id primary_crisis_attacker;
 	dcon::nation_id primary_crisis_defender;
-	crisis_mode current_crisis_mode = crisis_mode::inactive;
+	crisis_state current_crisis_state = crisis_state::inactive;
 	uint32_t crisis_last_checked_gp = 0;
 	dcon::war_id crisis_war;
 	sys::date last_crisis_end_date{0}; // initial grace period
-	dcon::national_identity_id crisis_liberation_tag;
-	dcon::state_definition_id crisis_colony;
 
 	//
 	// Messages
@@ -530,30 +581,51 @@ struct alignas(64) state {
 
 	ui::definitions ui_defs; // definitions for graphics and ui
 
-	std::vector<uint8_t> flag_type_map;   // flag_type remapper for saving space while also allowing
-	                                      // mods to add flags not present in vanilla
-	std::vector<culture::flag_type> flag_types; // List of unique flag types
-
 	//
 	// persistent user settings
 	//
 
 	user_settings_s user_settings;
 
+	host_settings_s host_settings;
+
 	//
 	// current program / ui state
 	//
 
-	game_mode_type mode = game_mode_type::pick_nation;
 	network_mode_type network_mode = network_mode_type::single_player;
 	dcon::nation_id local_player_nation;
 	sys::date current_date = sys::date{0};
 	sys::date ui_date = sys::date{0};
 	uint32_t game_seed = 0; // do *not* alter this value, ever
-	float inflation = 1.0f;
+	float inflation = 0.999f; // to compensate for some of money generation which will happen anyway
 	player_data player_data_cache;
 	std::vector<dcon::army_id> selected_armies;
+	std::vector<dcon::regiment_id> selected_regiments; // selected regiments inside the army
+
 	std::vector<dcon::navy_id> selected_navies;
+	std::vector<dcon::ship_id> selected_ships; // selected ships inside the navy
+
+	dcon::commodity_id selected_trade_good;
+	dcon::factory_type_id selected_factory_type;
+	std::mutex ugly_ui_game_interaction_hack;
+
+	//control groups
+	std::array<std::vector<dcon::army_id>, 10> ctrl_armies;
+	std::array<std::vector<dcon::navy_id>, 10> ctrl_navies;
+
+	// statistics
+	// variable for testing AI changes
+	// int pressed_wargoals = 0;
+
+	//army group
+	dcon::automated_army_group_id selected_army_group{};
+
+	army_group_order selected_army_group_order = army_group_order::none;
+
+	//current ui
+	game_scene::scene_properties current_scene;
+
 	std::optional<state_selection_data> state_selection;
 	map_mode::mode stored_map_mode = map_mode::mode::political;
 
@@ -561,6 +633,7 @@ struct alignas(64) state {
 	std::unique_ptr<window::window_data_impl> win_ptr = nullptr;     // platform-dependent window information
 	std::unique_ptr<sound::sound_impl> sound_ptr = nullptr;          // platform-dependent sound information
 	ui::state ui_state;                                              // transient information for the state of the ui
+	ogl::animation ui_animation;
 	text::font_manager font_collection;
 
 	// synchronization data (between main update logic and ui thread)
@@ -572,6 +645,8 @@ struct alignas(64) state {
 	rigtorp::SPSCQueue<command::payload> incoming_commands;          // ui or network -> local gamestate
 	std::atomic<bool> ui_pause = false;                              // force pause by an important message being open
 	std::atomic<bool> railroad_built = true; // game state -> map
+	std::atomic<bool> sprawl_update_requested = true;
+	std::atomic<bool> update_trade_flow = true;
 
 	// synchronization: notifications from the gamestate to ui
 	rigtorp::SPSCQueue<event::pending_human_n_event> new_n_event;
@@ -596,12 +671,13 @@ struct alignas(64) state {
 	bool is_dragging = false;
 	int32_t x_drag_start = 0;
 	int32_t y_drag_start = 0;
-	std::chrono::time_point<std::chrono::steady_clock> tooltip_timer = std::chrono::steady_clock::now();
 
 	// map data
 	map::map_state map_state;
-	dcon::gfx_object_id bg_gfx_id{};
 
+	// data for immediate mode gui
+	iui::iui_state iui_state;
+	
 	// graphics data
 	ogl::data open_gl;
 
@@ -614,6 +690,16 @@ struct alignas(64) state {
 
 	// network data
 	network::network_state network_state;
+
+	// console interpreter
+	std::mutex lock_console_strings;
+	std::string console_command_pending;
+	std::string console_command_result;
+	std::string console_command_error;
+	std::unique_ptr<fif::environment> fif_environment;
+	int32_t type_text_key = -1;
+	int32_t type_localized_key = -1;
+	std::mutex ui_lock; // lock for rendering the ui, when this is locked no rendering updates will occur
 
 	// the following functions will be invoked by the window subsystem
 
@@ -631,7 +717,7 @@ struct alignas(64) state {
 	void on_mouse_wheel(int32_t x, int32_t y, key_modifiers mod, float amount); // an amount of 1.0 is one "click" of the wheel
 	void on_key_down(virtual_key keycode, key_modifiers mod);
 	void on_key_up(virtual_key keycode, key_modifiers mod);
-	void on_text(char c); // c is a win1250 codepage value
+	void on_text(char32_t c); // c is a win1250 codepage value
 	void render(); // called to render the frame may (and should) delay returning until the frame is rendered, including waiting
 	               // for vsync
 
@@ -639,26 +725,33 @@ struct alignas(64) state {
 	// this function runs the internal logic of the game. It will return *only* after a quit notification is sent to it
 	void game_loop();
 	sys::checksum_key get_save_checksum();
+	sys::checksum_key get_mp_state_checksum(); // gets the checksum of the ENTIRE multiplayer state which is not strictly local
+	checksum_key get_scenario_checksum();
 	void debug_save_oos_dump();
 	void debug_scenario_oos_dump();
 
 	void start_state_selection(state_selection_data& data);
-	void finish_state_selection();
 	void state_select(dcon::state_definition_id sdef);
 
 	// the following function are for interacting with the string pool
 
-	std::string_view to_string_view(dcon::text_key tag) const; // takes a stored tag and give you the text
+	std::string_view to_string_view(dcon::text_key tag) const;
+	std::string_view locale_string_view(uint32_t tag) const;
+	bool key_is_localized(dcon::text_key tag) const;
+	bool key_is_localized(std::string_view key) const;
+	dcon::text_key lookup_key(std::string_view text) const;
 
-	dcon::text_key add_to_pool(std::string const& text); // returns the newly added text
-	dcon::text_key add_to_pool(std::string_view text);
-	dcon::text_key add_to_pool_lowercase(std::string const& text); // these functions are as above, but force the text into lower case
-	dcon::text_key add_to_pool_lowercase(std::string_view text);
+	void reset_locale_pool();
+	void load_locale_strings(std::string_view locale_name);
 
-	// searches the string pool for any existing string, appends if it is new
-	// use this function sparingly; i.e. only when you think it is likely that
-	// the text has already been added. Searching *all* the text may not be cheap
-	dcon::text_key add_unique_to_pool(std::string const& text);
+	dcon::text_key add_key_win1252(std::string const& text);
+	dcon::text_key add_key_win1252(std::string_view text);
+	dcon::text_key add_key_utf8(std::string const& text);
+	dcon::text_key add_key_utf8(std::string_view text);
+	uint32_t add_locale_data_win1252(std::string const& text);
+	uint32_t add_locale_data_win1252(std::string_view text);
+	uint32_t add_locale_data_utf8(std::string const& text);
+	uint32_t add_locale_data_utf8(std::string_view text);
 
 	dcon::unit_name_id add_unit_name(std::string_view text);       // returns the newly added text
 	std::string_view to_string_view(dcon::unit_name_id tag) const; // takes a stored tag and give you the text
@@ -666,7 +759,10 @@ struct alignas(64) state {
 	dcon::trigger_key commit_trigger_data(std::vector<uint16_t> data);
 	dcon::effect_key commit_effect_data(std::vector<uint16_t> data);
 
-	state() : key_to_text_sequence(0, text::vector_backed_hash(text_data), text::vector_backed_eq(text_data)), incoming_commands(1024), new_n_event(1024), new_f_n_event(1024), new_p_event(1024), new_f_p_event(1024), new_requests(256), new_messages(2048), naval_battle_reports(256), land_battle_reports(256) { }
+	state() : untrans_key_to_text_sequence(0, text::vector_backed_ci_hash(key_data), text::vector_backed_ci_eq(key_data)), locale_key_to_text_sequence(0, text::vector_backed_ci_hash(key_data), text::vector_backed_ci_eq(key_data)), current_scene(game_scene::nation_picker()), incoming_commands(1024), new_n_event(1024), new_f_n_event(1024), new_p_event(1024), new_f_p_event(1024), new_requests(256), new_messages(2048), naval_battle_reports(256), land_battle_reports(256) {
+
+		key_data.push_back(0);
+	}
 
 	~state() = default;
 
@@ -674,11 +770,14 @@ struct alignas(64) state {
 	void load_user_settings();
 	void update_ui_scale(float new_scale);
 
-	void load_scenario_data(parsers::error_handler& err);   // loads all scenario files other than map data
+	void load_scenario_data(parsers::error_handler& err, sys::year_month_day bookmark_date);   // loads all scenario files other than map data
 	void fill_unsaved_data();    // reconstructs derived values that are not directly saved after a save has been loaded
+	void on_scenario_load(); // called when the scenario file is loaded (not when saves are loaded)
 	void preload(); // clears data that will be later reconstructed from saved values
+	void reset_state();
 
 	void console_log(std::string_view message);
+	void log_player_nations();
 
 	void open_diplomacy(dcon::nation_id target); // Open the diplomacy window with target selected
 
@@ -720,5 +819,64 @@ struct alignas(64) state {
 			}
 		}
 	}
+
+	void new_army_group(dcon::province_id hq);
+	void delete_army_group(dcon::automated_army_group_id group);
+	void toggle_designated_port(dcon::automated_army_group_id group, dcon::province_id position);
+	void toggle_defensive_position(dcon::automated_army_group_id group, dcon::province_id position);
+	void toggle_enforce_control_position(dcon::automated_army_group_id group, dcon::province_id position);
+	void update_armies_and_fleets(dcon::automated_army_group_id group);
+	void regiment_reset_order(dcon::regiment_automation_data_id regiment);
+	bool army_group_recalculate_distribution(dcon::automated_army_group_id group, std::vector<float>& regiments_distribution);
+	void army_group_update_tasks(dcon::automated_army_group_id group);
+	dcon::province_id get_port_for_landing(dcon::automated_army_group_id group, dcon::province_id target);
+	void army_group_distribute_tasks(dcon::automated_army_group_id group);
+	float army_group_available_supply(dcon::automated_army_group_id group, dcon::province_id province);
+	dcon::province_id find_available_ferry_origin(dcon::automated_army_group_id group, dcon::regiment_automation_data_id regiment);
+	bool move_to_available_port(dcon::automated_army_group_id group, dcon::regiment_automation_data_id regiment);
+	void remove_navy_from_army_group(dcon::automated_army_group_id selected_group, dcon::navy_id navy_to_delete);
+	void army_group_update_regiment_status(dcon::automated_army_group_id group);
+	void army_group_add_regiment(dcon::automated_army_group_id group, dcon::regiment_id id);
+	void remove_regiment_from_army_group(dcon::automated_army_group_id selected_group, dcon::regiment_id selected_regiment);
+	void remove_regiment_from_all_army_groups(dcon::regiment_id regiment_to_delete);
+	void remove_army_army_group_clean(dcon::automated_army_group_id group, dcon::army_id army_to_delete);
+	void add_army_to_army_group(dcon::automated_army_group_id selected_group, dcon::army_id selected_army);
+	void add_navy_to_army_group(dcon::automated_army_group_id selected_group, dcon::navy_id selected_navy);
+	void smart_select_army_group(dcon::automated_army_group_id selected_group);
+	void select_army_group(dcon::automated_army_group_id selected_group);
+	void deselect_army_group();
+	dcon::regiment_automation_data_id fill_province_up_to_supply_limit(
+		dcon::automated_army_group_id group_id,
+		dcon::province_id target,
+		std::vector<float>& regiments_distribution,
+		float overestimate_supply_limit,
+		bool ignore_enemy_regiments_in_supply_calculations
+	);
+	dcon::regiment_automation_data_id fill_province(
+		dcon::automated_army_group_id group_id,
+		dcon::province_id target,
+		std::vector<float>& regiments_expectation_ideal
+	);
+
+	void fill_vector_of_connected_provinces(
+		dcon::province_id p1,
+		bool is_land,
+		std::vector<dcon::province_id> & provinces
+	);
+
+	void build_up_to_template_land(
+		macro_builder_template const& target_template,
+		dcon::province_id target_province,
+		std::vector<dcon::province_id>& available_provinces,
+		std::array<uint8_t, sys::macro_builder_template::max_types>& current_distribution
+	);
 };
+
+constexpr inline size_t const_max_selected_units = 1000;
+
+void selected_regiments_add(sys::state& state, dcon::regiment_id reg);
+void selected_regiments_clear(sys::state& state);
+
+void selected_ships_add(sys::state& state, dcon::ship_id sh);
+void selected_ships_clear(sys::state& state);
 } // namespace sys

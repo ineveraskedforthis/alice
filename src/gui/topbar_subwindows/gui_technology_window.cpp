@@ -110,24 +110,23 @@ void invention_description(sys::state& state, text::layout_base& contents, dcon:
 			text::close_layout_box(contents, box);
 		}
 	}
-	auto commodity_mod_description = [&](auto const& list, std::string_view locale_base_name,
-																			 std::string_view locale_farm_base_name) {
+	auto commodity_mod_description = [&](auto const& list, std::string_view locale_base_name, std::string_view locale_farm_base_name) {
 		for(const auto mod : list) {
 			auto box = text::open_layout_box(contents, indent);
 			auto name = state.world.commodity_get_name(mod.type);
-			if(bool(name)) {
-				text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, name), text::text_color::white);
-				text::add_space_to_layout_box(state, contents, box);
-			}
-			text::add_to_layout_box(state, contents, box,
-					text::produce_simple_string(state,
-							state.world.commodity_get_is_mine(mod.type) ? locale_base_name : locale_farm_base_name),
-					text::text_color::white);
-			text::add_to_layout_box(state, contents, box, std::string{":"}, text::text_color::white);
+
+			auto cid = mod.type;
+			std::string padding = cid.index() < 10 ? "0" : "";
+			std::string description = "@$" + padding + std::to_string(cid.index());
+			text::add_unparsed_text_to_layout_box(state, contents, box, description);
+
+			text::add_to_layout_box(state, contents, box, name);
+			text::add_space_to_layout_box(state, contents, box);
+			text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, state.world.commodity_get_is_mine(mod.type) ? locale_base_name : locale_farm_base_name));
+			text::add_to_layout_box(state, contents, box, std::string{":"});
 			text::add_space_to_layout_box(state, contents, box);
 			auto color = mod.amount > 0.f ? text::text_color::green : text::text_color::red;
-			text::add_to_layout_box(state, contents, box, (mod.amount > 0.f ? "+" : "") + text::format_percentage(mod.amount, 1),
-					color);
+			text::add_to_layout_box(state, contents, box, (mod.amount > 0.f ? "+" : "") + text::format_percentage(mod.amount, 1), color);
 			text::close_layout_box(contents, box);
 		}
 	};
@@ -273,6 +272,18 @@ void invention_description(sys::state& state, text::layout_base& contents, dcon:
 				} else {
 					text::add_to_layout_box(state, contents, box, std::string_view{"+"}, text::text_color::green);
 					text::add_to_layout_box(state, contents, box, text::fp_two_places{mod.support}, text::text_color::green);
+				}
+				text::close_layout_box(contents, box);
+			}
+			if(mod.maneuver != 0) {
+				auto box = text::open_layout_box(contents, indent + 15);
+				text::localised_format_box(state, contents, box, "maneuver");
+				text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
+				if(mod.maneuver < 0) {
+					text::add_to_layout_box(state, contents, box, text::fp_two_places{ mod.maneuver }, text::text_color::red);
+				} else {
+					text::add_to_layout_box(state, contents, box, std::string_view{ "+" }, text::text_color::green);
+					text::add_to_layout_box(state, contents, box, text::fp_two_places{ mod.maneuver }, text::text_color::green);
 				}
 				text::close_layout_box(contents, box);
 			}
@@ -466,15 +477,16 @@ void technology_description(sys::state& state, text::layout_base& contents, dcon
 		for(const auto mod : list) {
 			auto box = text::open_layout_box(contents, 0);
 			auto name = state.world.commodity_get_name(mod.type);
-			if(bool(name)) {
-				text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, name), text::text_color::white);
-				text::add_space_to_layout_box(state, contents, box);
-			}
-			text::add_to_layout_box(state, contents, box,
-					text::produce_simple_string(state,
-							state.world.commodity_get_is_mine(mod.type) ? locale_base_name : locale_farm_base_name),
-					text::text_color::white);
-			text::add_to_layout_box(state, contents, box, std::string{":"}, text::text_color::white);
+
+			auto cid = mod.type;
+			std::string padding = cid.index() < 10 ? "0" : "";
+			std::string description = "@$" + padding + std::to_string(cid.index());
+			text::add_unparsed_text_to_layout_box(state, contents, box, description);
+
+			text::add_to_layout_box(state, contents, box, name);
+			text::add_space_to_layout_box(state, contents, box);
+			text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, state.world.commodity_get_is_mine(mod.type) ? locale_base_name : locale_farm_base_name));
+			text::add_to_layout_box(state, contents, box, std::string{":"});
 			text::add_space_to_layout_box(state, contents, box);
 			auto color = mod.amount > 0.f ? text::text_color::green : text::text_color::red;
 			text::add_to_layout_box(state, contents, box, (mod.amount > 0.f ? "+" : "") + text::format_percentage(mod.amount, 1),
@@ -623,6 +635,18 @@ void technology_description(sys::state& state, text::layout_base& contents, dcon
 				} else {
 					text::add_to_layout_box(state, contents, box, std::string_view{"+"}, text::text_color::green);
 					text::add_to_layout_box(state, contents, box, text::fp_two_places{mod.support}, text::text_color::green);
+				}
+				text::close_layout_box(contents, box);
+			}
+			if(mod.maneuver != 0) {
+				auto box = text::open_layout_box(contents, 15);
+				text::localised_format_box(state, contents, box, "maneuver");
+				text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
+				if(mod.maneuver < 0) {
+					text::add_to_layout_box(state, contents, box, text::fp_two_places{ mod.maneuver }, text::text_color::red);
+				} else {
+					text::add_to_layout_box(state, contents, box, std::string_view{ "+" }, text::text_color::green);
+					text::add_to_layout_box(state, contents, box, text::fp_two_places{ mod.maneuver }, text::text_color::green);
 				}
 				text::close_layout_box(contents, box);
 			}

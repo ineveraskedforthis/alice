@@ -5,10 +5,12 @@ namespace parsers {
 
 void make_good(std::string_view name, token_generator& gen, error_handler& err, good_group_context& context) {
 	dcon::commodity_id new_id = context.outer_context.state.world.create_commodity();
-	auto name_id = text::find_or_add_key(context.outer_context.state, name);
+	auto name_id = text::find_or_add_key(context.outer_context.state, name, false);
 	context.outer_context.state.world.commodity_set_name(new_id, name_id);
 	context.outer_context.state.world.commodity_set_commodity_group(new_id, uint8_t(context.group));
 	context.outer_context.state.world.commodity_set_is_available_from_start(new_id, true);
+	context.outer_context.state.world.commodity_set_is_local(new_id, false);
+
 
 	context.outer_context.map_of_commodity_names.insert_or_assign(std::string(name), new_id);
 	good_context new_context{new_id, context.outer_context};
@@ -71,12 +73,15 @@ void building_file::result(std::string_view name, building_definition&& res, err
 		auto factory_id = context.state.world.create_factory_type();
 		context.map_of_factory_names.insert_or_assign(std::string(name), factory_id);
 
-		auto desc_id = text::find_or_add_key(context.state, std::string(name) + "_desc");
+		auto desc_id = text::find_or_add_key(context.state, std::string(name) + "_desc", false);
 
-		context.state.world.factory_type_set_name(factory_id, text::find_or_add_key(context.state, name));
+		context.state.world.factory_type_set_name(factory_id, text::find_or_add_key(context.state, name, false));
 		context.state.world.factory_type_set_description(factory_id, desc_id);
 		context.state.world.factory_type_set_construction_time(factory_id, int16_t(res.time));
 		context.state.world.factory_type_set_is_available_from_start(factory_id, res.default_enabled);
+		context.state.world.factory_type_set_is_coastal(factory_id, res.is_coastal);
+		context.state.world.factory_type_set_can_be_built_in_colonies(factory_id, res.can_be_built_in_colonies);
+
 		/*for(uint32_t i = context.state.world.commodity_size(); i-- > 0; ) {
 			dcon::commodity_id cid = dcon::commodity_id(dcon::commodity_id::value_base_t(i));
 			context.state.world.factory_type_set_construction_costs(factory_id, cid, res.goods_cost.data[cid]);
@@ -129,7 +134,7 @@ void building_file::result(std::string_view name, building_definition&& res, err
 		context.state.economy_definitions.building_definitions[int32_t(t)].infrastructure = res.infrastructure;
 		context.state.economy_definitions.building_definitions[int32_t(t)].max_level = res.max_level;
 		context.state.economy_definitions.building_definitions[int32_t(t)].time = res.time;
-		context.state.economy_definitions.building_definitions[int32_t(t)].name = text::find_or_add_key(context.state, name);
+		context.state.economy_definitions.building_definitions[int32_t(t)].name = text::find_or_add_key(context.state, name, false);
 		if(res.next_to_add_p != 0) {
 			context.state.economy_definitions.building_definitions[int32_t(t)].province_modifier = context.state.world.create_modifier();
 			context.state.world.modifier_set_province_values(context.state.economy_definitions.building_definitions[int32_t(t)].province_modifier,
@@ -228,6 +233,7 @@ void make_production_type(std::string_view name, token_generator& gen, error_han
 			factory_handle.set_inputs(cset);
 			factory_handle.set_efficiency_inputs(sm_cset);
 			factory_handle.set_output(pt.output_goods_);
+
 			factory_handle.set_output_amount(pt.value);
 			factory_handle.set_is_coastal(pt.is_coastal);
 			factory_handle.set_base_workforce(pt.workforce);
@@ -245,7 +251,7 @@ void make_production_type(std::string_view name, token_generator& gen, error_han
 				factory_handle.set_bonus_3_trigger(pt.bonuses[2].trigger);
 			}
 			if(pt.bonuses.size() >= 4) {
-				err.accumulated_warnings += "Too many factory bonuses for " + std::string(name) + " (" + err.file_name + ")\n";
+				err.accumulated_errors += "Too many factory bonuses (" + std::to_string(pt.bonuses.size()) + ") for " + std::string(name) + " (" + err.file_name + ")\n";
 			}
 		} else {
 			err.accumulated_warnings += "Unused factory production type: " + std::string(name) + "\n";

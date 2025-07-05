@@ -2,24 +2,25 @@
 layout (location = 0) in vec2 vertex_position;
 layout (location = 1) in vec2 prev_point;
 layout (location = 2) in vec2 next_point;
-layout (location = 3) in float texture_coord;
-layout (location = 4) in float distance;
+layout (location = 3) in vec2 province_index;
+layout (location = 4) in float texture_coord;
+layout (location = 5) in float distance;
 
 out float tex_coord;
 out float o_dist;
 out vec2 map_coord;
+out float distance_to_national_border;
+flat out vec2 frag_province_index;
 
-layout (location = 0) uniform vec2 offset;
-layout (location = 1) uniform float aspect_ratio;
-layout (location = 2) uniform float zoom;
-layout (location = 3) uniform vec2 map_size;
-layout (location = 4) uniform float width;
-layout (location = 5) uniform mat3 rotation;
+uniform vec2 offset;
+uniform float aspect_ratio;
+uniform float zoom;
+uniform vec2 map_size;
+uniform float width;
+uniform mat3 rotation;
+uniform uint subroutines_index;
+uniform float is_national_border;
 
-subroutine vec4 calc_gl_position_class(vec2 world_pos);
-subroutine uniform calc_gl_position_class calc_gl_position;
-
-layout(index = 0) subroutine(calc_gl_position_class)
 vec4 globe_coords(vec2 world_pos) {
 
 	vec3 new_world_pos;
@@ -44,11 +45,10 @@ vec4 globe_coords(vec2 world_pos) {
 	return vec4(
 		(2. * new_world_pos.x - 1.f) * zoom / aspect_ratio,
 		(2. * new_world_pos.z - 1.f) * zoom,
-		(2. * new_world_pos.y - 1.f) - 1.0f,
+		1.5f - new_world_pos.y,
 		1.0);
 }
 
-layout(index = 1) subroutine(calc_gl_position_class)
 vec4 flat_coords(vec2 world_pos) {
 	world_pos += vec2(-offset.x, offset.y);
 	world_pos.x = mod(world_pos.x, 1.0f);
@@ -59,7 +59,6 @@ vec4 flat_coords(vec2 world_pos) {
 		1.0);
 }
 
-layout(index = 2) subroutine(calc_gl_position_class)
 vec4 perspective_coords(vec2 world_pos) {
 	vec3 new_world_pos;
 	float angle_x = 2 * world_pos.x * PI;
@@ -92,11 +91,32 @@ vec4 perspective_coords(vec2 world_pos) {
 	return vec4(new_world_pos, w);
 }
 
+vec4 calc_gl_position(vec2 world_pos) {
+	switch(int(subroutines_index)) {
+case 0: return globe_coords(world_pos);
+case 1: return perspective_coords(world_pos);
+case 2: return flat_coords(world_pos);
+default: break;
+	}
+	return vec4(0.f);
+}
+
 void main() {
 	vec4 central_pos = calc_gl_position(vertex_position);
+	vec2 corner_shift = vec2(0.f, 0.f);
+	float true_width = width;
+
 	vec2 bpt = central_pos.xy;
-	vec2 apt = calc_gl_position(prev_point).xy;
-	vec2 cpt = calc_gl_position(next_point).xy;
+	vec2 prev = prev_point;
+	vec2 next = next_point;
+	if (prev == vertex_position) {
+		prev = vertex_position + vertex_position - next_point;
+	}
+	if (next == vertex_position) {
+		next = vertex_position + vertex_position - prev_point;
+	}
+	vec2 apt = calc_gl_position(prev).xy;
+	vec2 cpt = calc_gl_position(next).xy;
 
 	// we want to thicken the line in "perceived" coordinates, so
 	// transform to perceived coordinates + depth
@@ -112,15 +132,31 @@ void main() {
 	vec2 bnorm = vec2(-bdir.y, bdir.x);
 	vec2 corner_normal = normalize(anorm + bnorm);
 
-	vec2 corner_shift = corner_normal * zoom * width / (1.0f + max(-0.5f, dot(anorm, bnorm)));
+	corner_shift = texture_coord * corner_normal * zoom * true_width; /// (1.0f + max(-0.5f, dot(anorm, bnorm)));
 
 	// transform result back to screen + depth coordinates
 	corner_shift.x /= aspect_ratio;
 
-	gl_Position = central_pos + vec4(corner_shift.x, corner_shift.y, 0.0f, 0.0f);
+	gl_Position = central_pos + vec4(corner_shift.x, corner_shift.y, 0.001f * abs(texture_coord), 0.0f);
+	if(int(subroutines_index) == 2) {
+		gl_Position.z = 0.001f * abs(texture_coord);
+		if(central_pos.z > 1.f) {
+			gl_Position.z = 1.05f;
+		}
+		//gl_Position.z += abs(gl_Position.x - 0.5) * 2.1f;
+	}
 
 	// pass data to frag shader
-	tex_coord = texture_coord;
+	tex_coord = abs(texture_coord);
 	o_dist = distance / (2.0f * width);
 	map_coord = vertex_position;
+    
+    frag_province_index = province_index;
+
+	if (is_national_border > 0.5f) {
+		distance_to_national_border = tex_coord;
+		gl_Position.z -= 0.001f;
+	} else {
+		distance_to_national_border = 1.f;
+	}
 }

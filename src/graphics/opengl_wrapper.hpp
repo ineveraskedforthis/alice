@@ -41,6 +41,12 @@ inline constexpr GLuint interactable_disabled = 14;
 inline constexpr GLuint subsprite_b = 15;
 inline constexpr GLuint alternate_tint = 16;
 inline constexpr GLuint linegraph_color = 17;
+inline constexpr GLuint transparent_color = 18;
+inline constexpr GLuint solid_color = 19;
+inline constexpr GLuint alpha_color = 20;
+inline constexpr GLuint subsprite_c = 21;
+inline constexpr GLuint linegraph_acolor = 22;
+inline constexpr GLuint stripchart = 23;
 } // namespace parameters
 
 enum class color_modification { none, disabled, interactable, interactable_disabled };
@@ -50,6 +56,10 @@ struct color3f {
 	float g = 0.0f;
 	float b = 0.0f;
 };
+
+inline color3f unpack_color(uint32_t v) {
+	return color3f{ sys::red_from_int(v), sys::green_from_int(v), sys::blue_from_int(v) };
+}
 
 
 
@@ -118,6 +128,8 @@ inline void debug_callback(GLenum source, GLenum type, GLuint id, GLenum severit
 	case GL_DEBUG_SOURCE_OTHER:
 		source_str = "Unknown source";
 		break;
+	default:
+		break;
 	}
 	std::string error_type;
 	switch(type) {
@@ -146,7 +158,9 @@ inline void debug_callback(GLenum source, GLenum type, GLuint id, GLenum severit
 		error_type = "Error group pop";
 		break;
 	case GL_DEBUG_TYPE_OTHER:
-		error_type = "Uknown error type";
+		error_type = "Unknown error type";
+		break;
+	default:
 		break;
 	}
 	std::string severity_str;
@@ -162,6 +176,8 @@ inline void debug_callback(GLenum source, GLenum type, GLuint id, GLenum severit
 		break;
 	case GL_DEBUG_SEVERITY_NOTIFICATION:
 		severity_str = "Notification";
+		break;
+	default:
 		break;
 	}
 	std::string full_message("OpenGL error ");
@@ -187,9 +203,26 @@ inline void debug_callback(GLenum source, GLenum type, GLuint id, GLenum severit
 
 struct data {
 	tagged_vector<texture, dcon::texture_id> asset_textures;
+	ankerl::unordered_dense::map<std::string, dcon::texture_id> late_loaded_map;
 
 	void* context = nullptr;
+	bool legacy_mode = false;
 	GLuint ui_shader_program = 0;
+
+	GLuint province_map_framebuffer;
+	GLuint province_map_rendertexture;
+	GLuint province_map_depthbuffer;
+
+	GLuint ui_shader_d_rect_uniform = 0;
+	GLuint ui_shader_subroutines_index_uniform = 0;
+	GLuint ui_shader_inner_color_uniform = 0;
+	GLuint ui_shader_subrect_uniform = 0;
+	GLuint ui_shader_border_size_uniform = 0;
+	GLuint ui_shader_texture_sampler_uniform = 0;
+	GLuint ui_shader_secondary_texture_sampler_uniform = 0;
+	GLuint ui_shader_screen_width_uniform = 0;
+	GLuint ui_shader_screen_height_uniform = 0;
+	GLuint ui_shader_gamma_uniform = 0;
 
 	GLuint global_square_vao = 0;
 	GLuint global_square_buffer = 0;
@@ -199,10 +232,18 @@ struct data {
 	GLuint global_square_right_flipped_buffer = 0;
 	GLuint global_square_left_flipped_buffer = 0;
 
+	GLuint global_rtl_square_buffer = 0;
+	GLuint global_rtl_square_right_buffer = 0;
+	GLuint global_rtl_square_left_buffer = 0;
+	GLuint global_rtl_square_flipped_buffer = 0;
+	GLuint global_rtl_square_right_flipped_buffer = 0;
+	GLuint global_rtl_square_left_flipped_buffer = 0;
+
 	GLuint sub_square_buffers[64] = {0};
 
 	GLuint money_icon_tex = 0;
 	GLuint cross_icon_tex = 0;
+	GLuint color_blind_cross_icon_tex = 0;
 	GLuint checkmark_icon_tex = 0;
 	GLuint navy_icon_tex = 0;
 	GLuint army_icon_tex = 0;
@@ -215,10 +256,13 @@ struct data {
 	GLuint msaa_vao = 0;
 	GLuint msaa_vbo = 0;
 	GLuint msaa_shader_program = 0;
+	GLuint msaa_uniform_screen_size = 0;
+	GLuint msaa_uniform_gaussian_blur = 0;
 	bool msaa_enabled = false;
 };
 
-void notify_user_of_fatal_opengl_error(std::string message); // this function calls std::abort
+void notify_user_of_fatal_opengl_error(std::string message);
+std::string_view opengl_get_error_name(GLenum t);
 
 void create_opengl_context(sys::state& state); // you shouldn't call this directly; only initialize_opengl should call it
 void initialize_opengl(sys::state& state);
@@ -265,31 +309,54 @@ public:
 	void bind_buffer();
 };
 
+std::string_view framebuffer_error(GLenum e);
+
+void render_colored_rect(sys::state const& state, float x, float y, float width, float height, float red, float green, float blue, ui::rotation r, bool flipped, bool rtl);
+void render_alpha_colored_rect(sys::state const& state, float x, float y, float width, float height, float red, float green, float blue, float alpha);
+void render_simple_rect(sys::state const& state, float x, float y, float width, float height, ui::rotation r, bool flipped, bool rtl);
 void render_textured_rect(sys::state const& state, color_modification enabled, float x, float y, float width, float height,
-		GLuint texture_handle, ui::rotation r, bool flipped);
+		GLuint texture_handle, ui::rotation r, bool flipped, bool rtl);
 void render_textured_rect_direct(sys::state const& state, float x, float y, float width, float height, uint32_t handle);
 void render_linegraph(sys::state const& state, color_modification enabled, float x, float y, float width, float height, lines& l);
 void render_linegraph(sys::state const& state, color_modification enabled, float x, float y, float width, float height, float r, float g, float b, lines& l);
+void render_linegraph(sys::state const& state, color_modification enabled, float x, float y, float width, float height, float r, float g, float b, float a, lines& l);
 void render_barchart(sys::state const& state, color_modification enabled, float x, float y, float width, float height,
-		data_texture& t, ui::rotation r, bool flipped);
+		data_texture& t, ui::rotation r, bool flipped, bool rtl);
 void render_piechart(sys::state const& state, color_modification enabled, float x, float y, float size, data_texture& t);
+void render_stripchart(sys::state const& state, color_modification enabled, float x, float y, float sizex, float sizey, data_texture& t);
 void render_bordered_rect(sys::state const& state, color_modification enabled, float border_size, float x, float y, float width,
-		float height, GLuint texture_handle, ui::rotation r, bool flipped);
+		float height, GLuint texture_handle, ui::rotation r, bool flipped, bool rtl);
 void render_masked_rect(sys::state const& state, color_modification enabled, float x, float y, float width, float height,
-		GLuint texture_handle, GLuint mask_texture_handle, ui::rotation r, bool flipped);
+		GLuint texture_handle, GLuint mask_texture_handle, ui::rotation r, bool flipped, bool rtl);
 void render_progress_bar(sys::state const& state, color_modification enabled, float progress, float x, float y, float width,
-		float height, GLuint left_texture_handle, GLuint right_texture_handle, ui::rotation r, bool flipped);
+		float height, GLuint left_texture_handle, GLuint right_texture_handle, ui::rotation r, bool flipped, bool rtl);
 void render_tinted_textured_rect(sys::state const& state, float x, float y, float width, float height, float r, float g, float b,
-		GLuint texture_handle, ui::rotation rot, bool flipped);
+		GLuint texture_handle, ui::rotation rot, bool flipped, bool rtl);
 void render_subsprite(sys::state const& state, color_modification enabled, int frame, int total_frames, float x, float y,
-		float width, float height, GLuint texture_handle, ui::rotation r, bool flipped);
+		float width, float height, GLuint texture_handle, ui::rotation r, bool flipped, bool rtl);
+void render_tinted_rect(sys::state const& state, float x, float y, float width, float height,
+	float r, float g, float b, ui::rotation rot, bool flipped, bool rtl);
 void render_tinted_subsprite(sys::state const& state, int frame, int total_frames, float x, float y,
-		float width, float height, float r, float g, float b, GLuint texture_handle, ui::rotation rot, bool flipped);
-void render_new_text(sys::state const& state, char const* codepoints, uint32_t count, color_modification enabled, float x,
+		float width, float height, float r, float g, float b, GLuint texture_handle, ui::rotation rot, bool flipped, bool rtl);
+void render_new_text(sys::state const& state, text::stored_glyphs const& txt, color_modification enabled, float x,
 		float y, float size, color3f const& c, text::font& f);
-void render_text(sys::state& state, char const* codepoints, uint32_t count, color_modification enabled, float x, float y,
+void render_text(sys::state& state, text::stored_glyphs const& txt, color_modification enabled, float x, float y,
 		color3f const& c, uint16_t font_id);
-void render_character(sys::state const& state, char codepoint, color_modification enabled, float x, float y, float size, text::font& f);
+void render_text_icon(sys::state& state, text::embedded_icon ico, float x, float baseline_y, float font_size, text::font& f, ogl::color_modification = ogl::color_modification::none);
+void render_text_flag(sys::state& state, text::embedded_flag ico, float x, float baseline_y, float font_size, text::font& f, ogl::color_modification = ogl::color_modification::none);
+void render_text_unit_icon(sys::state& state, text::embedded_unit_icon ico, float x, float baseline_y, float font_size, text::font& f, ogl::color_modification = ogl::color_modification::none);
+void render_commodity_icon(
+	sys::state& state, dcon::commodity_id cid,
+	float x, float y, float w, float h
+);
+void render_text_commodity_icon(
+	sys::state& state, text::embedded_commodity_icon ico,
+	float x, float baseline_y,
+	float font_size, text::font& f
+);
+
+void deinitialize_framebuffer_for_province_indices(sys::state& state);
+void initialize_framebuffer_for_province_indices(sys::state& state, int32_t size_x, int32_t size_y);
 
 bool msaa_enabled(sys::state const& state);
 void initialize_msaa(sys::state& state, int32_t x, int32_t y);
@@ -299,5 +366,56 @@ image load_stb_image(simple_fs::file& file);
 GLuint make_gl_texture(uint8_t* data, uint32_t size_x, uint32_t size_y, uint32_t channels);
 GLuint make_gl_texture(simple_fs::directory const& dir, native_string_view file_name);
 void set_gltex_parameters(GLuint texture_handle, GLuint texture_type, GLuint filter, GLuint wrap);
+void set_gltex_parameters(GLuint texture_handle, GLuint texture_type, GLuint filter, GLuint wrap_a, GLuint wrap_b);
 GLuint load_texture_array_from_file(simple_fs::file& file, int32_t tiles_x, int32_t tiles_y);
+
+class animation;
+
+class render_capture {
+private:
+	GLuint framebuffer = 0;
+	GLuint texture_handle = 0;
+	int32_t max_x = 0;
+	int32_t max_y = 0;
+public:
+	void ready(sys::state& state);
+	void finish(sys::state& state);
+	GLuint get();
+	~render_capture();
+
+	friend class animation;
+};
+
+void render_subrect(sys::state const& state, float target_x, float target_y, float target_width, float target_height, float source_x, float source_y, float source_width, float source_height, GLuint texture_handle);
+
+class animation {
+public:
+	enum class type {
+		page_flip_left,
+		page_flip_right,
+		page_flip_up,
+		page_flip_left_rev,
+		page_flip_right_rev,
+		page_flip_up_rev,
+		page_flip_mid,
+		page_flip_mid_rev
+	};
+private:
+	render_capture start_state;
+	render_capture end_state;
+	decltype(std::chrono::steady_clock::now()) start_time;
+	int32_t ms_run_time = 0;
+	int32_t x_pos = 0;
+	int32_t y_pos = 0;
+	int32_t x_size = 0;
+	int32_t y_size = 0;
+	type ani_type;
+	bool running = false;
+public:
+	void start_animation(sys::state& state, int32_t x, int32_t y, int32_t w, int32_t h, type t, int32_t runtime);
+	void post_update_frame(sys::state& state);
+	void render(sys::state& state);
+};
+
+
 } // namespace ogl

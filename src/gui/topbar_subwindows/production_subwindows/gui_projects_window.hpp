@@ -4,10 +4,12 @@
 #include "gui_element_types.hpp"
 #include "gui_project_investment_window.hpp"
 #include "gui_production_enum.hpp"
+#include "economy_stats.hpp"
+#include "construction.hpp"
 
 namespace ui {
 
-typedef std::variant< dcon::province_building_construction_id, dcon::state_building_construction_id> production_project_data;
+typedef std::variant< dcon::province_building_construction_id, dcon::factory_construction_id> production_project_data;
 
 struct production_project_input_data {
 	dcon::commodity_id cid{};
@@ -63,13 +65,19 @@ protected:
 class production_project_invest_button : public button_element_base {
 public:
 	void on_create(sys::state& state) noexcept override {
-		set_visible(state, false);
+		disabled = true;
 	}
 	void button_action(sys::state& state) noexcept override {
-		if(parent) {
-			Cyto::Any payload = element_selection_wrapper<production_action>{production_action{production_action::investment_window}};
-			parent->impl_get(state, payload);
-		}
+		//if(parent) {
+		//	Cyto::Any payload = element_selection_wrapper<production_action>{production_action{production_action::investment_window}};
+		//	parent->impl_get(state, payload);
+		//}
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "alice_domestic_investment_button");
 	}
 };
 
@@ -80,25 +88,26 @@ class production_project_info : public listbox_row_element_base<production_proje
 	simple_text_element_base* cost_text = nullptr;
 	production_project_input_listbox* input_listbox = nullptr;
 
-	float get_cost(sys::state& state, economy::commodity_set const& cset) {
-		float total = 0.f;
-		for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-			dcon::commodity_id cid = cset.commodity_type[i];
-			if(bool(cid))
-				total += state.world.commodity_get_current_price(cid) * cset.commodity_amounts[i];
-		}
-		return total;
-	}
-
 	dcon::state_instance_id get_state_instance_id(sys::state& state) {
 		if(std::holds_alternative<dcon::province_building_construction_id>(content)) {
 			auto fat_id = dcon::fatten(state.world, std::get<dcon::province_building_construction_id>(content));
 			return fat_id.get_province().get_state_membership().id;
-		} else if(std::holds_alternative<dcon::state_building_construction_id>(content)) {
-			auto fat_id = dcon::fatten(state.world, std::get<dcon::state_building_construction_id>(content));
-			return fat_id.get_state();
+		} else if(std::holds_alternative<dcon::factory_construction_id>(content)) {
+			auto fat_id = dcon::fatten(state.world, std::get<dcon::factory_construction_id>(content));
+			return fat_id.get_province().get_state_membership().id;
 		}
 		return dcon::state_instance_id{};
+	}
+
+	float get_cost(sys::state& state, economy::commodity_set const& cset) {
+		float total = 0.f;
+		auto s = get_state_instance_id(state);
+		for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+			dcon::commodity_id cid = cset.commodity_type[i];
+			if(bool(cid))
+				total += economy::price(state, s, cid) * cset.commodity_amounts[i];
+		}
+		return total;
 	}
 
 public:
@@ -150,21 +159,20 @@ public:
 			needed_commodities = state.economy_definitions.building_definitions[int32_t(type)].cost;
 
 			satisfied_commodities = fat_id.get_purchased_goods();
-		} else if(std::holds_alternative<dcon::state_building_construction_id>(content)) {
+		} else if(std::holds_alternative<dcon::factory_construction_id>(content)) {
 			factory_icon->set_visible(state, true);
 			building_icon->set_visible(state, false);
-			auto fat_id = dcon::fatten(state.world, std::get<dcon::state_building_construction_id>(content));
+			auto fat_id = dcon::fatten(state.world, std::get<dcon::factory_construction_id>(content));
 			factory_icon->frame = uint16_t(fat_id.get_type().get_output().get_icon());
 			name_text->set_text(state, text::produce_simple_string(state, fat_id.get_type().get_name()));
 			needed_commodities = fat_id.get_type().get_construction_costs();
 			satisfied_commodities = fat_id.get_purchased_goods();
 
-			float factory_mod = state.world.nation_get_modifier_values(state.local_player_nation, sys::national_mod_offsets::factory_cost) + 1.0f;
-			float pop_factory_mod = std::max(0.1f, state.world.nation_get_modifier_values(state.local_player_nation, sys::national_mod_offsets::factory_owner_cost));
-			float admin_cost_factor =  pop_factory_mod * factory_mod;
+			float factory_mod = economy::factory_build_cost_multiplier(state, state.local_player_nation, fat_id.get_province(), fat_id.get_is_pop_project());
+			float refit_discount = (fat_id.get_refit_target()) ? state.defines.alice_factory_refit_cost_modifier : 1.0f;
 
 			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-				needed_commodities.commodity_amounts[i] *= admin_cost_factor;
+				needed_commodities.commodity_amounts[i] *= factory_mod * refit_discount;
 			}
 		}
 
@@ -180,11 +188,13 @@ public:
 			input_listbox->update(state);
 		}
 
+		auto s = get_state_instance_id(state);
+
 		float purchased_cost = 0.0f;
 		for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 			dcon::commodity_id cid = needed_commodities.commodity_type[i];
 			if(bool(cid))
-				purchased_cost += state.world.commodity_get_current_price(cid) * satisfied_commodities.commodity_amounts[i];
+				purchased_cost += economy::price(state, s, cid) * satisfied_commodities.commodity_amounts[i];
 		}
 		float total_cost = get_cost(state, needed_commodities);
 		cost_text->set_text(state, text::format_money(purchased_cost) + "/" + text::format_money(total_cost));
@@ -208,8 +218,8 @@ protected:
 public:
 	void on_update(sys::state& state) noexcept override {
 		row_contents.clear();
-		state.world.nation_for_each_state_building_construction_as_nation(state.local_player_nation,
-				[&](dcon::state_building_construction_id id) {
+		state.world.nation_for_each_factory_construction_as_nation(state.local_player_nation,
+				[&](dcon::factory_construction_id id) {
 					auto fat_id = dcon::fatten(state.world, id);
 					if(fat_id.get_is_pop_project())
 						row_contents.push_back(production_project_data(id));

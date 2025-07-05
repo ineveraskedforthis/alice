@@ -163,8 +163,8 @@ enum class key_modifiers : uint8_t {
 	modifiers_alt_shift = 0x5,
 	modifiers_all = 0x7
 };
-constexpr inline float ui_scales[] = {0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f};
-constexpr inline uint32_t ui_scales_count = 8;
+constexpr inline float ui_scales[] = {0.25f, 0.30f, 0.35f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f};
+constexpr inline uint32_t ui_scales_count = 12;
 
 enum class autosave_frequency : uint8_t {
 	none = 0,
@@ -185,13 +185,39 @@ enum class map_label_mode : uint8_t {
 enum class map_zoom_mode : uint8_t {
 	panning = 0,
 	inverted = 1,
-	centered = 2
+	centered = 2,
+	to_cursor = 3,
+	away_from_cursor = 4,
 };
 
 enum class map_vassal_color_mode : uint8_t {
 	inherit = 0,
 	same = 1,
 	none = 2
+};
+
+enum class army_group_regiment_status : uint8_t {
+	move_to_target,
+	move_to_port,
+	standby,
+	await_transport,
+	is_transported,
+	disembark,
+	embark
+};
+
+enum class army_group_regiment_task : uint8_t {
+	idle,
+	gather_at_hq,
+	defend_position,
+	siege,
+};
+
+enum class army_group_order : uint8_t {
+	siege,
+	defend,
+	designate_port,
+	none
 };
 
 enum class commodity_group : uint8_t { military_goods = 0, raw_material_goods, industrial_goods, consumer_goods, industrial_and_consumer_goods, count };
@@ -299,6 +325,10 @@ enum class message_setting_type : uint8_t {
 	army_built = 98, // added
 	navy_built = 99, // added
 	bankruptcy = 100,
+	entered_automatic_alliance = 101,
+	chat_message = 102,
+	embargo_by_nation = 103,
+	embargo_on_nation = 104,
 	count = 128
 };
 
@@ -375,7 +405,12 @@ enum class message_base_type : uint8_t {
 	army_built = 69, // added
 	navy_built = 70, // added
 	bankruptcy = 71,
-	count = 72
+	entered_automatic_alliance = 72,
+	chat_message = 73,
+	embargo = 74,
+	free_trade_agreement = 75,
+	trade_rights_revoked = 76,
+	count = 77,
 };
 
 struct msg_setting_entry {
@@ -384,6 +419,7 @@ struct msg_setting_entry {
 	message_setting_type third;
 };
 
+// Setting matches message_base_type of the posted message based on index
 constexpr inline msg_setting_entry message_setting_map[size_t(message_base_type::count)] = {
 						// source									target										third
 	msg_setting_entry{ message_setting_type::revolt,					message_setting_type::count,				message_setting_type:: count}, //revolt
@@ -496,6 +532,11 @@ constexpr inline msg_setting_entry message_setting_map[size_t(message_base_type:
 	msg_setting_entry{ message_setting_type::army_built,				message_setting_type::count,				message_setting_type::count}, //army_built = 69, // added
 	msg_setting_entry{ message_setting_type::navy_built,				message_setting_type::count,				message_setting_type::count}, //navy_built = 70, // added
 	msg_setting_entry{ message_setting_type::bankruptcy,			message_setting_type::count,				message_setting_type::count }, // bankruptcy = 71,
+	msg_setting_entry{ message_setting_type::entered_automatic_alliance, message_setting_type::count, message_setting_type::count },//entered_automatic_alliance = 72,
+	msg_setting_entry{ message_setting_type::chat_message, message_setting_type::count, message_setting_type::count },//chat_message = 73,
+	msg_setting_entry{ message_setting_type::embargo_by_nation, message_setting_type::embargo_on_nation, message_setting_type::count },//embargo = 74,
+
+
 };
 
 namespace  message_response {
@@ -513,21 +554,32 @@ constexpr inline uint8_t standard_pause = log | sound | popup | pause;
 
 }
 
-enum class game_mode_type {
-	pick_nation,
-	in_game,
-	end_screen,
-	select_states
-};
-
 enum class network_mode_type {
 	single_player,
 	client,
 	host
 };
 
+enum class color_blind_mode {
+	none,
+	protan, //lack red
+	deutan, //lack green
+	tritan, //lack blue
+	achroma, //black and white
+};
+
+enum class graphics_mode {
+	ugly, classic, modern, total
+};
 
 constexpr int32_t max_event_options = 8;
+constexpr uint32_t max_languages = 64;
+
+enum save_type : uint8_t {
+	normal,
+	autosave,
+	bookmark
+};
 
 } // namespace sys
 
@@ -542,7 +594,7 @@ constexpr inline int32_t max_building_types = 5;
 
 namespace ui {
 
-enum class production_sort_order { name, factories, primary_workers, secondary_workers, owners, infrastructure };
+enum class production_sort_order { name, factories, primary_workers, secondary_workers, owners, infrastructure, state_name };
 enum class production_window_tab : uint8_t { factories = 0x0, investments = 0x1, projects = 0x2, goods = 0x3 };
 constexpr inline uint32_t max_chat_message_len = 64;
 
@@ -559,10 +611,6 @@ constexpr inline uint8_t river_crossing_bit = 0x20;
 constexpr inline uint8_t test_bit = 0x40;
 } // namespace border
 } // namespace province
-
-namespace economy {
-inline constexpr float rgo_per_size_employment = 40'000.0f;
-}
 
 namespace map {
 constexpr inline float min_zoom = 1.0f;
@@ -595,4 +643,7 @@ enum class army_activity {
 	attack_gathered = 7,
 	attack_transport = 8,
 };
+
+
+
 }

@@ -117,11 +117,11 @@ public:
 			auto ptr = make_element_by_type<generic_tab_button<dcon::modifier_id>>(state, id);
 			ptr->target = ([&]() {
 				dcon::modifier_id filter_mod_id{0};
-				auto it = state.key_to_text_sequence.find(parsers::lowercase_str(filter_name));
-				if(it != state.key_to_text_sequence.end())
+				auto k = state.lookup_key(parsers::lowercase_str(filter_name));
+				if(k)
 					state.world.for_each_modifier([&](dcon::modifier_id mod_id) {
 						auto fat_id = dcon::fatten(state.world, mod_id);
-						if(it->second == fat_id.get_name())
+						if(k == fat_id.get_name())
 							filter_mod_id = mod_id;
 					});
 				return filter_mod_id;
@@ -150,33 +150,12 @@ public:
 			case country_list_filter::deselect_all:
 				state.world.for_each_nation([&](dcon::nation_id id) { state.world.nation_set_is_interesting(id, false); });
 				break;
-			case country_list_filter::allies:
-				state.world.for_each_nation([&](dcon::nation_id id) {
-					auto rel = state.world.get_diplomatic_relation_by_diplomatic_pair(id, state.local_player_nation);
-					if(state.world.diplomatic_relation_get_are_allied(rel) ||
-							military::are_allied_in_war(state, state.local_player_nation, id))
-						state.world.nation_set_is_interesting(id, true);
-				});
-				break;
-			case country_list_filter::enemies:
-				state.world.for_each_nation([&](dcon::nation_id id) {
-					if(military::are_at_war(state, state.local_player_nation, id))
-						state.world.nation_set_is_interesting(id, true);
-				});
-				break;
-			case country_list_filter::sphere:
-				state.world.for_each_nation([&](dcon::nation_id id) {
-					if(state.world.nation_get_in_sphere_of(id) == state.local_player_nation)
-						state.world.nation_set_is_interesting(id, true);
-				});
-				break;
-			case country_list_filter::neighbors:
-				state.world.for_each_nation([&](dcon::nation_id id) {
-					if(state.world.get_nation_adjacency_by_nation_adjacency_pair(state.local_player_nation, id))
-						state.world.nation_set_is_interesting(id, true);
-				});
-				break;
 			default:
+				for(const auto n : state.world.in_nation) {
+					if(country_category_filter_check(state, filter, state.local_player_nation, n)) {
+						n.set_is_interesting(true);
+					}
+				}
 				break;
 			}
 			country_listbox->on_update(state);

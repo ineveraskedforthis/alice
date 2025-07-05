@@ -62,6 +62,8 @@ native_string get_full_name(directory const& f);
 
 // write_file will clear an existing file, if it exists, will create a new file if it does not
 void write_file(directory const& dir, native_string_view file_name, char const* file_data, uint32_t file_size);
+void append_file(directory const& dir, native_string_view file_name, char const* file_data, uint32_t file_size);
+
 
 // unopened file functions
 std::optional<file> open_file(unopened_file const& f);
@@ -78,6 +80,8 @@ directory get_or_create_templates_directory();
 directory get_or_create_oos_directory();
 directory get_or_create_scenario_directory();
 directory get_or_create_settings_directory();
+directory get_or_create_data_dumps_directory();
+directory get_or_create_root_documents();
 
 // necessary for reading paths out of data from inside older paradox files:
 // even on linux, this must do something, because win1250 isn't ascii or utf8

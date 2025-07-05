@@ -22,7 +22,6 @@ struct global_provincial_state {
 	std::vector<dcon::province_id> canal_provinces;
 	ankerl::unordered_dense::map<dcon::modifier_id, dcon::gfx_object_id, sys::modifier_hash> terrain_to_gfx_map;
 	std::vector<bool> connected_region_is_coastal;
-
 	dcon::province_id first_sea_province;
 	dcon::modifier_id europe;
 	dcon::modifier_id asia;
@@ -58,26 +57,21 @@ bool can_build_naval_base(sys::state& state, dcon::province_id id, dcon::nation_
 bool has_province_building_being_built(sys::state& state, dcon::province_id id, economy::province_building_type t);
 bool can_build_province_building(sys::state& state, dcon::province_id id, dcon::nation_id n, economy::province_building_type t);
 bool has_an_owner(sys::state& state, dcon::province_id id);
+float effective_life_rating_growth(sys::state& state, dcon::province_id prov); // returns the effective life rating for popgrowth for a province
+dcon::province_id state_get_coastal_capital(sys::state& state, dcon::state_instance_id s);
 bool state_is_coastal(sys::state& state, dcon::state_instance_id s);
 bool state_is_coastal_non_core_nb(sys::state& state, dcon::state_instance_id s);
 bool state_borders_nation(sys::state& state, dcon::nation_id n, dcon::state_instance_id si);
 
 dcon::province_id pick_capital(sys::state& state, dcon::nation_id n);
 
-float monthly_net_pop_growth(sys::state& state, dcon::province_id id);
-float monthly_net_pop_promotion_and_demotion(sys::state& state, dcon::province_id id);
-float monthly_net_pop_internal_migration(sys::state& state, dcon::province_id id);
-float monthly_net_pop_external_migration(sys::state& state, dcon::province_id id);
-float rgo_maximum_employment(sys::state& state, dcon::province_id id);
-float rgo_employment(sys::state& state, dcon::province_id id);
-float rgo_income(sys::state& state, dcon::province_id id);
-float rgo_production_quantity(sys::state& state, dcon::province_id id);
-float rgo_size(sys::state& state, dcon::province_id prov_id);
 float state_admin_efficiency(sys::state& state, dcon::state_instance_id id);
 float crime_fighting_efficiency(sys::state& state, dcon::province_id id);
 float revolt_risk(sys::state& state, dcon::province_id id);
 
 void change_province_owner(sys::state& state, dcon::province_id id, dcon::nation_id new_owner);
+bool is_strait_blocked(sys::state& state, dcon::nation_id thisnation, dcon::province_id from, dcon::province_id to);
+bool is_strait_blocked(sys::state& state, dcon::nation_id thisnation, dcon::province_adjacency_id adjacency);
 void conquer_province(sys::state& state, dcon::province_id id, dcon::nation_id new_owner);
 
 void update_crimes(sys::state& state);
@@ -122,6 +116,7 @@ bool has_safe_access_to_province(sys::state& state, dcon::nation_id nation_as, d
 std::vector<dcon::province_id> make_land_path(sys::state& state, dcon::province_id start, dcon::province_id end, dcon::nation_id nation_as, dcon::army_id a);
 // pathfind through non-enemy controlled, not under siege provinces
 std::vector<dcon::province_id> make_safe_land_path(sys::state& state, dcon::province_id start, dcon::province_id end, dcon::nation_id nation_as);
+std::vector<dcon::province_id> make_unowned_path(sys::state& state, dcon::province_id start, dcon::province_id end);
 // used for rebel unit and black-flagged unit pathfinding
 std::vector<dcon::province_id> make_unowned_land_path(sys::state& state, dcon::province_id start, dcon::province_id end);
 // naval unit pathfinding; start and end provinces may be land provinces; function assumes you have naval access to both

@@ -15,6 +15,7 @@ enum class mouse_probe_type { click, tooltip, scroll };
 class element_base {
 public:
 	static constexpr uint8_t is_invisible_mask = 0x01;
+	static constexpr uint8_t wants_update_when_hidden_mask = 0x02;
 
 	element_data base_data;
 	element_base* parent = nullptr;
@@ -27,7 +28,8 @@ public:
 		auto old_visibility = is_visible();
 		flags = uint8_t((flags & ~is_invisible_mask) | (vis ? 0 : is_invisible_mask));
 		if(vis && !old_visibility) {
-			impl_on_update(state);
+			if((wants_update_when_hidden_mask & flags) == 0)
+				impl_on_update(state);
 			on_visible(state);
 		} else if(!vis && old_visibility) {
 			on_hide(state);
@@ -48,6 +50,9 @@ public:
 	virtual message_result impl_on_mouse_move(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept;
 	virtual void impl_on_update(sys::state& state) noexcept;
 	message_result impl_get(sys::state& state, Cyto::Any& payload) noexcept;
+	virtual void* get_by_name(sys::state& state, std::string_view name) noexcept {
+		return nullptr;
+	}
 	virtual message_result impl_set(sys::state& state, Cyto::Any& payload) noexcept;
 	virtual void impl_render(sys::state& state, int32_t x, int32_t y) noexcept;
 	virtual void impl_on_reset_text(sys::state& state) noexcept;
@@ -58,7 +63,15 @@ public:
 	virtual tooltip_behavior has_tooltip(sys::state& state) noexcept { // used to test whether a tooltip is possible
 		return tooltip_behavior::no_tooltip;
 	}
+	virtual void tooltip_position(sys::state& state, int32_t x, int32_t y, int32_t& ident, urect& subrect) noexcept {
+		ident = 0;
+		subrect.top_left = ui::get_absolute_location(state, *this);
+		subrect.size = base_data.size;
+	}
 	virtual void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept { }
+
+	virtual void on_hover(sys::state& state) noexcept { } // when the mouse first moves over the element
+	virtual void on_hover_end(sys::state& state) noexcept { } // when the mouse is no longer over the element
 
 	// these message handlers can be overridden by basically anyone
 	//        - generally *should not* be called directly
@@ -77,7 +90,7 @@ protected:
 	virtual void on_create(sys::state& state) noexcept { } // called automatically after the element has been created by the system
 	virtual void on_drag(sys::state& state, int32_t oldx, int32_t oldy, int32_t x, int32_t y,
 			sys::key_modifiers mods) noexcept; // as drag events are generated
-	virtual void on_text(sys::state& state, char ch) noexcept { }
+	virtual void on_text(sys::state& state, char32_t ch) noexcept { }
 	virtual void on_visible(sys::state& state) noexcept { }
 	virtual void on_hide(sys::state& state) noexcept { }
 	virtual void on_reset_text(sys::state& state) noexcept { }
@@ -115,7 +128,7 @@ public:
 	friend std::unique_ptr<element_base> make_element(sys::state& state, std::string_view name);
 	friend std::unique_ptr<element_base> make_element_immediate(sys::state& state, dcon::gui_def_id id);
 	friend void sys::state::on_mouse_drag(int32_t x, int32_t y, sys::key_modifiers mod);
-	friend void sys::state::on_text(char c);
+	friend void sys::state::on_text(char32_t c);
 	friend void sys::state::on_drag_finished(int32_t x, int32_t y, key_modifiers mod);
 	template<typename T, typename ...Params>
 	friend std::unique_ptr<T> make_element_by_type(sys::state& state, dcon::gui_def_id id, Params&&... params);
@@ -142,13 +155,25 @@ inline void send(sys::state& state, element_base* parent, T value) {
 	}
 }
 
+template<typename T>
+inline T send_and_retrieve(sys::state& state, element_base* parent, T value) {
+	if(parent) {
+		Cyto::Any payload = value;
+		parent->impl_get(state, payload);
+		return any_cast<T>(payload);
+	} else {
+		return T{};
+	}
+}
+
 void trigger_description(sys::state& state, text::layout_base& layout, dcon::trigger_key k, int32_t primary_slot = -1,
 		int32_t this_slot = -1, int32_t from_slot = -1);
 void multiplicative_value_modifier_description(sys::state& state, text::layout_base& layout, dcon::value_modifier_key modifier,
 		int32_t primary, int32_t this_slot, int32_t from_slot);
 void additive_value_modifier_description(sys::state& state, text::layout_base& layout, dcon::value_modifier_key modifier,
 		int32_t primary, int32_t this_slot, int32_t from_slot);
-void modifier_description(sys::state& state, text::layout_base& layout, dcon::modifier_id mid, int32_t indentation = 0);
+
+void modifier_description(sys::state& state, text::layout_base& layout, dcon::modifier_id mid, int32_t indentation = 0, float scale = 1.f);
 void active_modifiers_description(sys::state& state, text::layout_base& layout, dcon::nation_id n, int32_t identation,
 		dcon::national_modifier_value nmid, bool header);
 void active_modifiers_description(sys::state& state, text::layout_base& layout, dcon::province_id p, int32_t identation,

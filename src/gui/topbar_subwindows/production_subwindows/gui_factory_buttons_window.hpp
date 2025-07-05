@@ -6,7 +6,7 @@
 
 namespace ui {
 
-class factory_prod_subsidise_all_button : public button_element_base {
+class factory_prod_subsidise_all_button : public tinted_button_element_base {
 public:
 	void button_action(sys::state& state) noexcept override {
 		if(!parent)
@@ -31,6 +31,12 @@ public:
 	void on_update(sys::state& state) noexcept override {
 		auto rules = state.world.nation_get_combined_issue_rules(state.local_player_nation);
 		disabled = (rules & issue_rule::can_subsidise) == 0;
+		color = sys::pack_color(255, 255, 255);
+		if(state.user_settings.color_blind_mode == sys::color_blind_mode::deutan || state.user_settings.color_blind_mode == sys::color_blind_mode::protan) {
+			color = sys::pack_color(114, 150, 77); //remap to yellow
+		} else if(state.user_settings.color_blind_mode == sys::color_blind_mode::achroma) {
+			color = sys::pack_color(128, 128, 128);
+		}
 	}
 
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -44,7 +50,7 @@ public:
 	}
 };
 
-class factory_prod_unsubsidise_all_button : public button_element_base {
+class factory_prod_unsubsidise_all_button : public tinted_button_element_base {
 public:
 	void button_action(sys::state& state) noexcept override {
 		if(!parent)
@@ -69,6 +75,12 @@ public:
 	void on_update(sys::state& state) noexcept override {
 		auto rules = state.world.nation_get_combined_issue_rules(state.local_player_nation);
 		disabled = (rules & issue_rule::can_subsidise) == 0;
+		color = sys::pack_color(255, 255, 255);
+		if(state.user_settings.color_blind_mode == sys::color_blind_mode::deutan || state.user_settings.color_blind_mode == sys::color_blind_mode::protan) {
+			color = sys::pack_color(255, 100, 255); //remap to blue
+		} else if(state.user_settings.color_blind_mode == sys::color_blind_mode::achroma) {
+			color = sys::pack_color(196, 196, 196);
+		}
 	}
 
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -123,47 +135,45 @@ public:
 	}
 };
 
-class factory_select_all_button : public button_element_base {
-public:
-	void button_action(sys::state& state) noexcept override {
-		if(parent) {
-			for(auto com : state.world.in_commodity) {
-				Cyto::Any payload = commodity_filter_query_data{com.id, false};
-				parent->impl_get(state, payload);
-				bool is_set = any_cast<commodity_filter_query_data>(payload).filter;
-
-				if(!is_set) {
-					Cyto::Any payloadb = commodity_filter_toggle_data{com.id};
-					parent->impl_get(state, payloadb);
-				}
-			}
-		}
-	}
-
-	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
-		return tooltip_behavior::tooltip;
-	}
-
-	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
-		auto box = text::open_layout_box(contents, 0);
-		text::localised_format_box(state, contents, box, std::string_view("production_select_all_tooltip"));
-		text::close_layout_box(contents, box);
-	}
+enum factory_select_all_button_state {
+	select_all, deselect_all
 };
 
-class factory_deselect_all_button : public button_element_base {
+class factory_select_all_button : public button_element_base {
 public:
+	factory_select_all_button_state btn_state;
+
 	void button_action(sys::state& state) noexcept override {
 		if(parent) {
-			for(auto com : state.world.in_commodity) {
-				Cyto::Any payload = commodity_filter_query_data{com.id, false};
-				parent->impl_get(state, payload);
-				bool is_set = any_cast<commodity_filter_query_data>(payload).filter;
+			if(btn_state == factory_select_all_button_state::select_all) {
+				for(auto com : state.world.in_commodity) {
+					Cyto::Any payload = commodity_filter_query_data{ com.id, false };
+					parent->impl_get(state, payload);
+					bool is_set = any_cast<commodity_filter_query_data>(payload).filter;
 
-				if(is_set) {
-					Cyto::Any payloadb = commodity_filter_toggle_data{com.id};
-					parent->impl_get(state, payloadb);
+					if(!is_set) {
+						Cyto::Any payloadb = commodity_filter_toggle_data{ com.id };
+						parent->impl_get(state, payloadb);
+					}
 				}
+
+				btn_state = factory_select_all_button_state::deselect_all;
+				impl_on_update(state);
+			}
+			else if(btn_state == factory_select_all_button_state::deselect_all) {
+				for(auto com : state.world.in_commodity) {
+					Cyto::Any payload = commodity_filter_query_data{ com.id, false };
+					parent->impl_get(state, payload);
+					bool is_set = any_cast<commodity_filter_query_data>(payload).filter;
+
+					if(is_set) {
+						Cyto::Any payloadb = commodity_filter_toggle_data{ com.id };
+						parent->impl_get(state, payloadb);
+					}
+				}
+
+				btn_state = factory_select_all_button_state::select_all;
+				impl_on_update(state);
 			}
 		}
 	}
@@ -173,9 +183,22 @@ public:
 	}
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
-		auto box = text::open_layout_box(contents, 0);
-		text::localised_format_box(state, contents, box, std::string_view("production_deselect_all_tooltip"));
-		text::close_layout_box(contents, box);
+		if(btn_state == factory_select_all_button_state::select_all) {
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, std::string_view("production_select_all_tooltip"));
+			text::close_layout_box(contents, box);
+		}
+		else if(btn_state == factory_select_all_button_state::deselect_all) {
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, std::string_view("production_deselect_all_tooltip"));
+			text::close_layout_box(contents, box);
+		}
+	}
+
+	void on_update(sys::state& state) noexcept override {
+		set_button_text(state,
+					text::produce_simple_string(state, btn_state == factory_select_all_button_state::select_all ? "PRODUCTION_SELECT_ALL" : "PRODUCTION_DESELECT_ALL"));
+
 	}
 };
 
@@ -216,6 +239,19 @@ class factory_name_sort : public button_element_base {
 			parent->impl_get(state, payload);
 		}
 	}
+	void button_shift_action(sys::state& state) noexcept override {
+		if(parent) {
+			Cyto::Any payload = production_sort_order::state_name;
+			parent->impl_get(state, payload);
+		}
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::position_sensitive_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "alice_production_name_sort_tip_province");
+		text::add_line(state, contents, "alice_production_name_sort_tip_state");
+	}
 };
 
 class factory_infrastructure_sort : public button_element_base {
@@ -255,7 +291,7 @@ public:
 			return make_element_by_type<factory_select_all_button>(state, id);
 
 		} else if(name == "deselect_all") {
-			return make_element_by_type<factory_deselect_all_button>(state, id);
+			return make_element_by_type<invisible_element>(state, id);
 
 		} else if(name == "show_empty_states") {
 			return make_element_by_type<factory_show_empty_states_button>(state, id);

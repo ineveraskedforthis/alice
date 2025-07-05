@@ -11,10 +11,66 @@
 #include "system_state.hpp"
 #include "text.hpp"
 #include "gui_production_window.hpp"
+#include "gui_build_unit_large_window.hpp"
 #include "province_templates.hpp"
 #include "nations_templates.hpp"
+#include "gui_province_tiles_window.hpp"
+#include "construction.hpp"
+#include "economy_trade_routes.hpp"
 
 namespace ui {
+
+class land_rally_point : public button_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		frame = (state.world.province_get_land_rally_point(retrieve<dcon::province_id>(state, parent))) ? 1 : 0;
+		disabled = state.world.province_get_nation_from_province_ownership(p) != state.local_player_nation;
+	}
+	void button_action(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		command::set_rally_point(state, state.local_player_nation, p, false, !state.world.province_get_land_rally_point(p));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "rally_point_enable_info");
+	}
+};
+
+class naval_rally_point : public button_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		frame = state.world.province_get_naval_rally_point(p) ? 1 : 0;
+		disabled = !(state.world.province_get_is_coast(p)) || state.world.province_get_nation_from_province_ownership(p) != state.local_player_nation;
+	}
+	void button_action(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		command::set_rally_point(state, state.local_player_nation, p, true, !state.world.province_get_naval_rally_point(p));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "rally_point_enable_info");
+	}
+};
+
+class merge_rally_point : public button_element_base {
+public:
+	void on_create(sys::state& state) noexcept override {
+		button_element_base::on_create(state);
+		disabled = true;
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "alice_merge_rally_point_why");
+	}
+};
 
 class province_liferating : public progress_bar {
 public:
@@ -148,15 +204,33 @@ public:
 	void update_tooltip(sys::state& state, int32_t x, int32_t t, text::columnar_layout& contents) noexcept override {
 		dcon::province_id province_id = retrieve<dcon::province_id>(state, parent);
 		auto fat_id = dcon::fatten(state.world, province_id);
-		auto name = fat_id.get_terrain().get_name();
-		if(bool(name)) {
+		//terrain
+		if(auto name = fat_id.get_terrain().get_name(); name) {
 			auto box = text::open_layout_box(contents, 0);
 			text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, name), text::text_color::yellow);
 			text::close_layout_box(contents, box);
 		}
-		auto mod_id = fat_id.get_terrain().id;
-		if(bool(mod_id))
+		if(auto mod_id = fat_id.get_terrain().id; mod_id) {
 			modifier_description(state, contents, mod_id);
+		}
+		//climate
+		if(auto name = fat_id.get_climate().get_name(); name) {
+			auto box = text::open_layout_box(contents, 0);
+			text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, name), text::text_color::yellow);
+			text::close_layout_box(contents, box);
+		}
+		if(auto mod_id = fat_id.get_climate().id; mod_id) {
+			modifier_description(state, contents, mod_id);
+		}
+		//continent
+		if(auto name = fat_id.get_continent().get_name(); name) {
+			auto box = text::open_layout_box(contents, 0);
+			text::add_to_layout_box(state, contents, box, text::produce_simple_string(state, name), text::text_color::yellow);
+			text::close_layout_box(contents, box);
+		}
+		if(auto mod_id = fat_id.get_continent().id; mod_id) {
+			modifier_description(state, contents, mod_id);
+		}
 	}
 };
 
@@ -176,9 +250,12 @@ public:
 	}
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t t, text::columnar_layout& contents) noexcept override {
-		dcon::province_id p = retrieve<dcon::province_id>(state, parent);
+		dcon::province_id prov = retrieve<dcon::province_id>(state, parent);
+		if(!state.world.state_instance_get_flashpoint_tag(state.world.province_get_state_membership(prov)))
+			return;
+
 		text::substitution_map sub_map{};
-		text::add_to_substitution_map(sub_map, text::variable_type::value, text::fp_two_places{ state.world.state_instance_get_flashpoint_tension(state.world.province_get_state_membership(p)) });
+		text::add_to_substitution_map(sub_map, text::variable_type::value, text::fp_two_places{ state.world.state_instance_get_flashpoint_tension(state.world.province_get_state_membership(prov)) });
 		auto box = text::open_layout_box(contents, 0);
 		text::localised_format_box(state, contents, box, std::string_view("flashpoint_tension"), sub_map);
 		text::close_layout_box(contents, box);
@@ -196,34 +273,49 @@ public:
 		return dcon::national_identity_id{};
 	}
 
+	void on_update(sys::state& state) noexcept override {
+		flag_button::set_current_nation(state, province_controller_flag::get_current_nation(state));
+		if(parent) {
+			dcon::province_id province_id = retrieve<dcon::province_id>(state, parent);
+			auto prov_fat = dcon::fatten(state.world, province_id);
+			auto controller = prov_fat.get_province_control_as_province().get_nation();
+			auto rebel_faction = prov_fat.get_province_rebel_control_as_province().get_rebel_faction();
+			if(rebel_faction) {
+				flag_texture_handle = ogl::get_rebel_flag_handle(state, rebel_faction);
+			}
+		}
+	}
+
+	void render(sys::state& state, int32_t x, int32_t y) noexcept override {
+		dcon::province_id province_id = retrieve<dcon::province_id>(state, parent);
+		auto prov_fat = dcon::fatten(state.world, province_id);
+		auto controller = prov_fat.get_province_control_as_province().get_nation();
+		auto rebel_faction = prov_fat.get_province_rebel_control_as_province().get_rebel_faction();
+		if(!controller && !rebel_faction)
+			return;
+		flag_button::render(state, x, y);
+	}
+
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
 		return tooltip_behavior::variable_tooltip;
 	}
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		dcon::province_id province_id = retrieve<dcon::province_id>(state, parent);
+		auto prov_fat = dcon::fatten(state.world, province_id);
+		auto controller = prov_fat.get_province_control_as_province().get_nation();
+		auto rebel_faction = prov_fat.get_province_rebel_control_as_province().get_rebel_faction();
+		if(!controller && !rebel_faction)
+			return;
 		auto box = text::open_layout_box(contents, 0);
 		text::localised_format_box(state, contents, box, std::string_view("pv_controller"));
 		text::add_space_to_layout_box(state, contents, box);
-
-		dcon::province_id province_id = retrieve<dcon::province_id>(state, parent);
-		auto prov_fat = dcon::fatten(state.world, province_id);
-		dcon::nation_id controller_id = prov_fat.get_province_control_as_province().get_nation().id;
-		if(bool(controller_id)) {
-			auto controller_name = state.world.nation_get_name(controller_id);
-			text::add_to_layout_box(state, contents, box, controller_name);
+		if(controller) {
+			text::add_to_layout_box(state, contents, box, text::get_name(state, controller));
 		} else {
-			auto rebel_faction_id = prov_fat.get_province_rebel_control_as_province().get_rebel_faction();
-			text::add_to_layout_box(state, contents, box, rebel::rebel_name(state, rebel_faction_id));
+			text::add_to_layout_box(state, contents, box, rebel::rebel_name(state, rebel_faction));
 		}
 		text::close_layout_box(contents, box);
-	}
-};
-
-class province_state_name_text_SCH : public simple_text_element_base {
-public:
-	void on_update(sys::state& state) noexcept override {
-		dcon::province_id result = retrieve<dcon::province_id>(state, parent);
-		set_text(state, text::get_province_state_name(state, result));
 	}
 };
 
@@ -234,8 +326,8 @@ public:
 		if(state.world.state_instance_get_nation_from_flashpoint_focus(content) == state.local_player_nation)
 			return state.world.national_focus_get_icon(state.national_definitions.flashpoint_focus) - 1;
 		return bool(state.world.state_instance_get_owner_focus(content).id)
-							 ? state.world.state_instance_get_owner_focus(content).get_icon() - 1
-							 : 0;
+			? state.world.state_instance_get_owner_focus(content).get_icon() - 1
+			: 0;
 	}
 
 	void on_update(sys::state& state) noexcept override {
@@ -277,10 +369,6 @@ public:
 					if((fat_si.get_demographics(demographics::to_key(state, fat_nf.get_promotion_type())) / fat_si.get_demographics(demographics::total)) > state.defines.max_clergy_for_literacy) {
 						color = text::text_color::red;
 					}
-				} else if(fat_nf.get_promotion_type() == state.culture_definitions.bureaucrat) {
-					if(province::state_admin_efficiency(state, fat_si.id) > state.defines.max_bureaucracy_percentage) {
-						color = text::text_color::red;
-					}
 				}
 				auto full_str = text::format_percentage(fat_si.get_demographics(demographics::to_key(state, fat_nf.get_promotion_type())) / fat_si.get_demographics(demographics::total));
 				text::add_to_layout_box(state, contents, box, std::string_view(full_str), color);
@@ -311,7 +399,21 @@ public:
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		sys::dated_modifier mod = retrieve< sys::dated_modifier>(state, parent);
 		if(mod.mod_id) {
-			text::add_line(state, contents, state.world.modifier_get_name(mod.mod_id));
+			auto p = retrieve<dcon::province_id>(state, parent);
+			auto n = state.world.province_get_nation_from_province_ownership(p);
+			auto box = text::open_layout_box(contents, 0);
+			text::add_to_layout_box(state, contents, box, state.world.modifier_get_name(mod.mod_id), text::text_color::yellow);
+			text::add_line_break_to_layout_box(state, contents, box);
+			if(auto desc = state.world.modifier_get_desc(mod.mod_id); state.key_is_localized(desc)) {
+				text::substitution_map sub{};
+				text::add_to_substitution_map(sub, text::variable_type::country, n);
+				text::add_to_substitution_map(sub, text::variable_type::country_adj, text::get_adjective(state, n));
+				text::add_to_substitution_map(sub, text::variable_type::capital, state.world.nation_get_capital(n));
+				text::add_to_substitution_map(sub, text::variable_type::continentname, state.world.modifier_get_name(state.world.province_get_continent(state.world.nation_get_capital(n))));
+				text::add_to_substitution_map(sub, text::variable_type::provincename, p);
+				text::add_to_layout_box(state, contents, box, desc, sub);
+			}
+			text::close_layout_box(contents, box);
 			modifier_description(state, contents, mod.mod_id, 15);
 		}
 		if(mod.expiration) {
@@ -383,7 +485,7 @@ public:
 		auto source = state.local_player_nation;
 		auto p = retrieve<dcon::province_id>(state, parent);
 		text::add_line(state, contents, "alice_mvcap_1");
-		text::add_line_with_condition(state, contents, "alice_mvcap_2", !(state.current_crisis != sys::crisis_type::none));
+		text::add_line_with_condition(state, contents, "alice_mvcap_2", state.current_crisis_state == sys::crisis_state::inactive);
 		text::add_line_with_condition(state, contents, "alice_mvcap_3", !(state.world.nation_get_is_at_war(source)));
 		text::add_line_with_condition(state, contents, "alice_mvcap_4", !(state.world.nation_get_capital(source) == p));
 		text::add_line_with_condition(state, contents, "alice_mvcap_5", !(state.world.province_get_is_colonial(p)));
@@ -397,6 +499,190 @@ public:
 	}
 };
 
+class province_toggle_administration_button : public button_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		disabled = !command::can_toggle_local_administration(state, state.local_player_nation, p);
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		command::toggle_local_administration(state, state.local_player_nation, p);
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t t, text::columnar_layout& contents) noexcept override {
+		auto source = state.local_player_nation;
+		auto p = retrieve<dcon::province_id>(state, parent);
+		text::add_line(state, contents, "alice_toggle_administration");
+	}
+};
+
+class province_take_province_button : public button_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		if(state.defines.alice_allow_revoke_subject_states == 0.0f) {
+			set_visible(state, false);
+			return;
+		}
+		auto p = retrieve<dcon::province_id>(state, parent);
+		disabled = !command::can_take_province(state, state.local_player_nation, p);
+	}
+
+	void render(sys::state& state, int32_t x, int32_t y) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto fid = dcon::fatten(state.world, p);
+		auto owner = fid.get_nation_from_province_ownership();
+
+		if(owner != state.local_player_nation) {
+			button_element_base::render(state, x, y);
+		} else {
+			// not rendered
+		}
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		command::take_province(state, state.local_player_nation, p);
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t t, text::columnar_layout& contents) noexcept override {
+		auto source = state.local_player_nation;
+		auto p = retrieve<dcon::province_id>(state, parent);
+
+		auto fid = dcon::fatten(state.world, p);
+		auto owner = fid.get_nation_from_province_ownership();
+		auto rel = state.world.nation_get_overlord_as_subject(owner);
+		auto overlord = state.world.overlord_get_ruler(rel);
+
+		text::add_line(state, contents, "alice_take_province_1");
+		{
+			text::substitution_map m;
+			text::add_to_substitution_map(m, text::variable_type::val, text::fp_one_place{ state.defines.years_of_nationalism });
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, "alice_take_province_2", m);
+			text::close_layout_box(contents, box);
+		}
+		{
+			text::substitution_map m;
+			text::add_to_substitution_map(m, text::variable_type::val, text::fp_one_place{ state.defines.alice_take_province_militancy_subject });
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, "alice_take_province_3", m);
+			text::close_layout_box(contents, box);
+		}
+		{
+			text::substitution_map m;
+			text::add_to_substitution_map(m, text::variable_type::val, text::fp_one_place{ state.defines.alice_take_province_militancy_all_subjects });
+			auto box = text::open_layout_box(contents, 0);
+			text::localised_format_box(state, contents, box, "alice_take_province_4", m);
+			text::close_layout_box(contents, box);
+		}
+
+		text::add_line_with_condition(state, contents, "alice_take_province_5", !(overlord != source));
+		text::add_line_with_condition(state, contents, "alice_mvcap_2", state.current_crisis_state == sys::crisis_state::inactive);
+		text::add_line_with_condition(state, contents, "alice_mvcap_3", !(state.world.nation_get_is_at_war(source)));
+		text::add_line_with_condition(state, contents, "alice_take_province_6", !(state.world.nation_get_is_at_war(owner)));
+		text::add_line_with_condition(state, contents, "alice_mvcap_8", !(state.world.province_get_siege_progress(p) > 0.f));
+		text::add_line_with_condition(state, contents, "alice_mvcap_9", !(state.world.province_get_siege_progress(state.world.nation_get_capital(owner)) > 0.f));
+		text::add_line_with_condition(state, contents, "alice_take_province_7", !(state.world.province_get_nation_from_province_control(p) != owner));
+	}
+};
+
+class province_grant_province_button : public button_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		disabled = true;
+	}
+
+	void render(sys::state& state, int32_t x, int32_t y) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto fid = dcon::fatten(state.world, p);
+		auto owner = fid.get_nation_from_province_ownership();
+
+		if(owner == state.local_player_nation) {
+			button_element_base::render(state, x, y);
+		} else {
+			// not rendered
+		}
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		command::move_capital(state, state.local_player_nation, p);
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t t, text::columnar_layout& contents) noexcept override {
+		auto source = state.local_player_nation;
+		auto p = retrieve<dcon::province_id>(state, parent);
+		
+	}
+};
+
+class province_victory_points_text : public simple_text_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+
+		auto vp = military::province_point_cost(state, p, n);
+		set_text(state, text::format_wholenum(vp));
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		text::add_line(state, contents, "province_victory_points");
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+
+		text::add_line(state, contents, "province_victory_points_base");
+
+		if(!state.world.province_get_is_colonial(p)) {
+			auto nbsize = state.world.province_get_building_level(p, uint8_t(economy::province_building_type::naval_base));
+
+			if (nbsize > 0)
+				text::add_line(state, contents, "province_victory_points_nb", text::variable_type::x, nbsize);
+		}
+
+		auto fac_range = state.world.province_get_factory_location(p);
+		auto fcount = int32_t(fac_range.end() - fac_range.begin());
+
+		if (fcount > 0)
+			text::add_line(state, contents, "province_victory_points_fcount", text::variable_type::x, fcount);
+
+		auto fortsize = state.world.province_get_building_level(p, uint8_t(economy::province_building_type::fort));
+
+		if (fortsize > 0)
+			text::add_line(state, contents, "province_victory_points_fortsize", text::variable_type::x, fortsize);
+
+		auto owner_cap = state.world.nation_get_capital(n);
+		auto overseas = (state.world.province_get_continent(p) != state.world.province_get_continent(owner_cap)) &&
+			(state.world.province_get_connected_region_id(p) != state.world.province_get_connected_region_id(owner_cap));
+
+		if(state.world.province_get_is_owner_core(p) && !overseas) {
+			text::add_line(state, contents, "province_victory_points_mainlandcore");
+		}
+		if(state.world.nation_get_capital(n) == p) {
+			text::add_line(state, contents, "province_victory_points_capital");
+		}
+	}
+};
+
 class province_window_header : public window_element_base {
 private:
 	fixed_pop_type_icon* slave_icon = nullptr;
@@ -405,7 +691,7 @@ private:
 public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
 		if(name == "state_name") {
-			return make_element_by_type<province_state_name_text_SCH>(state, id);
+			return make_element_by_type<province_state_name_text>(state, id);
 		} else if(name == "province_name") {
 			return make_element_by_type<generic_name_text<dcon::province_id>>(state, id);
 		} else if(name == "prov_terrain") {
@@ -436,12 +722,21 @@ public:
 		} else if(name == "occupation_flag") {
 			return make_element_by_type<invisible_element>(state, id);
 		} else if(name == "colony_button") {
-			auto btn = make_element_by_type<province_move_capital_button>(state, id);
-			btn->base_data.position.x -= btn->base_data.size.x;
-			add_child_to_front(std::move(btn));
-			auto ptr = make_element_by_type<province_colony_button>(state, id);
-			colony_button = ptr.get();
-			return ptr;
+			auto btn = make_element_by_type<province_colony_button>(state, id);
+			colony_button = btn.get();
+			return btn;
+		} else if(name == "alice_move_capital") {
+			return make_element_by_type<province_move_capital_button>(state, id);
+		} else if(name == "alice_toggle_administration") {
+			return make_element_by_type<province_toggle_administration_button>(state, id);
+		} else if(name == "province_victory_points_icon") {
+			return make_element_by_type<image_element_base>(state, id);
+		} else if(name == "province_victory_points") {
+		return make_element_by_type<province_victory_points_text>(state, id);
+		} else if(name == "alice_take_province") {
+			return make_element_by_type<province_take_province_button>(state, id);
+		} else if(name == "alice_grant_province") {
+			return make_element_by_type<province_grant_province_button>(state, id);
 		} else if(name == "national_focus") {
 			return make_element_by_type<province_national_focus_button>(state, id);
 		} else if(name == "admin_efficiency") {
@@ -495,11 +790,20 @@ public:
 	void on_update(sys::state& state) noexcept override {
 		auto prov_id = retrieve<dcon::province_id>(state, parent);
 		auto fat_id = dcon::fatten(state.world, prov_id);
-		frame = fat_id.get_building_level(Value);
+		frame = fat_id.get_building_level(uint8_t(Value));
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto id = retrieve<dcon::province_id>(state, parent);
+		province_building_tooltip(state, contents, id, Value);
 	}
 };
 template<economy::province_building_type Value>
-class province_building_expand_button : public shift_right_button_element_base {
+class province_building_expand_button : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::province_id>(state, parent);
@@ -518,7 +822,8 @@ public:
 			auto si = state.world.province_get_state_membership(pid);
 			if(si) {
 				province::for_each_province_in_state_instance(state, si, [&](dcon::province_id p) {
-					command::begin_province_building_construction(state, state.local_player_nation, p, Value);
+					if(command::can_begin_province_building_construction(state, state.local_player_nation, p, Value))
+						command::begin_province_building_construction(state, state.local_player_nation, p, Value);
 				});
 			}
 		}
@@ -527,7 +832,8 @@ public:
 		auto content = retrieve<dcon::province_id>(state, parent);
 		auto within_nation = state.world.province_get_nation_from_province_ownership(content);
 		for(auto p : state.world.nation_get_province_ownership(within_nation)) {
-			command::begin_province_building_construction(state, state.local_player_nation, p.get_province(), Value);
+			if(command::can_begin_province_building_construction(state, state.local_player_nation, p.get_province(), Value))
+				command::begin_province_building_construction(state, state.local_player_nation, p.get_province(), Value);
 		}
 	}
 
@@ -537,47 +843,7 @@ public:
 
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto id = retrieve<dcon::province_id>(state, parent);
-
-		int32_t current_lvl = state.world.province_get_building_level(id, Value);
-		int32_t max_local_lvl = state.world.nation_get_max_building_level(state.local_player_nation, Value);
-		if constexpr(Value == economy::province_building_type::fort) {
-			text::add_line_with_condition(state, contents, "fort_build_tt_1", state.world.province_get_nation_from_province_control(id) == state.local_player_nation);
-			text::add_line_with_condition(state, contents, "fort_build_tt_2", !military::province_is_under_siege(state, id));
-
-			int32_t min_build = int32_t(state.world.province_get_modifier_values(id, sys::provincial_mod_offsets::min_build_fort));
-			text::add_line_with_condition(state, contents, "fort_build_tt_3", (max_local_lvl - current_lvl - min_build > 0), text::variable_type::x, int64_t(current_lvl), text::variable_type::n, int64_t(min_build), text::variable_type::y, int64_t(max_local_lvl));
-
-		} else if constexpr(Value == economy::province_building_type::naval_base) {
-			text::add_line_with_condition(state, contents, "fort_build_tt_1", state.world.province_get_nation_from_province_control(id) == state.local_player_nation);
-			text::add_line_with_condition(state, contents, "fort_build_tt_2", !military::province_is_under_siege(state, id));
-			text::add_line_with_condition(state, contents, "nb_build_tt_1", state.world.province_get_is_coast(id));
-
-			int32_t min_build = int32_t(state.world.province_get_modifier_values(id, sys::provincial_mod_offsets::min_build_naval_base));
-
-			auto si = state.world.province_get_state_membership(id);
-			text::add_line_with_condition(state, contents, "nb_build_tt_2", current_lvl > 0 || !si.get_naval_base_is_taken());
-
-			text::add_line_with_condition(state, contents, "fort_build_tt_3", (max_local_lvl - current_lvl - min_build > 0), text::variable_type::x, int64_t(current_lvl), text::variable_type::n, int64_t(min_build), text::variable_type::y, int64_t(max_local_lvl));
-
-		} else {
-			text::add_line_with_condition(state, contents, "fort_build_tt_1", state.world.province_get_nation_from_province_control(id) == state.local_player_nation);
-			text::add_line_with_condition(state, contents, "fort_build_tt_2", !military::province_is_under_siege(state, id));
-
-			auto rules = state.world.nation_get_combined_issue_rules(state.local_player_nation);
-			text::add_line_with_condition(state, contents, "rr_build_tt_1", (rules & issue_rule::build_railway) != 0);
-
-			int32_t min_build = 0;
-			if constexpr(Value == economy::province_building_type::railroad) {
-				min_build = int32_t(state.world.province_get_modifier_values(id, sys::provincial_mod_offsets::min_build_railroad));
-			} else if constexpr(Value == economy::province_building_type::bank) {
-				min_build = int32_t(state.world.province_get_modifier_values(id, sys::provincial_mod_offsets::min_build_bank));
-			} else if constexpr(Value == economy::province_building_type::university) {
-				min_build = int32_t(state.world.province_get_modifier_values(id, sys::provincial_mod_offsets::min_build_university));
-			}
-			text::add_line_with_condition(state, contents, "fort_build_tt_3", (max_local_lvl - current_lvl - min_build > 0), text::variable_type::x, int64_t(current_lvl), text::variable_type::n, int64_t(min_build), text::variable_type::y, int64_t(max_local_lvl));
-		}
-		modifier_description(state, contents, state.economy_definitions.building_definitions[uint8_t(Value)].province_modifier);
-		text::add_line(state, contents, "alice_province_building_build");
+		province_building_construction_tooltip(state, contents, id, Value);
 	}
 };
 
@@ -607,17 +873,22 @@ public:
 				auto& goods = state.economy_definitions.building_definitions[int32_t(Value)].cost;
 				auto& cgoods = pb_con.get_purchased_goods();
 
-				float admin_eff = state.world.nation_get_administrative_efficiency(pb_con.get_nation());
-				float admin_cost_factor = pb_con.get_is_pop_project() ? 1.0f :  2.0f - admin_eff;
+				float factor = economy::build_cost_multiplier(state, prov, pb_con.get_is_pop_project());
 
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					if(goods.commodity_type[i]) {
 						auto box = text::open_layout_box(contents, 0);
+
+						auto cid = goods.commodity_type[i];
+						std::string padding = cid.index() < 10 ? "0" : "";
+						std::string description = "@$" + padding + std::to_string(cid.index());
+						text::add_unparsed_text_to_layout_box(state, contents, box, description);
+
 						text::add_to_layout_box(state, contents, box, state.world.commodity_get_name(goods.commodity_type[i]));
 						text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
 						text::add_to_layout_box(state, contents, box, text::fp_one_place{ cgoods.commodity_amounts[i] });
 						text::add_to_layout_box(state, contents, box, std::string_view{ " / " });
-						text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * admin_cost_factor });
+						text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * factor });
 						text::close_layout_box(contents, box);
 					}
 				}
@@ -702,7 +973,7 @@ public:
 //
 // Selector
 //
-class province_selector_button : public shift_button_element_base {
+class province_selector_button : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto p = retrieve<dcon::province_id>(state, parent);
@@ -717,9 +988,9 @@ public:
 		}
 
 		if(found) {
-			set_button_text(state, text::produce_simple_string(state, "alice_province_selector_on"));
+			set_button_text(state, text::produce_simple_string(state, "on"));
 		} else {
-			set_button_text(state, text::produce_simple_string(state, "alice_province_selector_off"));
+			set_button_text(state, text::produce_simple_string(state, "off"));
 		}
 	}
 	void button_action(sys::state& state) noexcept override {
@@ -782,7 +1053,7 @@ public:
 //
 // Immigrator
 //
-class province_immigrator_button : public shift_button_element_base {
+class province_immigrator_button : public button_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto p = retrieve<dcon::province_id>(state, parent);
@@ -797,9 +1068,9 @@ public:
 		}
 
 		if(found) {
-			set_button_text(state, text::produce_simple_string(state, "alice_province_selector_on"));
+			set_button_text(state, text::produce_simple_string(state, "on"));
 		} else {
-			set_button_text(state, text::produce_simple_string(state, "alice_province_selector_off"));
+			set_button_text(state, text::produce_simple_string(state, "off"));
 		}
 	}
 	void button_action(sys::state& state) noexcept override {
@@ -859,7 +1130,7 @@ public:
 	}
 };
 
-class province_invest_railroad_button : public shift_right_button_element_base {
+class province_invest_railroad_button : public button_element_base {
 public:
 	void button_action(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::province_id>(state, parent);
@@ -931,7 +1202,7 @@ public:
 	void button_action(sys::state& state) noexcept override {
 		auto content = retrieve<dcon::province_id>(state, parent);
 		if(content) {
-			open_build_foreign_factory(state, state.world.province_get_state_membership(content));
+			open_build_foreign_factory(state, content);
 		}
 
 	}
@@ -945,7 +1216,7 @@ public:
 
 		for(auto ft : state.world.in_factory_type) {
 			if(command::can_begin_factory_building_construction(state, state.local_player_nation,
-				state.world.province_get_state_membership(content), ft, false)) {
+				content, ft, false)) {
 
 				disabled = false;
 				return;
@@ -1090,15 +1361,12 @@ public:
 		} else if (name == "selected_military_icon") {
 			auto ptr = make_element_by_type<military_score_icon>(state, id);
 			return ptr;
-		} else if(name == "rally_land_icon"
-			|| name == "rallypoint_merge_icon"
-			|| name == "rally_naval_icon"
-			|| name == "rallypoint_merge_icon_naval"
-			|| name == "rallypoint_checkbox"
-			|| name == "rallypoint_merge_checkbox"
-			|| name == "rallypoint_checkbox_naval"
-			|| name == "rallypoint_merge_checkbox_naval") {
-			return make_element_by_type<invisible_element>(state, id);
+		} else if(name == "rallypoint_checkbox") {
+			return make_element_by_type<land_rally_point>(state, id);
+		} else if(name == "rallypoint_checkbox_naval") {
+			return make_element_by_type<naval_rally_point>(state, id);
+		} else if(name == "rallypoint_merge_checkbox" || name == "rallypoint_merge_checkbox_naval") {
+			return make_element_by_type<merge_rally_point>(state, id);
 		} else {
 			return nullptr;
 		}
@@ -1124,6 +1392,9 @@ void province_owner_rgo_draw_tooltip(sys::state& state, text::columnar_layout& c
 
 class province_owner_rgo : public province_rgo {
 public:
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto prov_id = retrieve<dcon::province_id>(state, parent);
 		province_owner_rgo_draw_tooltip(state, contents, prov_id);
@@ -1156,7 +1427,8 @@ class province_rgo_employment_progress_icon : public opaque_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto province = retrieve<dcon::province_id>(state, parent);
-		auto employment_ratio = state.world.province_get_rgo_employment(province);
+		auto max_emp = economy::rgo_max_employment(state, province);
+		auto employment_ratio = economy::rgo_employment(state, province) / (max_emp + 1.f);
 		frame = int32_t(10.f * employment_ratio);
 	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
@@ -1165,31 +1437,13 @@ public:
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto prov_id = retrieve<dcon::province_id>(state, parent);
 		auto owner = state.world.province_get_nation_from_province_ownership(prov_id);
-		auto max_emp = economy::rgo_max_employment(state, owner, prov_id);
-		auto employment_ratio = state.world.province_get_rgo_employment(prov_id);
-
-		bool is_mine = state.world.commodity_get_is_mine(state.world.province_get_rgo(prov_id));
-		float const min_wage_factor = economy::pop_min_wage_factor(state, owner);
-		float farmer_min_wage = economy::pop_farmer_min_wage(state, owner, min_wage_factor);
-		float laborer_min_wage = economy::pop_laborer_min_wage(state, owner, min_wage_factor);
-		float expected_min_wage = is_mine ? laborer_min_wage : farmer_min_wage;
-
-		auto [non_slaves, slaves, total_relevant] = economy::rgo_relevant_population(state, prov_id, owner);
-		float expected_profit = economy::rgo_expected_profit(state, prov_id, owner, total_relevant);
-		float desired_profit = economy::rgo_desired_profit(state, prov_id, owner, expected_min_wage, total_relevant);
+		auto max_emp = economy::rgo_max_employment(state, prov_id);
+		auto employment_ratio = economy::rgo_employment(state, prov_id) / (max_emp + 1.f);
 
 		auto box = text::open_layout_box(contents);
 		text::add_to_layout_box(state, contents, box, int64_t(std::ceil(employment_ratio * max_emp)));
 		text::add_to_layout_box(state, contents, box, std::string_view{" / "});
 		text::add_to_layout_box(state, contents, box, int64_t(std::ceil(max_emp)));
-		
-
-		text::add_to_layout_box(state, contents, box, std::string_view{ " / desired profit: " });
-		text::add_to_layout_box(state, contents, box, int64_t(std::ceil(desired_profit * 100.f)));
-		text::add_to_layout_box(state, contents, box, std::string_view{ " / expected profit: " });
-		text::add_to_layout_box(state, contents, box, int64_t(std::ceil(expected_profit * 100.f)));
-		text::add_to_layout_box(state, contents, box, std::string_view{ " / expected min wage: " });
-		text::add_to_layout_box(state, contents, box, int64_t(std::ceil(expected_min_wage)));
 
 		text::close_layout_box(contents, box);
 	}
@@ -1259,6 +1513,14 @@ public:
 		text::close_layout_box(contents, box);
 	}
 	*/
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto content = retrieve<dcon::province_id>(state, parent);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::administrative_efficiency_modifier, true);
+	}
 };
 
 class province_rebel_percent_text : public simple_text_element_base {
@@ -1267,11 +1529,9 @@ public:
 		auto province_id = retrieve<dcon::province_id>(state, parent);
 		set_text(state, text::format_float(province::revolt_risk(state, province_id), 2));
 	}
-
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
 		return tooltip_behavior::variable_tooltip;
 	}
-
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		auto content = retrieve<dcon::province_id>(state, parent);
 		text::add_line(state, contents, "avg_mil_on_map", text::variable_type::value, text::fp_one_place{ province::revolt_risk(state, content) });
@@ -1285,7 +1545,33 @@ class province_rgo_employment_percent_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto province_id = retrieve<dcon::province_id>(state, parent);
-		set_text(state, text::format_percentage(state.world.province_get_rgo_employment(province_id), 1));
+		auto max_emp = economy::rgo_max_employment(state, province_id);
+		auto emp = economy::rgo_employment(state, province_id);
+		auto ratio = 0.f;
+		if(max_emp > 0) {
+			ratio = emp / max_emp;
+		}
+		set_text(state, text::format_percentage(ratio, 1));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto content = retrieve<dcon::province_id>(state, parent);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::farm_rgo_eff, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::farm_rgo_size, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::mine_rgo_eff, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::mine_rgo_size, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::local_rgo_input, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::local_rgo_output, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::local_rgo_throughput, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::rgo_input, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::rgo_output, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::rgo_throughput, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::farm_rgo_eff, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::farm_rgo_size, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::mine_rgo_eff, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::mine_rgo_size, true);
 	}
 };
 
@@ -1293,9 +1579,21 @@ class province_migration_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto province_id = retrieve<dcon::province_id>(state, parent);
-		auto internal = province::monthly_net_pop_internal_migration(state, province_id);
-		auto external = province::monthly_net_pop_external_migration(state, province_id);
-		set_text(state, text::prettify(int32_t(internal + external)));
+		auto migration = state.world.province_get_daily_net_migration(province_id);
+		auto immigration = state.world.province_get_daily_net_immigration(province_id);
+		set_text(state, text::prettify(int32_t(migration - immigration)));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto content = retrieve<dcon::province_id>(state, parent);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::immigrant_attract, true);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::immigrant_push, true);
+		if(state.world.province_get_is_colonial(content)) {
+			ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::colonial_migration, true);
+		}
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::global_immigrant_attract, true);
 	}
 };
 
@@ -1303,7 +1601,15 @@ class province_pop_growth_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
 		auto province_id = retrieve<dcon::province_id>(state, parent);
-		set_text(state, text::prettify(int32_t(province::monthly_net_pop_growth(state, province_id))));
+		set_text(state, text::prettify(int32_t(demographics::get_monthly_pop_increase(state, province_id))));
+	}
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto content = retrieve<dcon::province_id>(state, parent);
+		ui::active_modifiers_description(state, contents, content, 0, sys::provincial_mod_offsets::population_growth, true);
+		ui::active_modifiers_description(state, contents, state.world.province_control_get_nation(state.world.province_get_province_control_as_province(content)), 0, sys::national_mod_offsets::pop_growth, true);
 	}
 };
 
@@ -1316,8 +1622,6 @@ public:
 		set_text(state, text::format_ratio(built, max_possible));
 	}
 };
-
-
 
 class province_view_statistics : public window_element_base {
 private:
@@ -1393,42 +1697,238 @@ public:
 	}
 };
 
-class land_rally_point : public button_element_base {
+class province_army_progress : public progress_bar {
 public:
-	void on_update(sys::state& state) noexcept override {
-		frame = (state.world.province_get_land_rally_point(retrieve<dcon::province_id>(state, parent))) ? 1 : 0;
-	}
-	void button_action(sys::state& state) noexcept override {
-		auto p = retrieve<dcon::province_id>(state, parent);
-		command::set_rally_point(state, state.local_player_nation, p, false,  !state.world.province_get_land_rally_point(p));
-	}
 	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
-		return tooltip_behavior::tooltip;
+		return tooltip_behavior::variable_tooltip;
 	}
+
+	void on_update(sys::state& state) noexcept override {
+		progress = 0.f;
+		float amount = 0.f;
+		float total = 0.f;
+		auto p = retrieve<dcon::province_id>(state, parent);
+		for(auto pop : dcon::fatten(state.world, p).get_pop_location()) {
+			if(pop.get_pop().get_poptype() == state.culture_definitions.soldiers) {
+				auto lcs = pop.get_pop().get_province_land_construction();
+				for(const auto lc : lcs) {
+					auto details = economy::explain_land_unit_construction(state, lc);
+					auto& base_cost = state.military_definitions.unit_base_definitions[lc.get_type()].build_cost;
+					auto& current_purchased = lc.get_purchased_goods();
+					for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+						if(base_cost.commodity_type[i]) {
+							amount += current_purchased.commodity_amounts[i];
+							total += base_cost.commodity_amounts[i] * details.cost_multiplier;
+						} else {
+							break;
+						}
+					}
+				}
+			}
+		}
+		if(total > 0.f) {
+			progress = amount / total;
+		}
+	}
+
 	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
-		text::add_line(state, contents, "rally_point_enable_info");
+		auto p = retrieve<dcon::province_id>(state, parent);
+		for(auto pop : dcon::fatten(state.world, p).get_pop_location()) {
+			if(pop.get_pop().get_poptype() == state.culture_definitions.soldiers) {
+				auto lcs = pop.get_pop().get_province_land_construction();
+				for(const auto lc : lcs) {
+					economy::build_land_unit_construction_tooltip(state, contents, lc.id);
+				}
+			}
+		}
+	}
+};
+class province_navy_progress : public progress_bar {
+public:
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+
+	void on_update(sys::state& state) noexcept override {
+		progress = 0.f;
+		float amount = 0.f;
+		float total = 0.f;
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto ncs = state.world.province_get_province_naval_construction(p);
+		for(auto nc : ncs) {
+			auto& base_cost = state.military_definitions.unit_base_definitions[nc.get_type()].build_cost;
+			auto& current_purchased = nc.get_purchased_goods();
+			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+				auto details = economy::explain_naval_unit_construction(state, nc);
+				if(base_cost.commodity_type[i]) {
+					amount += current_purchased.commodity_amounts[i];
+					total += base_cost.commodity_amounts[i] * details.cost_multiplier;
+				} else {
+					break;
+				}
+			}
+		}
+		if(total > 0.f) {
+			progress = amount / total;
+		}
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto ncs = state.world.province_get_province_naval_construction(p);
+		for(auto nc : ncs) {
+			economy::build_naval_unit_construction_tooltip(state, contents, nc.id);
+		}
 	}
 };
 
-class naval_rally_point : public button_element_base {
+class province_army_progress_text : public simple_text_element_base {
 public:
 	void on_update(sys::state& state) noexcept override {
+		float amount = 0.f;
+		float total = 0.f;
 		auto p = retrieve<dcon::province_id>(state, parent);
-		frame = state.world.province_get_naval_rally_point(p) ? 1 : 0;
-		disabled = !(state.world.province_get_is_coast(p));
+		for(auto pop : dcon::fatten(state.world, p).get_pop_location()) {
+			if(pop.get_pop().get_poptype() == state.culture_definitions.soldiers) {
+				auto lcs = pop.get_pop().get_province_land_construction();
+				for(const auto lc : lcs) {
+					auto& base_cost = state.military_definitions.unit_base_definitions[lc.get_type()].build_cost;
+					auto& current_purchased = lc.get_purchased_goods();
+					for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+						if(base_cost.commodity_type[i]) {
+							amount += current_purchased.commodity_amounts[i];
+							total += base_cost.commodity_amounts[i];
+						} else {
+							break;
+						}
+					}
+				}
+			}
+		}
+		set_text(state, text::format_percentage(total > 0.f ? amount / total : 0.f));
 	}
-	void button_action(sys::state& state) noexcept override {
+};
+class province_navy_progress_text : public simple_text_element_base {
+public:
+	void on_update(sys::state& state) noexcept override {
+		float amount = 0.f;
+		float total = 0.f;
 		auto p = retrieve<dcon::province_id>(state, parent);
-		command::set_rally_point(state, state.local_player_nation, p, true, !state.world.province_get_naval_rally_point(p));
-	}
-	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
-		return tooltip_behavior::tooltip;
-	}
-	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
-		text::add_line(state, contents, "rally_point_enable_info");
+		auto ncs = state.world.province_get_province_naval_construction(p);
+		for(auto nc : ncs) {
+			auto& base_cost = state.military_definitions.unit_base_definitions[nc.get_type()].build_cost;
+			auto& current_purchased = nc.get_purchased_goods();
+			for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
+				if(base_cost.commodity_type[i]) {
+					amount += current_purchased.commodity_amounts[i];
+					total += base_cost.commodity_amounts[i];
+				} else {
+					break;
+				}
+			}
+		}
+		set_text(state, text::format_percentage(total > 0.f ? amount / total : 0.f));
 	}
 };
 
+
+template<typename T>
+class province_build_unit : public button_element_base {
+public:
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		if constexpr(std::is_same_v<T, dcon::army_id>) {
+			text::add_line(state, contents, "military_build_army_tooltip");
+		} else if constexpr(std::is_same_v<T, dcon::navy_id>) {
+			text::add_line(state, contents, "military_build_navy_tooltip");
+		}
+
+		// Nation must not be disarmed
+		auto disarmed = state.world.nation_get_disarmed_until(state.local_player_nation) && state.current_date < state.world.nation_get_disarmed_until(state.local_player_nation);
+		text::add_line_with_condition(state, contents, "canbuild_forcedisarm", !disarmed);
+
+		// There must be possible units to build in the selected province
+		auto no_possible_units = true;
+
+		auto p = retrieve<dcon::province_id>(state, parent);
+		for(uint8_t i = 2; i < state.military_definitions.unit_base_definitions.size(); i++) {
+			auto utid = dcon::unit_type_id(i);
+			auto const& def = state.military_definitions.unit_base_definitions[utid];
+			if(!def.active && !state.world.nation_get_active_unit(state.local_player_nation, utid))
+				continue;
+			if(def.is_land != std::is_same_v<T, dcon::army_id>)
+				continue;
+			if constexpr(std::is_same_v<T, dcon::army_id>) {
+				for(const auto c : state.world.in_culture) {
+					if(command::can_start_land_unit_construction(state, state.local_player_nation, p, c, utid)) {
+						no_possible_units = false;
+					}
+				}
+			} else {
+				no_possible_units = !command::can_start_naval_unit_construction(state, state.local_player_nation, p, utid);
+			}
+
+			if(!no_possible_units) {
+				break;
+			}
+		}
+
+		text::add_line_with_condition(state, contents, "alice_has_possible_units", !no_possible_units);
+	}
+
+	void on_update(sys::state& state) noexcept override {
+		disabled = true;
+		//
+		auto p = retrieve<dcon::province_id>(state, parent);
+		for(uint8_t i = 2; i < state.military_definitions.unit_base_definitions.size(); i++) {
+			auto utid = dcon::unit_type_id(i);
+			auto const& def = state.military_definitions.unit_base_definitions[utid];
+			if(!def.active && !state.world.nation_get_active_unit(state.local_player_nation, utid))
+				continue;
+			if(def.is_land != std::is_same_v<T, dcon::army_id>)
+				continue;
+			if constexpr(std::is_same_v<T, dcon::army_id>) {
+					for(const auto c : state.world.in_culture) {
+						if(command::can_start_land_unit_construction(state, state.local_player_nation, p, c, utid)) {
+						for(auto pl : state.world.province_get_pop_location_as_province(p)) {
+							if(pl.get_pop().get_culture() == c) {
+								if(pl.get_pop().get_poptype() == state.culture_definitions.soldiers && state.world.pop_get_size(pl.get_pop()) >= state.defines.pop_min_size_for_regiment) {
+								disabled = false;
+								break;
+						}
+							}
+						}
+					} else {
+						//not disabled when there are constructions
+						for(auto pl : state.world.province_get_pop_location_as_province(p)) {
+							auto lc = pl.get_pop().get_province_land_construction();
+							if(lc.begin() != lc.end()) {
+								disabled = false;
+								break;
+							}
+						}
+					}
+					if(!disabled)
+						break;
+				}
+			} else {
+				disabled = !command::can_start_naval_unit_construction(state, state.local_player_nation, p, utid);
+			}
+			if(!disabled)
+				break;
+		}
+	}
+
+	void button_action(sys::state& state) noexcept override {
+		if(state.ui_state.build_province_unit_window) {
+			state.ui_state.build_province_unit_window->set_visible(state, true);
+			Cyto::Any payload = Cyto::any_cast<T>(T{});
+			state.ui_state.build_province_unit_window->impl_get(state, payload);
+		}
+	}
+};
 
 class province_view_buildings : public window_element_base {
 public:
@@ -1482,24 +1982,24 @@ public:
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
 		if(name == "army_size") {
 			return make_element_by_type<province_army_size_text>(state, id);
+		} else if(name == "army_progress") {
+			return make_element_by_type<province_army_progress>(state, id);
+		} else if(name == "navy_progress") {
+			return make_element_by_type<province_navy_progress>(state, id);
 		} else if(name == "rallypoint_checkbox") {
-			return make_element_by_type< land_rally_point>(state, id);
+			return make_element_by_type<land_rally_point>(state, id);
 		} else if(name == "rallypoint_checkbox_naval") {
-			return make_element_by_type< naval_rally_point>(state, id);
-		} else if(name == "rallypoint_merge_icon"
-			|| name == "rallypoint_merge_icon_naval"
-			|| name == "rallypoint_merge_checkbox"
-			|| name == "rallypoint_merge_checkbox_naval"
-			|| name == "army_progress"
-			|| name == "army_progress_overlay"
-			|| name == "navy_progress"
-			|| name == "navy_progress_overlay"
-			|| name == "army_text"
-			|| name == "navy_text"
-			|| name == "build_army"
-			|| name == "build_navy"
-			|| name == "navy_icon") {
-			return make_element_by_type<invisible_element>(state, id);
+			return make_element_by_type<naval_rally_point>(state, id);
+		} else if(name == "rallypoint_merge_checkbox" || name == "rallypoint_merge_checkbox_naval") {
+			return make_element_by_type<merge_rally_point>(state, id);
+		} else if(name == "build_army") {
+			return make_element_by_type<province_build_unit<dcon::army_id>>(state, id);
+		} else if(name == "build_navy") {
+			return make_element_by_type<province_build_unit<dcon::navy_id>>(state, id);
+		} else if(name == "army_text") {
+			return make_element_by_type<province_army_progress_text>(state, id);
+		} else if(name == "navy_text") {
+			return make_element_by_type<province_navy_progress_text>(state, id);
 		} else {
 			return nullptr;
 		}
@@ -1570,9 +2070,11 @@ public:
 			text::add_line(state, contents, "col_start_title");
 			text::add_line_break_to_layout(state, contents);
 
+			auto first_wg = state.crisis_attacker_wargoals.at(0);
+
 			text::add_line_with_condition(state, contents, "col_start_1", state.world.state_definition_get_colonization_stage(sdef) <= uint8_t(1));
 			text::add_line_with_condition(state, contents, "col_start_2", state.world.nation_get_rank(state.local_player_nation) <= uint16_t(state.defines.colonial_rank), text::variable_type::x, uint16_t(state.defines.colonial_rank));
-			text::add_line_with_condition(state, contents, "col_start_3", state.crisis_colony != sdef);
+			text::add_line_with_condition(state, contents, "col_start_3", first_wg.state != sdef);
 
 			bool war_participant = false;
 			for(auto par : state.world.war_get_war_participant(state.crisis_war)) {
@@ -1630,7 +2132,7 @@ public:
 
 			if(!adjacent && coastal_target && state.world.nation_get_central_ports(state.local_player_nation) != 0) {
 				for(auto p : state.world.nation_get_province_ownership(state.local_player_nation)) {
-					if(auto nb_level = p.get_province().get_building_level(economy::province_building_type::naval_base); nb_level > 0 && p.get_province().get_nation_from_province_control() == state.local_player_nation) {
+					if(auto nb_level = p.get_province().get_building_level(uint8_t(economy::province_building_type::naval_base)); nb_level > 0 && p.get_province().get_nation_from_province_control() == state.local_player_nation) {
 						if(province::direct_distance(state, p.get_province(), coastal_target) <= province::world_circumference * 0.075f * nb_level) {
 							reachable_by_sea = true;
 							break;
@@ -1650,8 +2152,8 @@ public:
 			text::add_line_break_to_layout(state, contents);
 
 			text::add_line_with_condition(state, contents, "col_invest_1", state.world.nation_get_rank(state.local_player_nation) <= uint16_t(state.defines.colonial_rank), text::variable_type::x, uint16_t(state.defines.colonial_rank));
-
-			text::add_line_with_condition(state, contents, "col_invest_2", state.crisis_colony != sdef);
+			auto first_wg = state.crisis_attacker_wargoals.at(0);
+			text::add_line_with_condition(state, contents, "col_invest_2", first_wg.state != sdef);
 
 			bool war_participant = false;
 			for(auto par : state.world.war_get_war_participant(state.crisis_war)) {
@@ -1834,8 +2336,22 @@ public:
 class province_colonisation_temperature : public progress_bar {
 public:
 	void on_update(sys::state& state) noexcept override {
-		auto content = retrieve<dcon::state_instance_id>(state, parent);
-		progress = dcon::fatten(state.world, content).get_definition().get_colonization_temperature();
+		// auto content = retrieve<dcon::state_instance_id>(state, parent);
+		// Uncolonized state doesn't have state instance assigned
+		auto prov_id = retrieve<dcon::province_id>(state, parent);
+		// Colonization temperature has [0;100] range and progress [0;1].
+		progress = dcon::fatten(state.world, prov_id).get_state_from_abstract_state_membership().get_colonization_temperature() / 100.f;
+	}
+
+	tooltip_behavior has_tooltip(sys::state& state) noexcept override {
+		return tooltip_behavior::tooltip;
+	}
+
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
+		// auto content = retrieve<dcon::state_instance_id>(state, parent);
+		auto prov_id = retrieve<dcon::province_id>(state, parent);
+		auto temp = dcon::fatten(state.world, prov_id).get_state_from_abstract_state_membership().get_colonization_temperature();
+		text::add_line(state, contents, "province_colonisation_temperature", text::variable_type::val, text::fp_percentage_one_place{ temp / 100.f });
 	}
 };
 
@@ -1864,15 +2380,12 @@ public:
 			return make_element_by_type<colonist_listbox>(state, id);
 		} else if(name == "crisis_temperature") {
 			return make_element_by_type<province_colonisation_temperature>(state, id);
-		} else if(name == "rally_land_icon"
-			|| name == "rallypoint_merge_icon"
-			|| name == "rally_naval_icon"
-			|| name == "rallypoint_merge_icon_naval"
-			|| name == "rallypoint_checkbox"
-			|| name == "rallypoint_merge_checkbox"
-			|| name == "rallypoint_checkbox_naval"
-			|| name == "rallypoint_merge_checkbox_naval") {
-			return make_element_by_type<invisible_element>(state, id);
+		} else if(name == "rallypoint_checkbox") {
+			return make_element_by_type<land_rally_point>(state, id);
+		} else if(name == "rallypoint_checkbox_naval") {
+			return make_element_by_type<naval_rally_point>(state, id);
+		} else if(name == "rallypoint_merge_checkbox" || name == "rallypoint_merge_checkbox_naval") {
+			return make_element_by_type<merge_rally_point>(state, id);
 		} else {
 			return nullptr;
 		}
@@ -1893,6 +2406,685 @@ public:
 	}
 };
 
+
+inline table::column<dcon::trade_route_id> trade_route_0 = {
+	.sortable = true,
+	.header = "route_origin",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+
+		auto sid = retrieve<dcon::state_instance_id>(state, container);
+		auto nid = state.world.state_instance_get_nation_from_state_ownership(sid);
+		auto niid = state.world.nation_get_identity_from_identity_holder(nid);
+		auto ii = state.world.national_identity_get_identifying_int(niid);
+		auto tag = nations::int_to_tag(ii);
+		auto prefix = "@" + tag;
+
+		return prefix + text::get_name_as_string(
+			state,
+			state.world.state_instance_get_capital(sid)
+		);
+	},
+	.cell_definition_string = "thin_cell_name",
+	.header_definition_string = "thin_cell_name"
+};
+
+inline table::column<dcon::trade_route_id> trade_route_1 = {
+	.sortable = true,
+	.header = "route_target",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index_a = 0;
+		if(local_market == dcon::fatten(state.world, a).get_connected_markets(index_a)) {
+			index_a = 1;
+		}
+		int32_t index_b = 0;
+		if(local_market == dcon::fatten(state.world, b).get_connected_markets(index_b)) {
+			index_b = 1;
+		}
+
+		auto value_a = text::get_name_as_string(
+			state,
+			dcon::fatten(state.world, a).get_connected_markets(index_a).get_zone_from_local_market().get_capital()
+		);
+		auto value_b = text::get_name_as_string(
+			state,
+			dcon::fatten(state.world, b).get_connected_markets(index_b).get_zone_from_local_market().get_capital()
+		);
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index = 0;
+		if(local_market == dcon::fatten(state.world, item).get_connected_markets(index)) {
+			index = 1;
+		}
+
+		auto sid = dcon::fatten(state.world, item).get_connected_markets(index).get_zone_from_local_market();
+		auto nid = state.world.state_instance_get_nation_from_state_ownership(sid);
+		auto niid = state.world.nation_get_identity_from_identity_holder(nid);
+		auto ii = state.world.national_identity_get_identifying_int(niid);
+		auto tag = nations::int_to_tag(ii);
+		auto prefix = "@" + tag;
+
+		return prefix + text::get_name_as_string(
+			state,
+			sid.get_capital()
+		);
+	},
+	.cell_definition_string = "thin_cell_name",
+	.header_definition_string = "thin_cell_name"
+};
+
+inline table::column<dcon::trade_route_id> trade_route_2 = {
+	.sortable = true,
+	.header = "price_origin",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		return text::format_money(
+			dcon::fatten(state.world, retrieve<dcon::market_id>(state, container))
+			.get_price(retrieve<dcon::commodity_id>(state, container))
+		);
+	}
+};
+
+inline table::column<dcon::trade_route_id> trade_route_3 = {
+	.sortable = true,
+	.header = "price_target",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index_a = 0;
+		if(local_market == dcon::fatten(state.world, a).get_connected_markets(index_a)) {
+			index_a = 1;
+		}
+		int32_t index_b = 0;
+		if(local_market == dcon::fatten(state.world, b).get_connected_markets(index_b)) {
+			index_b = 1;
+		}
+
+		auto value_a = dcon::fatten(state.world, a).get_connected_markets(index_a).get_price(retrieve<dcon::commodity_id>(state, container));
+		auto value_b = dcon::fatten(state.world, b).get_connected_markets(index_b).get_price(retrieve<dcon::commodity_id>(state, container));
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index = 0;
+		if(local_market == dcon::fatten(state.world, item).get_connected_markets(index)) {
+			index = 1;
+		}
+
+		return text::format_money(
+			dcon::fatten(state.world, item)
+			.get_connected_markets(index).get_price(retrieve<dcon::commodity_id>(state, container))
+		);
+	}
+};
+
+inline table::column<dcon::trade_route_id> trade_route_4 = {
+	.sortable = true,
+	.header = "trade_distance",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		auto value_a = dcon::fatten(state.world, a).get_distance();
+		auto value_b = dcon::fatten(state.world, b).get_distance();
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		return text::format_float(dcon::fatten(state.world, item).get_distance());
+	},
+	.update_tooltip = [](
+		sys::state& state,
+		element_base* container,
+		text::columnar_layout& contents,
+		const dcon::trade_route_id& a,
+		std::string fallback
+	) {
+		auto c = retrieve<dcon::commodity_id>(state, container);
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		auto trade_and_tariff = economy::explain_trade_route_commodity(state, a, c);
+
+		auto volume = std::abs(state.world.trade_route_get_volume(a, c));
+
+		text::add_line(state, contents, "tariff_rate_origin", text::variable_type::val, text::fp_percentage_one_place{ trade_and_tariff.tariff_rate_origin });
+		text::add_line(state, contents, "tariff_rate_target", text::variable_type::val, text::fp_percentage_one_place{ trade_and_tariff.tariff_rate_target });
+		text::add_line(state, contents, "tariff_paid_origin", text::variable_type::val, text::fp_currency{ trade_and_tariff.tariff_origin });
+		text::add_line(state, contents, "tariff_paid_target", text::variable_type::val, text::fp_currency{ trade_and_tariff.tariff_target });
+		text::add_line_break_to_layout(state, contents);
+		text::add_line(state, contents, "transport_cost_per_unit", text::variable_type::val, text::fp_currency{ trade_and_tariff.transport_cost });
+		text::add_line(state, contents, "transport_cost_total", text::variable_type::val, text::fp_currency{ trade_and_tariff.transport_cost * volume });
+		text::add_line(state, contents, "transportaion_loss", text::variable_type::val, text::fp_percentage_one_place{ 1.f - trade_and_tariff.transportaion_loss });
+		text::add_line_break_to_layout(state, contents);
+		text::add_line(state, contents, "payment_per_unit", text::variable_type::val, text::fp_currency{ trade_and_tariff.payment_per_unit });
+		text::add_line(state, contents, "payment_received_per_unit", text::variable_type::val, text::fp_currency{ trade_and_tariff.price_origin });
+		text::add_line(state, contents, "merchants_received_per_unit", text::variable_type::val, text::fp_currency{ trade_and_tariff.payment_received_per_unit });
+	},
+	.has_tooltip = true,
+};
+
+inline table::column<dcon::trade_route_id> trade_route_5 = {
+	.sortable = true,
+	.header = "actual_volume",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index_a = 0;
+		if(local_market == dcon::fatten(state.world, a).get_connected_markets(index_a)) {
+			index_a = 1;
+		}
+		int32_t index_b = 0;
+		if(local_market == dcon::fatten(state.world, b).get_connected_markets(index_b)) {
+			index_b = 1;
+		}
+
+
+		auto value_a = dcon::fatten(state.world, a).get_volume(retrieve<dcon::commodity_id>(state, container)) * ((float)index_a - 0.5f);
+		auto value_b = dcon::fatten(state.world, b).get_volume(retrieve<dcon::commodity_id>(state, container)) * ((float)index_b - 0.5f);
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		int32_t index = 0;
+		if(local_market == dcon::fatten(state.world, item).get_connected_markets(index)) {
+			index = 1;
+		}
+
+		return text::format_float(dcon::fatten(state.world, item).get_volume(retrieve<dcon::commodity_id>(state, container)) * (float(index) - 0.5f) * 2.f);
+	},
+	.update_tooltip = [](
+		sys::state& state,
+		element_base* container,
+		text::columnar_layout& contents,
+		const dcon::trade_route_id& a,
+		std::string fallback
+	) {
+		auto c = retrieve<dcon::commodity_id>(state, container);
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		economy::make_trade_volume_tooltip(state, contents, a, c, local_market);
+	},
+	.has_tooltip = true,
+};
+
+inline table::column<dcon::trade_route_id> trade_route_6 = {
+	.sortable = true,
+	.header = "max_throughput",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		auto value_a = std::min(
+			dcon::fatten(state.world, a).get_connected_markets(0).get_max_throughput(),
+			dcon::fatten(state.world, a).get_connected_markets(1).get_max_throughput()
+		);
+		auto value_b = std::min(
+			dcon::fatten(state.world, b).get_connected_markets(0).get_max_throughput(),
+			dcon::fatten(state.world, b).get_connected_markets(1).get_max_throughput()
+		);
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		return text::format_float(std::min(
+			dcon::fatten(state.world, item).get_connected_markets(0).get_max_throughput(),
+			dcon::fatten(state.world, item).get_connected_markets(1).get_max_throughput()
+		));
+	},
+	.update_tooltip = [](
+		sys::state& state,
+		element_base* container,
+		text::columnar_layout& contents,
+		const dcon::trade_route_id& a,
+		std::string fallback
+	) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		float total = 0.f;
+		state.world.for_each_commodity([&](auto commodity) {
+			state.world.market_for_each_trade_route(local_market, [&](auto trade_route) {
+				total += std::abs(state.world.trade_route_get_volume(trade_route, commodity));
+			});
+		});
+		float max = state.world.market_get_max_throughput(local_market);
+
+		text::add_line(state, contents, "used_throughput_tooltip", text::variable_type::val, text::fp_two_places{ total });
+		text::add_line(state, contents, "max_throughput_tooltip", text::variable_type::val, text::fp_two_places{ max });
+	},
+	.has_tooltip = true,
+};
+
+float trade_route_profit(sys::state& state, dcon::trade_route_id route, dcon::commodity_id c);
+
+inline table::column<dcon::trade_route_id> trade_route_7 = {
+	.sortable = true,
+	.header = "trade_margin",
+	.compare = [](sys::state& state, element_base* container, dcon::trade_route_id a, dcon::trade_route_id b) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+
+		auto value_a = trade_route_profit(state, a, retrieve<dcon::commodity_id>(state, container));
+		auto value_b = trade_route_profit(state, b, retrieve<dcon::commodity_id>(state, container));
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::trade_route_id item) {
+		auto local_market = retrieve<dcon::market_id>(state, container);
+		return text::format_percentage(trade_route_profit(state, item, retrieve<dcon::commodity_id>(state, container)));
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_name = {
+	.sortable = true,
+	.header = "trade_good_name_header",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto value_a = text::get_name_as_string(
+			state,
+			dcon::fatten(state.world, a)
+		);
+		auto value_b = text::get_name_as_string(
+			state,
+			dcon::fatten(state.world, b)
+		);
+
+		if(value_a != value_b)
+			return value_a > value_b;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id item) {
+		std::string padding = item.index() < 10 ? "0" : "";
+		std::string description = "@$" + padding + std::to_string(item.index());
+
+		return description + text::get_name_as_string(
+			state,
+			dcon::fatten(state.world, item)
+		);
+	},
+	.cell_definition_string = "thin_cell_name",
+	.header_definition_string = "thin_cell_name"
+};
+
+inline table::column<dcon::commodity_id> rgo_price = {
+	.sortable = true,
+	.header = "price",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::price(state, m, a);
+		auto bv = economy::price(state, m, b);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto value = economy::price(state, m, id);
+		return text::format_money(value);
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_amount = {
+	.sortable = true,
+	.header = "rgo_output",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_output(state, a, p);
+		auto bv = economy::rgo_output(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto value = economy::rgo_output(state, id, p);
+		return text::format_float(value);
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_profit = {
+	.sortable = true,
+	.header = "rgo_profit",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_income(state, a, p);
+		auto bv = economy::rgo_income(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto value = economy::rgo_income(state, id, p);
+		return text::format_money(value);
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_wages = {
+	.sortable = true,
+	.header = "rgo_wage",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_wage(state, a, p);
+		auto bv = economy::rgo_wage(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		return text::format_money(-economy::rgo_wage(state, id, p));
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_inputs = {
+	.sortable = true,
+	.header = "rgo_inputs",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_efficiency_spendings(state, a, p);
+		auto bv = economy::rgo_efficiency_spendings(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		return text::format_money(-economy::rgo_efficiency_spendings(state, id, p));
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_employment = {
+	.sortable = true,
+	.header = "rgo_employment",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_employment(state, a, p);
+		auto bv = economy::rgo_employment(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto value = economy::rgo_employment(state, id, p);
+		return text::format_wholenum(int32_t(value));
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_max_employment = {
+	.sortable = true,
+	.header = "rgo_max_employment",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto av = economy::rgo_max_employment(state, a, p);
+		auto bv = economy::rgo_max_employment(state, b, p);
+		if(av != bv)
+			return av > bv;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto value = economy::rgo_max_employment(state, id, p);
+		return text::format_wholenum(int32_t(value));
+	}
+};
+
+inline table::column<dcon::commodity_id> rgo_saturation = {
+	.sortable = true,
+	.header = "rgo_saturation",
+	.compare = [](sys::state& state, element_base* container, dcon::commodity_id a, dcon::commodity_id b) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto ae = economy::rgo_max_employment(state, a, p);
+		auto be = economy::rgo_max_employment(state, b, p);
+
+		auto av = economy::rgo_employment(state, a, p);
+		auto bv = economy::rgo_employment(state, b, p);
+
+		auto ar = ae > 0.f ? av / ae : 0.f;
+		auto br = be > 0.f ? bv / be : 0.f;
+
+		if(ar != br)
+			return ar > br;
+		else
+			return a.index() < b.index();
+	},
+	.view = [](sys::state& state, element_base* container, dcon::commodity_id id) {
+		auto p = retrieve<dcon::province_id>(state, container);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, container);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+
+		auto e = economy::rgo_max_employment(state, id, p);
+		auto v = economy::rgo_employment(state, id, p);
+		auto r = e > 0.f ? v / e : 0.f;
+
+		return text::format_percentage(r);
+	}
+};
+
+enum province_subtab_toggle_signal {
+	economy = 1,
+	tiles = 2
+};
+
+
+class economy_data_toggle : public button_element_base {
+public:
+	void button_action(sys::state& state) noexcept override {
+		send<province_subtab_toggle_signal>(state, parent, province_subtab_toggle_signal::economy);
+	}
+};
+
+class province_tiles_toggle : public button_element_base {
+public:
+	void button_action(sys::state& state) noexcept override {
+		send<province_subtab_toggle_signal>(state, parent, province_subtab_toggle_signal::tiles);
+	}
+
+	void on_create(sys::state& state) noexcept override {
+		frame = 1;
+	}
+};
+
+class province_economy_window : public window_element_base {
+
+public:
+	table::display<dcon::commodity_id>* rgo_table = nullptr;
+	table::display<dcon::trade_route_id>* trade_table = nullptr;
+	image_element_base* rgo_bg = nullptr;
+	image_element_base* trade_routes_bg = nullptr;
+	window_element_base* rgo_headers = nullptr;
+
+	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
+		if(name == "table_rgo_data") {
+			std::vector<table::column<dcon::commodity_id>> columns = {
+				rgo_name, rgo_price, rgo_amount, rgo_profit, rgo_wages,
+				rgo_inputs, rgo_employment, rgo_max_employment, rgo_saturation
+			};
+			auto ptr = make_element_by_type<table::display<dcon::commodity_id>>(
+				state,
+				id,
+				std::string("table_body"),
+				columns
+			);
+
+			rgo_table = ptr.get();
+			rgo_table->row_callback = [](sys::state& state, ui::element_base* container, const dcon::commodity_id a) {
+				if(state.selected_trade_good == a) {
+					state.selected_trade_good = { };
+				} else {
+					state.selected_trade_good = a;
+				}
+				state.update_trade_flow.store(true, std::memory_order::release);
+				if(state.ui_state.province_window) {
+					state.ui_state.province_window->impl_on_update(state);
+				}
+			};
+			state.world.for_each_commodity([&](dcon::commodity_id id) {
+				rgo_table->content.data.push_back(id);
+			});
+			rgo_table->set_visible(state, true);
+			return ptr;
+		} else if(name == "table_trade_route_data") {
+			std::vector<table::column<dcon::trade_route_id>> columns = {
+				trade_route_0, trade_route_1, trade_route_2,
+				trade_route_3, trade_route_4, trade_route_5,
+				trade_route_6, trade_route_7
+			};
+
+			auto ptr = make_element_by_type<table::display<dcon::trade_route_id>>(
+				state,
+				id,
+				std::string("table_body"),
+				columns
+			);
+
+			trade_table = ptr.get();	
+			trade_table->set_visible(state, true);
+
+			// On click - change selected province to the target of the row
+			trade_table->row_callback = [](sys::state& state, ui::element_base* container, const dcon::trade_route_id t) {
+				auto origin = state.world.trade_route_get_connected_markets(t, 0);
+				auto target = state.world.trade_route_get_connected_markets(t, 1);
+
+				auto s_origin = state.world.market_get_zone_from_local_market(origin);
+				auto s_target = state.world.market_get_zone_from_local_market(target);
+
+				auto p_origin = state.world.state_instance_get_capital(s_origin);
+				auto p_target = state.world.state_instance_get_capital(s_target);
+
+				auto selected_province = state.map_state.get_selected_province();
+				if(selected_province) {
+					auto selected_province_state = state.world.province_get_state_membership(selected_province);
+
+					if(selected_province_state != s_origin) {
+						state.map_state.set_selected_province(p_origin);
+					}
+					else if(selected_province_state != s_target) {
+						state.map_state.set_selected_province(p_target);
+					}
+				}
+
+				state.map_state.center_map_on_province(state, state.map_state.get_selected_province());
+
+				state.update_trade_flow.store(true, std::memory_order::release);
+				
+				if(state.ui_state.province_window) {
+					state.ui_state.province_window->impl_on_update(state);
+				}
+			};
+			return ptr;
+		} else if(name == "trade_route_background") {
+			auto ptr = make_element_by_type<image_element_base>(state, id);
+			trade_routes_bg = ptr.get();
+			trade_routes_bg->set_visible(state, true);
+			return ptr;
+		} else if(name == "background") {
+			auto ptr = make_element_by_type<image_element_base>(state, id);
+			rgo_bg = ptr.get();
+			rgo_bg->set_visible(state, true);
+			return ptr;
+		} else if(name == "table_rgo_headers") {
+			auto ptr = make_element_by_type<window_element_base>(state, id);
+			rgo_headers = ptr.get();
+			rgo_headers->set_visible(state, true);
+			return ptr;
+		}
+		return nullptr;
+	}
+
+	void on_update(sys::state& state) noexcept override {
+		auto p = retrieve<dcon::province_id>(state, parent);
+		auto n = state.world.province_get_nation_from_province_ownership(p);
+		auto si = retrieve<dcon::state_instance_id>(state, parent);
+		auto m = state.world.state_instance_get_market_from_local_market(si);
+		trade_table->content.data.clear();
+
+		if(state.selected_trade_good) {
+			state.world.market_for_each_trade_route_as_connected_markets(m, [&](auto route) {
+				trade_table->content.data.push_back(route);
+			});
+			trade_table->set_visible(state, true);
+			trade_routes_bg->set_visible(state, true);
+		} else {
+			trade_table->set_visible(state, false);
+			trade_routes_bg->set_visible(state, false);
+		}
+	}
+
+	message_result get(sys::state& state, Cyto::Any& payload) noexcept override {
+		return message_result::unseen;
+	}
+};
+
 class province_view_window : public window_element_base {
 private:
 	dcon::province_id active_province{};
@@ -1901,13 +3093,24 @@ private:
 	province_view_statistics* local_details_window = nullptr;
 	province_view_buildings* local_buildings_window = nullptr;
 	province_window_colony* colony_window = nullptr;
+	province_economy_window* economy_window = nullptr;
 	element_base* nf_win = nullptr;
+	element_base* tiles_window = nullptr;
 
 public:
 	void on_create(sys::state& state) noexcept override {
 		window_element_base::on_create(state);
 		state.ui_state.province_window = this;
 		set_visible(state, false);
+		//
+		auto ptr = make_element_by_type<build_unit_province_window>(state, "build_unit_view");
+		state.ui_state.build_province_unit_window = ptr.get();
+		add_child_to_front(std::move(ptr));
+
+		auto ptr2 = make_element_by_type<province_tiles_window>(state, "province_tiles_window");
+		tiles_window = ptr2.get();
+		tiles_window->set_visible(state, false);
+		add_child_to_front(std::move(ptr2));
 	}
 
 	std::unique_ptr<element_base> make_child(sys::state& state, std::string_view name, dcon::gui_def_id id) noexcept override {
@@ -1944,6 +3147,14 @@ public:
 			ptr->set_visible(state, false);
 			nf_win = ptr.get();
 			return ptr;
+		} else if(name == "local_economy_view") {
+			auto ptr = make_element_by_type<province_economy_window>(state, id);
+			economy_window = ptr.get();
+			return ptr;
+		} if(name == "toggle-economy-province") {
+			return make_element_by_type<economy_data_toggle>(state, id);
+		} else if(name == "toggle-tiles-province") {
+			return make_element_by_type<province_tiles_toggle>(state, id);
 		} else {
 			return nullptr;
 		}
@@ -1961,13 +3172,32 @@ public:
 			dcon::state_instance_id sid = dcon::fatten(state.world, active_province).get_state_membership();
 			payload.emplace<dcon::state_instance_id>(sid);
 			return message_result::consumed;
+		} else if(payload.holds_type<dcon::commodity_id>()) {
+			payload.emplace<dcon::commodity_id>(state.selected_trade_good);
+			return message_result::consumed;
+		} else if(payload.holds_type<dcon::market_id>()) {
+			dcon::market_id mid = dcon::fatten(state.world, active_province).get_state_membership().get_market_from_local_market();
+			payload.emplace<dcon::market_id>(mid);
+			return message_result::consumed;
+		} else if (payload.holds_type<province_subtab_toggle_signal>()) {
+			auto enum_val = any_cast<province_subtab_toggle_signal>(payload);
+
+			if(enum_val == province_subtab_toggle_signal::tiles) {
+				tiles_window->set_visible(state, !tiles_window->is_visible());
+			}
+			else if(enum_val == province_subtab_toggle_signal::economy) {
+				economy_window->set_visible(state, !economy_window->is_visible());
+			}
+
+			return message_result::consumed;
 		}
 		return message_result::unseen;
 	}
-
+	
 	void set_active_province(sys::state& state, dcon::province_id map_province) {
 		if(bool(map_province)) {
 			active_province = map_province;
+			state.map_state.set_selected_province(map_province);
 			if(!is_visible())
 				set_visible(state, true);
 			else
@@ -1983,6 +3213,15 @@ public:
 		local_details_window->impl_on_update(state);
 		local_buildings_window->impl_on_update(state);
 		colony_window->impl_on_update(state);
+		economy_window->impl_on_update(state);
+
+		active_province = state.map_state.get_selected_province();
+
+		//Hide unit builder if not our province
+		auto n = state.world.province_get_nation_from_province_ownership(active_province);
+		if(state.ui_state.build_province_unit_window && state.ui_state.build_province_unit_window->is_visible() && n != state.local_player_nation) {
+			state.ui_state.build_province_unit_window->set_visible(state, false);
+		}
 	}
 
 	friend class province_national_focus_button;
