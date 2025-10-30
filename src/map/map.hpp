@@ -352,8 +352,9 @@ public:
 	void load_median_terrain_type(parsers::scenario_building_context& context);
 
 	uint16_t safe_get_province(glm::ivec2 pt);
+	int32_t safe_index(glm::ivec2 pt);
 	void make_coastal_borders(sys::state& state, std::vector<bool>& visited);
-	void make_borders(sys::state& state, std::vector<bool>& visited);
+	void make_borders(sys::state& state, std::vector<uint8_t>& rivers, std::vector<bool>& visited);
 
 	void load_shaders(simple_fs::directory& root);
 	void update_borders_mesh();

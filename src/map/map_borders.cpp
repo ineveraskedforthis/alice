@@ -304,6 +304,10 @@ int32_t river_width(uint8_t river_data) {
 	assert(result >= 0);
 	return result;
 }
+float river_width_f(uint8_t river_data) {
+	auto result = 256 - (int32_t)(river_data);
+	return (float)result / 256.f * 0.9f + 0.1f;
+}
 bool is_river_source(uint8_t river_data) {
 	return river_data == 0;
 }
@@ -327,6 +331,22 @@ uint16_t display_data::safe_get_province(glm::ivec2 pt) {
 	return province_id_map[pt.x + pt.y * size_x];
 }
 
+int32_t display_data::safe_index(glm::ivec2 pt) {
+	while(pt.x < 0) {
+		pt.x += int32_t(size_x);
+	}
+	while(pt.x >= int32_t(size_x)) {
+		pt.x -= int32_t(size_x);
+	}
+	if(pt.y < 0) {
+		pt.y = 0;
+	}
+	if(pt.y >= int32_t(size_y)) {
+		pt.y = int32_t(size_y - 1);
+	}
+	return pt.x + pt.y * size_x;
+}
+
 bool coastal_point(sys::state& state, uint16_t a, uint16_t b) {
 	bool a_sea = a == 0 || province::from_map_id(a).index() >= state.province_definitions.first_sea_province.index();
 	bool b_sea = b == 0 || province::from_map_id(b).index() >= state.province_definitions.first_sea_province.index();
@@ -337,57 +357,139 @@ bool order_indifferent_compare(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
 	return (a == c && b == d) || (a == d && b == c);
 }
 
-std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state, std::vector<bool>& visited, uint16_t prov_prim, uint16_t prov_sec, int32_t start_x, int32_t start_y) {
-	std::vector<glm::vec2> points;
+bool order_indifferent_compare_32(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+	return (a == c && b == d) || (a == d && b == c);
+}
 
-	auto add_next = [&](glm::ivec2 prev, glm::ivec2 shift, glm::ivec2 prev_shift, bool& next_found, bool corner_candidate) {
+// edges have their own positions
+struct border_graph_edge {
+	glm::ivec2 start;
+	glm::ivec2 end;
+	bool is_river;
+	glm::vec2 river_width_offset;
+	glm::vec2 position;
+	int32_t i;
+	int32_t j;
+	bool processed = false;
+};
+
+int32_t pixel_corner_index(display_data& dat, int32_t a, int32_t b) {
+	return a + b * (dat.size_x + 1);
+}
+
+int32_t pixel_corner_index(display_data& dat, glm::ivec2 v) {
+	return v.x + v.y * (dat.size_x + 1);
+}
+
+glm::ivec2 index_to_pixel_corner(display_data& dat, int32_t index) {
+	return {
+		index % (dat.size_x + 1),
+		index / (dat.size_x + 1)
+	};
+}
+
+std::vector<border_graph_edge> make_border_graph(
+	display_data& dat,
+	ankerl::unordered_dense::map<int32_t, bool>& graph_vertices,
+	std::vector<uint8_t>& rivers,
+	sys::state& state,
+	std::vector<bool>& visited,
+	uint16_t province_our_side, uint16_t province_opposite_side,
+	int32_t start_x, int32_t start_y
+) {
+	std::vector<border_graph_edge> graph;
+
+	auto add_next = [&](
+		glm::ivec2 prev,
+		glm::ivec2 shift,
+		glm::ivec2 prev_shift,
+		bool& next_found,
+		bool corner_candidate
+	) {
 		if(next_found)
 			return glm::ivec2(0, 0);
 
 		auto i = prev.x + shift.x;
 		auto j = prev.y + shift.y;
-		auto prev_i = prev.x;
-		auto prev_j = prev.y;
-
-		bool corner = corner_candidate && (shift.x != prev_shift.x) && (shift.y != prev_shift.y) && !(prev_shift.y == 0 && prev_shift.x == 0);
 
 		if(visited[i + j * dat.size_x])
 			return glm::ivec2(0, 0);
+
+		auto prev_i = prev.x;
+		auto prev_j = prev.y;
+
+		float offset_x = 0.0f;
+		float offset_y = 0.0f;
+
+		bool corner = corner_candidate && (shift.x != prev_shift.x) && (shift.y != prev_shift.y) && !(prev_shift.y == 0 && prev_shift.x == 0);
+		auto current_pixel = glm::ivec2(i, j / 2);
+		auto current_pixel_left = glm::ivec2(i - 1, j / 2);
+		auto current_pixel_bottom = glm::ivec2(i, j / 2 + 1);
+
+		auto current = dat.safe_get_province(current_pixel);
+		auto current_left = dat.safe_get_province(current_pixel_left);
+		auto current_bottom = dat.safe_get_province(current_pixel_bottom);
+
+		auto river_flag = false;
+
+		if(is_river(rivers[dat.safe_index(current_pixel)])) {
+			current = { };
+			river_flag = true;
+			if(j % 2 == 0)
+				offset_x = 0.5f - 0.4f * river_width_f(rivers[dat.safe_index(current_pixel)]);
+			else
+				offset_y = -(0.5f - 0.4f * river_width_f(rivers[dat.safe_index(current_pixel)]));
+		}
+		if(is_river(rivers[dat.safe_index(current_pixel_left)])) {
+			current_left = { };
+			if(j % 2 == 0) {
+				river_flag = true;
+				offset_x = -(0.5f - 0.4f * river_width_f(rivers[dat.safe_index(current_pixel_left)]));
+			}
+		}
+		if(is_river(rivers[dat.safe_index(current_pixel_bottom)])) {
+			current_bottom = { };
+			if(j % 2 == 1) {
+				river_flag = true;
+				offset_y = (0.5f - 0.4f * river_width_f(rivers[dat.safe_index(current_pixel_bottom)]));
+			}
+		}
+
+		glm::vec2 offset{ offset_x, offset_y };
+
 		if(j % 2 == 0) {
-			if(order_indifferent_compare(prov_prim, prov_sec, dat.safe_get_province(glm::ivec2(i, j / 2)), dat.safe_get_province(glm::ivec2(i - 1, j / 2)))) {
+			if(order_indifferent_compare(province_our_side, province_opposite_side, current, current_left)) {
 				visited[i + j * dat.size_x] = true;
-
-				if(corner) {
-					float prev_x = float(prev_i) + 0.5f;
-					float prev_y = 0.5f + float(prev_j) / 2.0f;
-
-					float next_x = float(i);
-					float next_y = 0.5f + float(j) / 2.0f;
-
-					points.push_back(glm::vec2((prev_x + next_x) / 2.f, prev_y));
-					points.push_back(glm::vec2(next_x, (prev_y + next_y) / 2.f));
-				}
-
-				points.push_back(glm::vec2(float(i), 0.5f + float(j) / 2.0f));
+				// vertical edge a, 2 * b connects pixel corners (a, b) <-> (a, b + 1)
+				border_graph_edge new_edge{
+					{ i, j / 2 },
+					{ i, j / 2 + 1 },
+					river_flag,
+					offset,
+					{ (float)i, float(j / 2) + 0.5f },
+					i, j
+				};
+				graph_vertices[pixel_corner_index(dat, i, j / 2)] = true;
+				graph_vertices[pixel_corner_index(dat, i, j / 2 + 1)] = true;
+				graph.push_back(new_edge);
 				next_found = true;
 				return glm::ivec2(i, j);
 			}
 		} else {
-			if(order_indifferent_compare(prov_prim, prov_sec, dat.safe_get_province(glm::ivec2(i, j / 2)), dat.safe_get_province(glm::ivec2(i, j / 2 + 1)))) {
+			if(order_indifferent_compare(province_our_side, province_opposite_side, current, current_bottom)) {
 				visited[i + j * dat.size_x] = true;
-
-				if(corner) {
-					float prev_x = float(prev_i);
-					float prev_y = 0.5f + float(prev_j) / 2.0f;
-
-					float next_x = float(i) + 0.5f;
-					float next_y = 0.5f + float(j) / 2.0f;
-
-					points.push_back(glm::vec2(prev_x, (prev_y + next_y) / 2.f));
-					points.push_back(glm::vec2((prev_x + next_x) / 2.f, next_y));
-				}
-
-				points.push_back(glm::vec2(float(i) + 0.5f, 0.5f + float(j) / 2.0f));
+				// horizontal edge c, 2 * d + 1 connected pixel corners (c, d + 1) <-> (c + 1, d + 1)
+				border_graph_edge new_edge{
+					{ i, j / 2 + 1 },
+					{ i + 1, j / 2 + 1 },
+					river_flag,
+					offset,
+					{ (float)i + 0.5f, float(j / 2) + 1.f },
+					i, j
+				};
+				graph_vertices[pixel_corner_index(dat, i, j / 2 + 1 )] = true;
+				graph_vertices[pixel_corner_index(dat, i + 1, j / 2 + 1 )] = true;
+				graph.push_back(new_edge);
 				next_found = true;
 				return glm::ivec2(i, j);
 			}
@@ -396,22 +498,23 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 		return glm::ivec2(0, 0);
 	};
 
-
-	points.push_back(glm::vec2(float(start_x) + (start_y % 2 == 0 ? 0.0f : 0.5f), 0.5f + float(start_y) / 2.0f));
 	visited[start_x + start_y * dat.size_x] = true;
 
 	glm::ivec2 current{ start_x, start_y };
 	glm::ivec2 prev_direction{ 0, 0 };
 
 	bool progress = false;
-	// clockwise
 	do {
 		progress = false;
 		glm::ivec2 temp{ 0, 0 };
 
 		if(current.y % 2 == 0) {
-			bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
-			if(left_is_s) {
+			auto left = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2));
+			if(is_river(rivers[dat.safe_index(glm::ivec2(current.x - 1, current.y / 2))])) {
+				left = { };
+			}
+			bool left_is_opposite = left == province_opposite_side;
+			if(left_is_opposite) {
 				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
 				temp += add_next(current, { 0, 2 }, prev_direction, progress, false);
 				temp += add_next(current, { -1, 1 }, prev_direction, progress, true);
@@ -421,8 +524,12 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 				temp += add_next(current, { 0, -1}, prev_direction, progress, true);
 			}
 		} else {
-			bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
-			if(top_is_s) {
+			auto top_side = dat.safe_get_province(glm::ivec2(current.x, current.y / 2));
+			if(is_river(rivers[dat.safe_index(glm::ivec2(current.x, current.y / 2))])) {
+				top_side = { };
+			}
+			bool top_is_opposite = top_side == province_opposite_side;
+			if(top_is_opposite) {
 				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
 				temp += add_next(current, { -1, 0 }, prev_direction, progress, false);
 				temp += add_next(current, { 0, -1}, prev_direction, progress, true);
@@ -438,87 +545,12 @@ std::vector<glm::vec2> make_border_section(display_data& dat, sys::state& state,
 		}
 	} while(progress);
 
-	//terminal point
-	if(current.y % 2 == 0) {
-		bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
-		if(left_is_s) {
-			points.push_back(glm::vec2(float(current.x), 1.0f + float(current.y) / 2.0f));
-		} else {
-			points.push_back(glm::vec2(float(current.x), 0.0f + float(current.y) / 2.0f));
-		}
-	} else {
-		bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
-		if(top_is_s) {
-			points.push_back(glm::vec2(float(current.x), 0.5f + float(current.y) / 2.0f));
-		} else {
-			points.push_back(glm::vec2(1.0f + float(current.x), 0.5f + float(current.y) / 2.0f));
-		}
-	}
-
-	current.x = start_x;
-	current.y = start_y;
-	prev_direction.x = 0;
-	prev_direction.y = 0;
-
-	std::reverse(points.begin(), points.end());
-	//counter clockwise
-	progress = false;
-	do {
-		progress = false;
-		glm::ivec2 temp{ 0, 0 };
-
-		if(current.y % 2 == 0) {
-			bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
-			if(!left_is_s) {
-				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
-				temp += add_next(current, { 0, 2 }, prev_direction, progress, false);
-				temp += add_next(current, { -1, 1 }, prev_direction, progress, true);
-			} else {
-				temp += add_next(current, { -1, -1 }, prev_direction, progress, true);
-				temp += add_next(current, { 0, -2 }, prev_direction, progress, false);
-				temp += add_next(current, { 0, -1 }, prev_direction, progress, true);
-			}
-		} else {
-			bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
-			if(!top_is_s) {
-				temp += add_next(current, { 0, 1 }, prev_direction, progress, true);
-				temp += add_next(current, { -1, 0 }, prev_direction, progress, false);
-				temp += add_next(current, { 0, -1 }, prev_direction, progress, true);
-			} else {
-				temp += add_next(current, { +1, -1 }, prev_direction, progress, true);
-				temp += add_next(current, { +1, 0 }, prev_direction, progress, false);
-				temp += add_next(current, { +1, +1 }, prev_direction, progress, true);
-			}
-		}
-		if(progress) {
-			prev_direction = temp - current;
-			current = temp;
-		}
-	} while(progress);
-
-	//terminal point
-	if(current.y % 2 == 0) {
-		bool left_is_s = dat.safe_get_province(glm::ivec2(current.x - 1, current.y / 2)) == prov_sec;
-		if(!left_is_s) {
-			points.push_back(glm::vec2(float(current.x), 1.0f + float(current.y) / 2.0f));
-		} else {
-			points.push_back(glm::vec2(float(current.x), 0.0f + float(current.y) / 2.0f));
-		}
-	} else {
-		bool top_is_s = dat.safe_get_province(glm::ivec2(current.x, current.y / 2)) == prov_sec;
-		if(!top_is_s) {
-			points.push_back(glm::vec2(float(current.x), 0.5f + float(current.y) / 2.0f));
-		} else {
-			points.push_back(glm::vec2(1.0f + float(current.x), 0.5f + float(current.y) / 2.0f));
-		}
-	}
-
-	return points;
+	return graph;
 }
 
 void add_border_segment_vertices(display_data& dat, std::vector<glm::vec2> const& points, uint16_t province_A, uint16_t province_B) {
-	if(points.size() < 3)
-		return;
+	//if(points.size() < 3)
+	//	return;
 
 	bool wrap_around = false;
 	if(glm::length(points.back() - points[0]) < 0.1f) {
@@ -701,90 +733,390 @@ void add_border_segment_vertices(display_data& dat, std::vector<glm::vec2> const
 	}
 }
 
-void display_data::make_borders(sys::state& state, std::vector<bool>& visited) {
+
+
+void display_data::make_borders(sys::state& state, std::vector<uint8_t>& rivers, std::vector<bool>& visited) {
+
+	// make graph:
+	// vertices	- pixel corners
+	// edges	- borders
+
+	ankerl::unordered_dense::map<int32_t, bool> graph_vertices;
+	std::vector<border_graph_edge> edges;
+
+	std::vector<int32_t> river_pairs_A;
+	std::vector<int32_t> river_pairs_B;
+	std::vector<float> river_width;
+
+	// start by constructing the graph of borders
+	for(int32_t j = 0; j < int32_t(size_y); ++j) {
+		for(int32_t i = 0; i < int32_t(size_x); ++i) {
+			auto prim = province::from_map_id(safe_get_province(glm::ivec2(i, j)));
+			auto prim_index = safe_index(glm::ivec2(i, j));
+
+			// left verticals
+			{
+				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i - 1, j)));
+				auto sec_index = safe_index(glm::ivec2(i - 1, j));
+				bool river_flag = false;
+
+				float offset_x = 0.f;
+
+				if(is_river(rivers[prim_index])) {
+					prim = { };
+					river_flag = true;
+					offset_x = (0.5f - 0.5f * river_width_f(rivers[prim_index]));
+				}
+				if(is_river(rivers[sec_index])) {
+					sec = { };
+					river_flag = true;
+					offset_x = -(0.5f - 0.5f * river_width_f(rivers[sec_index]));
+				}
+
+				bool fake_border = false;
+				if(!prim || !sec) {
+					fake_border = true;
+				}
+
+				if(prim != sec) {
+					// vertical edge a, 2 * b connects pixel corners (a, b) <-> (a, b + 1)
+					border_graph_edge new_edge{
+						{ i, j },
+						{ i, j + 1 },
+						river_flag,
+						{ offset_x, 0.f },
+						{ (float)i + offset_x, (float)j + 0.5f },
+						i, j * 2
+					};
+					graph_vertices[pixel_corner_index(*this, i, j)] = true;
+					graph_vertices[pixel_corner_index(*this, i, j + 1)] = true;
+					edges.push_back(new_edge);
+				}
+			}
+			// horizontals
+			if(j < int32_t(size_y) - 1) {
+				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i, j + 1)));
+				auto sec_index = safe_index(glm::ivec2(i, j + 1));
+				bool river_flag = false;
+
+				float offset_y = 0.f;
+
+				if(is_river(rivers[prim_index])) {
+					prim = { };
+					river_flag = true;
+					offset_y = -(0.5f - 0.5f * river_width_f(rivers[prim_index]));
+				}
+				if(is_river(rivers[sec_index])) {
+					sec = { };
+					river_flag = true;
+					offset_y = (0.5f - 0.5f * river_width_f(rivers[sec_index]));
+				}
+
+				bool fake_border = false;
+				if(!prim || !sec) {
+					fake_border = true;
+				}
+
+				if(prim != sec) {
+					// horizontal edge c, 2 * d + 1 connected pixel corners (c, d + 1) <-> (c + 1, d + 1)
+					border_graph_edge new_edge{
+						{ i, j + 1 },
+						{ i + 1, j + 1 },
+						river_flag,
+						{ 0.f, offset_y },
+						{ (float)i + 0.5f, float(j) + 1.f + offset_y },
+						i, j * 2 + 1
+					};
+					graph_vertices[pixel_corner_index(*this, i, j + 1)] = true;
+					graph_vertices[pixel_corner_index(*this, i + 1, j + 1)] = true;
+					edges.push_back(new_edge);
+				}
+			}
+		}
+	}
+
+	// deal with rivers width:
+	// we want to "connect" opposite sides of the river
+	// to do it, we check all river tiles	      :|r|:
+	// we connect the opposing edges if river is  :|r|:
+	//					      :|r|:
+	//					       -----
+	//                                        or   rrrrr
+	//					       -----
+	// at "corners", we connect inner and outer corners instead 
+
+	// now we have a graph and we:
+	// 1) set up initial corner points
+	// 2) repeat a few times :
+	// 2.1) smooth them and the edges
+	// 2.2) add noise
+
+
+	// group edges by vertex
+	ankerl::unordered_dense::map<int32_t, std::vector<size_t>> vertex_edges;
+	ankerl::unordered_dense::map<int32_t, bool> visited_vertices;
+	for(auto& e : edges) {
+		vertex_edges[pixel_corner_index(*this, e.start)] = {};
+		vertex_edges[pixel_corner_index(*this, e.end)] = {};
+		visited_vertices[pixel_corner_index(*this, e.start)] = false;
+		visited_vertices[pixel_corner_index(*this, e.end)] = false;
+	}
+	for(size_t i = 0; i < edges.size(); i++) {
+		auto& e = edges[i];
+		vertex_edges[pixel_corner_index(*this, e.start)].push_back(i);
+		vertex_edges[pixel_corner_index(*this, e.end)].push_back(i);
+	}
+
+
+	// start:
+	ankerl::unordered_dense::map<int32_t, glm::vec2> vertex_coordinate;
+	for(auto& [key, v] : graph_vertices) {
+		auto corner = index_to_pixel_corner(*this, key);
+
+		glm::vec2 offset{ };
+		float count = 0.f;
+
+		for(auto& item : vertex_edges[key]) {
+			if(edges[item].is_river) {
+				offset += edges[item].river_width_offset;
+				count += 1.f;
+			}
+		}
+
+		if(count > 0) {
+			vertex_coordinate[key] = glm::vec2((float)corner.x, (float)corner.y) + offset / count;
+		} else {
+			vertex_coordinate[key] = glm::vec2((float)corner.x, (float)corner.y);
+		}
+	}
+
+	// smooth and warp
+	for(int iteration = 0; iteration < 4; iteration++) {
+		for(auto& [key, v] : graph_vertices) {
+			glm::vec2 force{};
+			auto count = 2.f;
+			
+			for(auto& edge : vertex_edges[key]) {
+				if(edges[edge].is_river) {
+					count += 3.f;
+					force += 3.f * edges[edge].position;					
+				} else {
+					count += 1.f;
+					force += edges[edge].position;
+				}
+			}
+			vertex_coordinate[key] = (2.f * vertex_coordinate[key] + force) / count;
+		}
+		for(auto& item : edges) {
+			auto start = vertex_coordinate[pixel_corner_index(*this, item.start)];
+			auto end = vertex_coordinate[pixel_corner_index(*this, item.end)];
+			if(item.is_river) {
+				item.position = 0.60f * item.position + 0.2f * start + 0.2f * end;
+			} else {
+				item.position = 0.80f * item.position + 0.1f * start + 0.1f * end;
+			}
+		}
+	}
+
+	// detect intersections and use them to generate actual border segments
+	std::vector<int32_t> intersections;
+
+	for(auto& [key, v] : vertex_edges) {
+		if(v.size() > 2) {
+			intersections.push_back(key);
+			visited_vertices[key] = true;
+		} else if(v.size() == 1) {
+			intersections.push_back(key);
+			visited_vertices[key] = true;
+		}
+	}
 
 	borders.resize(state.world.province_adjacency_size());
 	for(auto adj : state.world.in_province_adjacency) {
 		borders[adj.id.index()].adj = adj;
 	}
 
-	for(int32_t j = 0; j < int32_t(size_y); ++j) {
-		for(int32_t i = 0; i < int32_t(size_x); ++i) {
-			// left verticals
-			{
-				bool was_visited = visited[i + (j * 2) * size_x];
+	for(auto item : intersections) {
+		// depth first "search" to generate segment:
+		// we do not expect branching after the first vertex
 
-				auto prim = province::from_map_id(safe_get_province(glm::ivec2(i, j)));
-				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i - 1, j)));
+		for(auto& start_e : vertex_edges[item]) {
+			auto current = item;	
+			std::vector<glm::vec2> points;
+			points.push_back(glm::vec2(vertex_coordinate[current]));
 
-				bool fake_border = false;
-				if(!prim || !sec) {
-					fake_border = true;
-				}
+			auto prev = current;
+			auto current_edge = start_e;
+			current = pixel_corner_index(*this, edges[start_e].start) == current ? pixel_corner_index(*this, edges[start_e].end) : pixel_corner_index(*this, edges[start_e].start);
 
-				if(!was_visited && prim != sec) {
-					int32_t border_index;
-					if(!fake_border) {
-						auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
-						assert(adj);
-						border_index = adj.index();
-						if(borders[border_index].count != 0) {
-							border_index = int32_t(borders.size());
-							borders.emplace_back();
-							borders.back().adj = adj;
+			if (!visited_vertices[current])
+				while(!visited_vertices[current]) {
+					visited_vertices[current] = true;
+					points.push_back(edges[current_edge].position);
+					points.push_back(glm::vec2(vertex_coordinate[current]));
+					edges[current_edge].processed = true;
+					for(auto& e : vertex_edges[current]) {
+						if(current_edge != e) {
+							prev = current;
+							current_edge = e;
+							current = pixel_corner_index(*this, edges[e].start) == current ? pixel_corner_index(*this, edges[e].end) : pixel_corner_index(*this, edges[e].start);
+							break;
 						}
-						
-					} else {
-						border_index = int32_t(borders.size());
-						borders.emplace_back();
-						borders.back().adj = { };
 					}
-
-					borders[border_index].start_index = int32_t(border_vertices.size());				
-					auto res = make_border_section(*this, state, visited, province::to_map_id(prim), province::to_map_id(sec), i, j * 2);
-					smooth_points(res);
-					add_border_segment_vertices(*this, res, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i - 1, j)));
-					borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
 				}
+			else if (!edges[current_edge].processed) {
+				points.push_back(edges[current_edge].position);
+				points.push_back(glm::vec2(vertex_coordinate[current]));
+				edges[current_edge].processed = true;
 			}
 
-			// horizontals
-			if(j < int32_t(size_y) - 1) {
-				bool was_visited = visited[i + (j * 2 + 1) * size_x];
-				auto prim = province::from_map_id(safe_get_province(glm::ivec2(i, j)));
-				auto sec = province::from_map_id(safe_get_province(glm::ivec2(i, j + 1)));
+			if(points.size() < 3) {
+				continue;
+			}
 
-				bool fake_border = false;
-				if(!prim || !sec) {
-					fake_border = true;
+			// finally, add actual opengl vertices
+			glm::ivec2 prim_pixel;
+			glm::ivec2 sec_pixel;
+			if(item != pixel_corner_index(*this, edges[start_e].start)) {
+				if(edges[start_e].j % 2 == 0) {
+					prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+					sec_pixel = glm::ivec2(edges[start_e].i - 1, edges[start_e].j / 2);
+				} else {
+					prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+					sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2 + 1);
 				}
+			} else {
+				if(edges[start_e].j % 2 == 0) {
+					sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+					prim_pixel = glm::ivec2(edges[start_e].i - 1, edges[start_e].j / 2);
+				} else {
+					sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+					prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2 + 1);
+				}
+			}
+			dcon::province_id prim = province::from_map_id(safe_get_province(prim_pixel));
+			dcon::province_id sec = province::from_map_id(safe_get_province(sec_pixel));
+			auto prim_index = safe_index(prim_pixel);
+			auto sec_index = safe_index(sec_pixel);
+			if(is_river(rivers[prim_index])) {
+				prim = { };
+			}
+			if(is_river(rivers[sec_index])) {
+				sec = { };
+			}
+			bool fake_border = false;
+			if(!prim || !sec || prim == sec) {
+				fake_border = true;
+			}
 
-				if(!was_visited && prim != sec && prim && sec) {
-					int32_t border_index;
+			int32_t border_index;
+			if(!fake_border) {
+				auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
+				assert(adj);
+				border_index = adj.index();
+				if(borders[border_index].count != 0) {
+					border_index = int32_t(borders.size());
+					borders.emplace_back();
+					borders.back().adj = adj;
+				}
+			} else {
+				border_index = int32_t(borders.size());
+				borders.emplace_back();
+				borders.back().adj = { };
+			}
+			borders[border_index].start_index = int32_t(border_vertices.size());
+			add_border_segment_vertices(*this, points, province::to_map_id(prim), province::to_map_id(sec));
+			borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
+			assert(borders[border_index].count > 0);
+		}
+	}
 
-					if(!fake_border) {
-						auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
-						assert(adj);
-						border_index = adj.index();
-						if(borders[border_index].count != 0) {
-							border_index = int32_t(borders.size());
-							borders.emplace_back();
-							borders.back().adj = adj;
-						}
-					} else {
-						border_index = int32_t(borders.size());
-						borders.emplace_back();
-						borders.back().adj = { };
-					}
+	// some of borders are loops
+	// so we have to do another run to detect the loops (among not visited items) and add them separately
 
-					borders[border_index].start_index = int32_t(border_vertices.size());
-					auto res = make_border_section(*this, state, visited, province::to_map_id(prim), province::to_map_id(sec), i, j * 2 + 1);
-					smooth_points(res);
-					add_border_segment_vertices(*this, res, safe_get_province(glm::ivec2(i, j)), safe_get_province(glm::ivec2(i, j + 1)));
-					borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
+	for(auto& [item, v] : visited_vertices) if(!v) {
+		auto start_e = vertex_edges[item][0];
+
+		auto current = item;
+		std::vector<glm::vec2> points;
+		points.push_back(glm::vec2(vertex_coordinate[current]));
+
+		auto prev = current;
+		auto current_edge = start_e;
+		current = pixel_corner_index(*this, edges[start_e].start) == current ? pixel_corner_index(*this, edges[start_e].end) : pixel_corner_index(*this, edges[start_e].start);
+		while(!visited_vertices[current]) {
+			visited_vertices[current] = true;
+			points.push_back(edges[current_edge].position);
+			points.push_back(glm::vec2(vertex_coordinate[current]));
+			for(auto& e : vertex_edges[current]) {
+				if(current_edge != e) {
+					prev = current;
+					current_edge = e;
+					current = pixel_corner_index(*this, edges[e].start) == current ? pixel_corner_index(*this, edges[e].end) : pixel_corner_index(*this, edges[e].start);
+					break;
 				}
 			}
 		}
+
+		if(points.size() < 3) {
+			continue;
+		}
+
+		// finally, add actual opengl vertices		
+
+		glm::ivec2 prim_pixel;
+		glm::ivec2 sec_pixel;
+		if(item != pixel_corner_index(*this, edges[start_e].start)) {
+			if(edges[start_e].j % 2 == 0) {
+				prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+				sec_pixel = glm::ivec2(edges[start_e].i - 1, edges[start_e].j / 2);
+			} else {
+				prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+				sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2 + 1);
+			}
+		} else {
+			if(edges[start_e].j % 2 == 0) {
+				sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+				prim_pixel = glm::ivec2(edges[start_e].i - 1, edges[start_e].j / 2);
+			} else {
+				sec_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2);
+				prim_pixel = glm::ivec2(edges[start_e].i, edges[start_e].j / 2 + 1);
+			}
+		}
+		dcon::province_id prim = province::from_map_id(safe_get_province(prim_pixel));
+		dcon::province_id sec = province::from_map_id(safe_get_province(sec_pixel));
+		auto prim_index = safe_index(prim_pixel);
+		auto sec_index = safe_index(sec_pixel);
+		if(is_river(rivers[prim_index])) {
+			prim = { };
+		}
+		if(is_river(rivers[sec_index])) {
+			sec = { };
+		}
+		bool fake_border = false;
+		if(!prim || !sec || prim == sec) {
+			fake_border = true;
+		}
+
+		int32_t border_index;
+		if(!fake_border) {
+			auto adj = state.world.get_province_adjacency_by_province_pair(prim, sec);
+			assert(adj);
+			border_index = adj.index();
+			if(borders[border_index].count != 0) {
+				border_index = int32_t(borders.size());
+				borders.emplace_back();
+				borders.back().adj = adj;
+			}
+		} else {
+			border_index = int32_t(borders.size());
+			borders.emplace_back();
+			borders.back().adj = { };
+		}
+		borders[border_index].start_index = int32_t(border_vertices.size());
+		add_border_segment_vertices(*this, points, province::to_map_id(prim), province::to_map_id(sec));
+		borders[border_index].count = int32_t(border_vertices.size() - borders[border_index].start_index);
+		assert(borders[border_index].count > 0);
 	}
 }
 

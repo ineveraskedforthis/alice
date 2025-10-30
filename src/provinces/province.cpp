@@ -167,6 +167,60 @@ void update_connected_regions(sys::state& state) {
 	}
 
 
+	static ankerl::unordered_dense::map<uint16_t, ankerl::unordered_dense::map<float, std::vector<std::pair<size_t, size_t>>>> position_to_borders{ };
+
+	auto hash_coord = [&](glm::vec2 coord) { return coord.y * state.map_state.map_data.size_x + coord.x; };
+
+	auto add_item = [&](dcon::province_id prov, glm::vec2 coord, size_t index, size_t orientation) {
+		auto hash = coord.y * state.map_state.map_data.size_x + coord.x;
+		auto query_result = position_to_borders.find(prov.value);
+		if(query_result == position_to_borders.end()) {
+			position_to_borders[prov.value] = { };
+			position_to_borders[prov.value][hash] = {
+				{ index, orientation }
+			};
+		} else {
+			auto geo_query = position_to_borders[prov.value].find(hash);
+			if(geo_query == position_to_borders[prov.value].end()) {
+				position_to_borders[prov.value][hash] = {
+					{ index, orientation }
+				};
+			} else {
+				geo_query->second.push_back({ index, orientation });
+			}
+		}
+	};
+
+	if(position_to_borders.empty()) {
+		for(size_t i = 0; i < state.map_state.map_data.borders.size(); i++) {
+			auto& border = state.map_state.map_data.borders[i];
+			if(border.count == 0) {
+				continue;
+			}
+
+			auto border_start_A = border.start_index;
+			auto border_end_A = border.start_index + border.count / 2 - 2;
+			auto border_start_B = border.start_index + border.count / 2;
+			auto border_end_B = border.start_index + border.count - 2;
+
+			auto A = province::from_map_id(state.map_state.map_data.border_vertices[border_start_A].province_index);
+			auto B = province::from_map_id(state.map_state.map_data.border_vertices[border_start_B].province_index);
+
+			auto& PA1 = state.map_state.map_data.border_vertices[border_start_A];
+			auto& PA2 = state.map_state.map_data.border_vertices[border_end_A];
+
+			auto& PB1 = state.map_state.map_data.border_vertices[border_start_B];
+			auto& PB2 = state.map_state.map_data.border_vertices[border_end_B];
+
+			add_item(A, PA1.position, i, 0);
+			add_item(B, PB1.position, i, 1);
+			add_item(A, PA2.position, i, 0);
+			add_item(B, PB2.position, i, 1);
+		}
+	}
+
+
+	/*
 	static ankerl::unordered_dense::map<dcon::province_id::value_base_t, std::vector<std::pair<size_t, size_t>>> province_to_borders{ };
 	if(province_to_borders.empty()) {
 		for(size_t i = 0; i < state.map_state.map_data.borders.size(); i++) {
@@ -174,7 +228,7 @@ void update_connected_regions(sys::state& state) {
 			auto adj = border.adj;
 			auto A = state.world.province_adjacency_get_connected_provinces(adj, 0);
 			auto B = state.world.province_adjacency_get_connected_provinces(adj, 1);
-
+	
 			auto query_result_A = province_to_borders.find(A.value);
 			if(query_result_A == province_to_borders.end()) {
 				province_to_borders[A.value] = {{ i, 0 }};
@@ -190,9 +244,11 @@ void update_connected_regions(sys::state& state) {
 			}
 		}
 	}
+	*/
 
 	// start chaining borders:
 	for(size_t i = 0; i < state.map_state.map_data.borders.size(); i++) {
+	//for(size_t i = 0; i < 0; i++) {
 		auto& border = state.map_state.map_data.borders[i];
 		if(border.count == 0) {
 			continue;
@@ -266,8 +322,19 @@ void update_connected_regions(sys::state& state) {
 			continue;
 		}
 
+		std::vector<std::pair<size_t, size_t>> candidates;
+
+		candidates.clear();
+		for(auto& query : position_to_borders[A.value][hash_coord(PA1.position)]) {
+			candidates.push_back(query);
+		}
+		for(auto& query : position_to_borders[A.value][hash_coord(PA2.position)]) {
+			candidates.push_back(query);
+		}
+
 		// find borders to weave:
-		for(auto& candidate_index : province_to_borders[A.value]) {
+		//for(auto& candidate_index : province_to_borders[A.value]) {
+		for(auto& candidate_index : candidates) {
 			auto& candidate_border = state.map_state.map_data.borders[candidate_index.first];
 
 			if(candidate_index.first == i) {
@@ -376,7 +443,16 @@ void update_connected_regions(sys::state& state) {
 			}
 		}
 
-		for(auto& candidate_index : province_to_borders[B.value]) {
+		candidates.clear();
+		for(auto& query : position_to_borders[B.value][hash_coord(PA1.position)]) {
+			candidates.push_back(query);
+		}
+		for(auto& query : position_to_borders[B.value][hash_coord(PA2.position)]) {
+			candidates.push_back(query);
+		}
+
+		//for(auto& candidate_index : province_to_borders[B.value]) {
+		for(auto& candidate_index : candidates) {
 			auto& candidate_border = state.map_state.map_data.borders[candidate_index.first];
 
 			if(candidate_index.first == i) {

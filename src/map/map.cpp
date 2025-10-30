@@ -379,8 +379,6 @@ void display_data::create_meshes() {
 		glVertexAttribBinding(0, 0);
 		glVertexAttribBinding(1, 0);
 	}
-	glBindVertexArray(vao_array[vo_coastal]);
-	create_textured_line_b_vbo(vbo_array[vo_coastal], coastal_vertices);
 	glBindVertexArray(vao_array[vo_trade_flow]);
 	create_textured_line_vbo(vbo_array[vo_trade_flow], trade_flow_vertices);
 	glBindVertexArray(vao_array[vo_unit_arrow]);
@@ -1032,7 +1030,7 @@ void display_data::render(sys::state& state, glm::vec2 screen_size, glm::vec2 of
 	// coasts
 
 	if(state.user_settings.graphics_mode != sys::graphics_mode::ugly) {
-		glUniform1f(shader_uniforms[shader_borders][uniform_width], 0.0002f); // width
+		glUniform1f(shader_uniforms[shader_borders][uniform_width], 0.00005f); // width
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, textures[texture_coastal_border]);
 		glBindVertexArray(vao_array[vo_border]);
