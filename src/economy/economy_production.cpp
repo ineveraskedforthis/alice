@@ -1355,12 +1355,30 @@ void update_factories_expansion_consumption(
 	auto factory_tokens = state.world.nation_make_vectorizable_float_buffer();
 
 	province::for_each_nation_owned_province_parallel_over_nation(state, [&](dcon::nation_id nation, dcon::province_id province) {
+		auto area = state.world.province_get_state_membership(province);
 		for(auto f : state.world.province_get_factory_location(province)) {
+			auto factory = f.get_factory();
+
+			auto output_type = factory.get_building_type().get_output();
+			auto priority = state.world.nation_get_production_directive(nation, production_directives::to_key(state, output_type));
+			auto priority_local = state.world.state_instance_get_production_directive(area, production_directives::to_key(state, output_type));
+			auto subsidy = 0.f;
+
+			if(priority || priority_local) {
+				auto base_output = state.world.factory_type_get_output_amount(factory.get_building_type());
+				auto factory_output = state.world.factory_get_output(factory);
+				auto effective_output = factory_output / base_output;
+				auto tokens = state.world.nation_get_subsidy_token_total(nation);
+				auto last_token_price = state.world.nation_get_subsidy_token_price(nation);
+				subsidy = last_token_price * effective_output;
+			}
+
 			auto profit = state.world.factory_get_profit(f.get_factory());
-			if(profit > 0.f) {
+
+			if(profit + subsidy > 0.f) {
 				auto size = state.world.factory_get_size(f.get_factory());
 				auto old = factory_tokens.get(nation);
-				factory_tokens.set(nation, old + profit / (size + 1.f));
+				factory_tokens.set(nation, old + (profit + subsidy) / (size + 1.f));
 			}
 		}
 	});
@@ -1374,13 +1392,30 @@ void update_factories_expansion_consumption(
 		bool investment_spent = false;
 		for(auto f : state.world.province_get_factory_location(province)) {
 			auto factory = f.get_factory();
+
+			auto output_type = factory.get_building_type().get_output();
+			auto priority = state.world.nation_get_production_directive(nation, production_directives::to_key(state, output_type));
+			auto priority_local = state.world.state_instance_get_production_directive(area, production_directives::to_key(state, output_type));
+			auto subsidy = 0.f;
+
+			if(priority || priority_local) {
+				auto base_output = state.world.factory_type_get_output_amount(factory.get_building_type());
+				auto factory_output = state.world.factory_get_output(factory);
+				auto effective_output = factory_output / base_output;
+				auto tokens = state.world.nation_get_subsidy_token_total(nation);
+				auto last_token_price = state.world.nation_get_subsidy_token_price(nation);
+				subsidy = last_token_price * effective_output;
+			}
+
+			auto profit = state.world.factory_get_profit(factory);
+
 			auto factory_type = factory.get_building_type();
 			auto time = state.world.factory_type_get_construction_time(factory_type);
-			auto profit = state.world.factory_get_profit(factory);
-			if(profit > 0.f) {
+
+			if(profit + subsidy > 0.f) {
 				auto size = state.world.factory_get_size(factory);
 				auto old = factory_tokens.get(nation);
-				auto investment = available_investment * profit / (size + 1.f) / total_tokens;
+				auto investment = available_investment * (profit + subsidy) / (size + 1.f) / total_tokens;
 
 				auto& costs = state.world.factory_type_get_construction_costs(factory_type);
 				auto costs_data = get_inputs_data(state, market, costs);
