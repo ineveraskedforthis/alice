@@ -190,6 +190,7 @@ struct throughput_multipliers_explanation {
 	float base = 1.f;
 	float from_modifiers = 1.f;
 	float from_scale = 1.f;
+	float from_forced_subsistence = 1.f;
 };
 
 struct detailed_explanation {

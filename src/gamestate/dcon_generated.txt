@@ -4930,9 +4930,43 @@ object {
 		tag{ save }
 	}
 	property {
-		name{ triggered_modifiers }
+		name{ unqualified_employment_historical_point_of_profitability }
 		type{ float }
-		
+		tag{ save }
+	}
+	property {
+		name{ primary_employment_historical_point_of_profitability }
+		type{ float }
+		tag{ save }
+	}
+	property {
+		name{ secondary_employment_historical_point_of_profitability }
+		type{ float }
+		tag{ save }
+	}
+	
+	property {
+		name{ unqualified_employment_historical_point_of_unprofitability }
+		type{ float }
+		tag{ save }
+	}
+	property {
+		name{ primary_employment_historical_point_of_unprofitability }
+		type{ float }
+		tag{ save }
+	}
+	property {
+		name{ secondary_employment_historical_point_of_unprofitability }
+		type{ float }
+		tag{ save }
+	}
+	property{
+		name{profit}
+		type{float}
+	}
+	property {
+		name{ triggered_modifiers }
+		type{ float }		
 	}	
 	property {
 		name{ output }

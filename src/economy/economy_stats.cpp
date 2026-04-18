@@ -1150,8 +1150,10 @@ int32_t province_factory_count(sys::state& state, dcon::province_id pid) {
 		if(p.get_is_upgrade() == false)
 			++num_factories;
 
-	// For new factories: no more than defines:FACTORIES_PER_STATE existing + under construction new factories must be
-	assert(num_factories <= int32_t(state.defines.factories_per_state));
+	/*
+	There is no such limit in the brave new world
+	*/
+	//assert(num_factories <= int32_t(state.defines.factories_per_state));
 	return num_factories;
 }
 // Returns sum of all factory levels in a province

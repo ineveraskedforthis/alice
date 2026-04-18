@@ -796,7 +796,8 @@ bool can_begin_factory_building_construction(sys::state& state, dcon::nation_id 
 		}
 
 		int32_t num_factories = economy::province_factory_count(state, location);
-		return num_factories < int32_t(state.defines.factories_per_state);
+		auto urbanisation = state.world.province_get_advanced_province_building_max_private_size(location, advanced_province_buildings::list::local_cities_and_towns);
+		return num_factories < int32_t(state.defines.factories_per_state * urbanisation / economy::factories_per_state_required_city_size);
 	}
 }
 

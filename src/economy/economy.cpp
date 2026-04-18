@@ -197,12 +197,12 @@ Need weight allows pops to not promise buying "hopeless" items and avoid generat
 There is base growth to avoid being stuck at 0
 It's modified by local availability and price
 */
-float need_weight_change(sys::state& state, dcon::market_id n, dcon::commodity_id c, float base_wage, float priority, float base_amount) {
+float need_weight_change(sys::state& state, dcon::market_id n, dcon::commodity_id c, float current, float base_wage, float priority, float base_amount) {
 	auto budget = economy::price_properties::labor::min + base_wage;
 	auto cost_per_person = base_amount * price(state, n, c) / state.defines.alice_needs_scaling_factor;
 	auto score_price = -cost_per_person / priority / budget;
-	auto score_availability = 0.1f + state.world.market_get_expected_probability_to_buy(n, c);
-	return score_availability + score_price;
+	auto score_availability = state.world.market_get_expected_probability_to_buy(n, c);
+	return (score_availability + 0.1f) / (current + 0.25f) + score_price;
 }
 
 // maximize sum of w_i
@@ -227,7 +227,7 @@ void rebalance_needs_weights(sys::state& state, dcon::market_id n) {
 			needed = needed / float(state.world.pop_type_size());
 
 			auto w = state.world.market_get_life_needs_weights(n, c);
-			auto dw = need_weight_change(state, n, c, wage, 1.f, needed);
+			auto dw = need_weight_change(state, n, c, w, wage, 1.f, needed);
 			w = std::max(0.f, w + dw * state.defines.alice_need_drift_speed);
 			assert(std::isfinite(w));
 			state.world.market_set_life_needs_weights(n, c, w);
@@ -255,7 +255,7 @@ void rebalance_needs_weights(sys::state& state, dcon::market_id n) {
 			needed = needed / float(state.world.pop_type_size());
 
 			auto w = state.world.market_get_everyday_needs_weights(n, c);
-			auto dw = need_weight_change(state, n, c, wage, 1.f, needed);
+			auto dw = need_weight_change(state, n, c, w, wage, 1.f, needed);
 			w = std::max(0.f, w + dw * state.defines.alice_need_drift_speed);
 			assert(std::isfinite(w));
 			state.world.market_set_everyday_needs_weights(n, c, w);
@@ -283,7 +283,7 @@ void rebalance_needs_weights(sys::state& state, dcon::market_id n) {
 			needed = needed / float(state.world.pop_type_size());
 
 			auto w = state.world.market_get_luxury_needs_weights(n, c);
-			auto dw = need_weight_change(state, n, c, wage, 1.f, needed);
+			auto dw = need_weight_change(state, n, c, w, wage, 1.f, needed);
 			w = std::max(0.f, w + dw * state.defines.alice_need_drift_speed);
 			assert(std::isfinite(w));
 			state.world.market_set_luxury_needs_weights(n, c, w);
@@ -862,12 +862,16 @@ void initialize(sys::state& state) {
 	});
 
 	state.world.for_each_province([&](auto pid) {
-		auto starting_urban_population_proxy = state.world.province_get_demographics(pid, demographics::literacy);
+		auto starting_urban_population_proxy =
+			state.world.province_get_demographics(pid, demographics::literacy) * 0.3f
+			+ state.world.province_get_demographics(pid, demographics::to_key(state, state.culture_definitions.artisans)) * 2.f;
+
 		state.world.province_set_advanced_province_building_max_private_size(
 			pid,
 			advanced_province_buildings::list::local_cities_and_towns,
 			starting_urban_population_proxy
 		);
+
 	});
 }
 
@@ -1729,8 +1733,9 @@ std::vector<full_construction_factory> estimate_private_investment_construct(sys
 			continue; // already building
 
 		int32_t num_factories = province_factory_count(state, s);
+		auto urbanisation = state.world.province_get_advanced_province_building_max_private_size(s, advanced_province_buildings::list::local_cities_and_towns);
 
-		if(num_factories >= int32_t(state.defines.factories_per_state)) {
+		if(num_factories >= int32_t(state.defines.factories_per_state * urbanisation / economy::factories_per_state_required_city_size)) {
 			continue;
 		}
 
@@ -4177,6 +4182,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			for(auto f : state.world.province_get_factory_location(pid)) {
 				auto fac = f.get_factory();
 				auto profit = explain_last_factory_profit(state, fac);
+				state.world.factory_set_profit(fac.id, profit.profit);
 				total_factory_profit += profit.profit;
 			}
 
@@ -4986,8 +4992,14 @@ void add_factory_level_to_province(sys::state& state, dcon::province_id p, dcon:
 	new_fac.set_building_type(t);
 	new_fac.set_size(base_size);
 	new_fac.set_unqualified_employment(base_size * 0.04f);
+	new_fac.set_unqualified_employment_historical_point_of_profitability(0.f);
+	new_fac.set_unqualified_employment_historical_point_of_unprofitability(0.f);
 	new_fac.set_primary_employment(0.f);
+	new_fac.set_primary_employment_historical_point_of_profitability(0.f);
+	new_fac.set_primary_employment_historical_point_of_unprofitability(0.f);
 	new_fac.set_secondary_employment(0.f);
+	new_fac.set_secondary_employment_historical_point_of_profitability(0.f);
+	new_fac.set_secondary_employment_historical_point_of_unprofitability(0.f);
 	state.world.try_create_factory_location(new_fac, p);
 	set_initial_factory_values(state, new_fac);
 }
@@ -5173,10 +5185,12 @@ void resolve_constructions(sys::state& state) {
 					state.world.province_set_advanced_province_building_max_private_size(for_province, civilian, local_civilian_port + 5000.f);
 
 					auto town_size = state.world.province_get_advanced_province_building_max_private_size(for_province, advanced_province_buildings::list::local_cities_and_towns);
-					state.world.province_set_advanced_province_building_max_private_size(for_province, advanced_province_buildings::list::local_cities_and_towns, town_size + 500.f);
+					state.world.province_set_advanced_province_building_max_private_size(for_province, advanced_province_buildings::list::local_cities_and_towns, town_size + 5000.f);
 				}
 
 				if(t == province_building_type::railroad) {
+					auto town_size = state.world.province_get_advanced_province_building_max_private_size(for_province, advanced_province_buildings::list::local_cities_and_towns);
+					state.world.province_set_advanced_province_building_max_private_size(for_province, advanced_province_buildings::list::local_cities_and_towns, town_size + 2000.f);
 					/* Notify the railroad mesh builder to update the railroads! */
 					state.railroad_built.store(true, std::memory_order::release);
 				}
@@ -5340,7 +5354,9 @@ void try_add_factory_to_state(sys::state& state, dcon::state_instance_id s, dcon
 			return; // can't build another of this type
 	}
 
-	if(num_factories < int32_t(state.defines.factories_per_state)) {
+	auto urbanisation = state.world.province_get_advanced_province_building_max_private_size(province, advanced_province_buildings::list::local_cities_and_towns);
+
+	if(num_factories < int32_t(state.defines.factories_per_state * urbanisation / economy::factories_per_state_required_city_size)) {
 		add_factory_level_to_province(state, province, t);
 	}
 }
@@ -5546,15 +5562,19 @@ void prune_factories(sys::state& state) {
 		for(auto f : state.world.province_get_factory_location(pid)) {
 			++factory_count;
 			auto desired_employment = factory_total_desired_employment(state, f.get_factory());
+			auto historical_employment =
+				state.world.factory_get_primary_employment_historical_point_of_profitability(f.get_factory())
+				+ state.world.factory_get_unqualified_employment_historical_point_of_profitability(f.get_factory())
+				+ state.world.factory_get_secondary_employment_historical_point_of_profitability(f.get_factory());
 			bool unprofitable = f.get_factory().get_unprofitable();
-			if(((desired_employment < 0.5f) && unprofitable) && (!deletion_choice || state.world.factory_get_size(deletion_choice) > f.get_factory().get_size())) {
+			if(((desired_employment < 0.5f) && unprofitable && historical_employment < 100.f) && (!deletion_choice || state.world.factory_get_size(deletion_choice) > f.get_factory().get_size())) {
 				deletion_choice = f.get_factory();
 			}
 		}
 
 		// aggressive pruning
 		// to help building more healthy economy instead of 1 profitable giant factory with 6 small 0 scale factories
-		if(deletion_choice && (4 + factory_count) >= int32_t(state.defines.factories_per_state)) {
+		if(deletion_choice) {
 			auto production_type = state.world.factory_get_building_type(deletion_choice);
 			state.world.delete_factory(deletion_choice);
 

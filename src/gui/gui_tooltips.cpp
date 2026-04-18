@@ -187,6 +187,13 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 			);
 		}
 
+		text::add_line(state, contents, "factory_historical_profitability_unqualified",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_unqualified_employment_historical_point_of_profitability(fid))
+		);
+		text::add_line(state, contents, "factory_historical_unprofitability_unqualified",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_unqualified_employment_historical_point_of_unprofitability(fid))
+		);
+
 		text::add_line_break_to_layout(state, contents);
 
 		text::add_line(state, contents, "factory_hired_primary",
@@ -204,7 +211,12 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 				text::variable_type::x, text::format_float(details.employment_target.primary)
 			);
 		}
-
+		text::add_line(state, contents, "factory_historical_profitability_primary",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_primary_employment_historical_point_of_profitability(fid))
+		);
+		text::add_line(state, contents, "factory_historical_unprofitability_primary",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_primary_employment_historical_point_of_unprofitability(fid))
+		);
 		text::add_line_break_to_layout(state, contents);
 
 		text::add_line(state, contents, "factory_hired_secondary",
@@ -223,6 +235,13 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 				text::variable_type::x, text::format_float(details.employment_target.secondary)
 			);
 		}
+
+		text::add_line(state, contents, "factory_historical_profitability_secondary",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_secondary_employment_historical_point_of_profitability(fid))
+		);
+		text::add_line(state, contents, "factory_historical_unprofitability_secondary",
+			text::variable_type::val, text::fp_two_places(state.world.factory_get_secondary_employment_historical_point_of_unprofitability(fid))
+		);
 	}
 
 	// description of expansion
@@ -251,6 +270,10 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 		);
 		text::add_line(state, contents, "factory_throughput_modifiers",
 			text::variable_type::val, text::format_percentage(details.throughput_multipliers.from_modifiers),
+			indent
+		);
+		text::add_line(state, contents, "factory_throughput_subsistence",
+			text::variable_type::val, text::format_percentage(details.throughput_multipliers.from_forced_subsistence),
 			indent
 		);
 
