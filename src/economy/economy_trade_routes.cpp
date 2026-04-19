@@ -623,7 +623,7 @@ void update_trade_routes_volume(
 			auto current_profit_A_to_B = ve::max(0.f, price_B_import * sold_boundary * state.world.market_get_expected_probability_to_sell(B, c) - (price_A_export * merchant_cut + transport_cost * effect_of_scale));
 			auto current_profit_B_to_A = ve::max(0.f, price_A_import * sold_boundary * state.world.market_get_expected_probability_to_sell(A, c) - (price_B_export * merchant_cut + transport_cost * effect_of_scale));
 
-			auto change = current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export;
+			auto change = 10.f * (current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export);
 
 			// expand the route slower if we do not expect to actually buy the goods:
 			auto expected_to_buy_A = state.world.market_get_expected_probability_to_buy(A, c);
@@ -648,9 +648,16 @@ void update_trade_routes_volume(
 			// essentially, regularisation of trade weights, but can lead to weird effects
 			change = change - current_volume * trade_base_multiplicative_decay / (trade_base_multiplicative_decay * 10.f + expected_to_buy_inputs) - volume_soft_sign * trade_base_additive_decay;
 
-			auto new_volume = ve::select(reset_route_commodity, 0.f, current_volume + change);
+			auto next_volume = current_volume + change;
+
+			// update stabilizer
+			auto old_stab = state.world.trade_route_get_stabilization_volume(trade_route, c);
+			auto stabilized_volume = next_volume * 0.75f + old_stab * 0.25f;
+			auto new_volume = ve::select(reset_route_commodity, 0.f, stabilized_volume);
+			auto new_stab = old_stab * 0.99f + new_volume * 0.01f;
 
 			state.world.trade_route_set_volume(trade_route, c, new_volume);
+			state.world.trade_route_set_stabilization_volume(trade_route, c, new_stab);
 
 			ve::apply([&](auto route) {
 				assert(std::isfinite(state.world.trade_route_get_volume(route, c)));

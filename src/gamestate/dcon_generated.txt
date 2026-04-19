@@ -4729,6 +4729,11 @@ relationship{
 		type{ array{commodity_id}{float} }
 		tag{ save }
 	}
+	property {
+		name{ stabilization_volume }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
 }
 
 relationship{

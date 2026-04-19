@@ -3024,6 +3024,8 @@ void state::load_scenario_data(parsers::error_handler& err, sys::year_month_day 
 	world.state_instance_resize_production_directive(production_directives::size(*this));
 
 	world.trade_route_resize_volume(world.commodity_size());
+	world.trade_route_resize_stabilization_volume(world.commodity_size());
+
 	world.nation_resize_factory_type_experience(world.factory_type_size());
 	world.nation_resize_factory_type_experience_priority_national(world.factory_type_size());
 	world.nation_resize_factory_type_experience_priority_private(world.factory_type_size());
