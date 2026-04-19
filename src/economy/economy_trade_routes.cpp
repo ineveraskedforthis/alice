@@ -271,35 +271,8 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	auto market_leader_B = nations::get_market_leader(state, controller_capital_B);
 
 	// Equal/unequal trade treaties
-	auto A_open_to_B = false;
-	auto B_open_to_A = false;
-	dcon::unilateral_relationship_id source_tariffs_rel;
-	dcon::unilateral_relationship_id target_tariffs_rel;
-	if(market_leader_A == market_leader_B) {
-		source_tariffs_rel = state.world.get_unilateral_relationship_by_unilateral_pair(controller_capital_B, controller_capital_A);
-		target_tariffs_rel = state.world.get_unilateral_relationship_by_unilateral_pair(controller_capital_A, controller_capital_B);
-
-	}
-	else {
-		source_tariffs_rel = state.world.get_unilateral_relationship_by_unilateral_pair(market_leader_B, market_leader_A);
-		target_tariffs_rel = state.world.get_unilateral_relationship_by_unilateral_pair(market_leader_A, market_leader_B);
-	}
-
-	if(source_tariffs_rel) {
-		auto enddt = state.world.unilateral_relationship_get_no_tariffs_until(source_tariffs_rel);
-		if(enddt) {
-			A_open_to_B = true;
-		}
-	}
-	if(target_tariffs_rel) {
-		auto enddt = state.world.unilateral_relationship_get_no_tariffs_until(target_tariffs_rel);
-		if(enddt) {
-			B_open_to_A = true;
-		}
-	}
-
-	auto A_is_open_to_B = sphere_A == controller_capital_B || overlord_A == controller_capital_B || A_open_to_B;
-	auto B_is_open_to_A = sphere_B == controller_capital_A || overlord_B == controller_capital_A || B_open_to_A;
+	auto A_is_open_to_B = !state.world.trade_route_get_is_tariff_applied_0(route);
+	auto B_is_open_to_A = !state.world.trade_route_get_is_tariff_applied_1(route);
 
 	auto port_occupied_A = military::are_at_war(state, controller_capital_A, controller_port_A);
 	auto port_occupied_B = military::are_at_war(state, controller_capital_B, controller_port_B);
@@ -646,13 +619,15 @@ void update_trade_routes_volume(
 
 			// modifier for trade to slowly decay to create soft limit on transportation
 			// essentially, regularisation of trade weights, but can lead to weird effects
-			change = change - current_volume * trade_base_multiplicative_decay / (trade_base_multiplicative_decay * 10.f + expected_to_buy_inputs) - volume_soft_sign * trade_base_additive_decay;
-
 			auto next_volume = current_volume + change;
 
 			// update stabilizer
 			auto old_stab = state.world.trade_route_get_stabilization_volume(trade_route, c);
-			auto stabilized_volume = next_volume * 0.75f + old_stab * 0.25f;
+			auto stabilized_volume =
+				next_volume * 0.75f
+				+ old_stab * 0.25f
+				- current_volume * trade_base_multiplicative_decay / (trade_base_multiplicative_decay * 10.f + expected_to_buy_inputs)
+				- volume_soft_sign * trade_base_additive_decay;
 			auto new_volume = ve::select(reset_route_commodity, 0.f, stabilized_volume);
 			auto new_stab = old_stab * 0.99f + new_volume * 0.01f;
 
