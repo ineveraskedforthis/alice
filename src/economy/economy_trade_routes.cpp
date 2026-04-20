@@ -593,29 +593,26 @@ void update_trade_routes_volume(
 			// volume reduces transport costs
 
 			auto sold_boundary = stockpile_to_supply / (stockpile_spoilage + stockpile_to_supply);
-			auto current_profit_A_to_B = ve::max(0.f, price_B_import * sold_boundary * state.world.market_get_expected_probability_to_sell(B, c) - (price_A_export * merchant_cut + transport_cost * effect_of_scale));
-			auto current_profit_B_to_A = ve::max(0.f, price_A_import * sold_boundary * state.world.market_get_expected_probability_to_sell(A, c) - (price_B_export * merchant_cut + transport_cost * effect_of_scale));
 
-			auto change = 10.f * (current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export);
 
-			// expand the route slower if we do not expect to actually buy the goods:
+			auto base_A_to_B = price_B_import * sold_boundary * state.world.market_get_expected_probability_to_sell(B, c) - (price_A_export * merchant_cut + transport_cost * effect_of_scale);
+			auto base_B_to_A = price_A_import * sold_boundary * state.world.market_get_expected_probability_to_sell(A, c) - (price_B_export * merchant_cut + transport_cost * effect_of_scale);
+
 			auto expected_to_buy_A = state.world.market_get_expected_probability_to_buy(A, c);
 			auto expected_to_buy_B = state.world.market_get_expected_probability_to_buy(B, c);
-			auto expected_to_buy_inputs = ve::select(
-				current_volume + change > 0.f,
-				expected_to_buy_A,
-				expected_to_buy_B
-			) * transport_availability;
-			change = ve::select(
-				change * (current_volume + change) >= 0.f, // change and volume are collinear
-				change
-				* ve::max(
-					ve::max(
-						0.f,
-						min_trade_expansion_multiplier / (1.f + ve::abs(change))
-					), (expected_to_buy_inputs - trade_demand_satisfaction_cutoff) * 2.f * volume_soft_sign * volume_sign),
-				change
-			);
+
+			// influence speed of expansion
+			auto current_profit_A_to_B = ve::max(0.f, base_A_to_B) * expected_to_buy_A * transport_availability;
+			auto current_profit_B_to_A = ve::max(0.f, base_B_to_A) * expected_to_buy_B * transport_availability;
+
+			// influence decay
+			auto current_loss_A_to_B = -ve::min(0.f, base_A_to_B);
+			auto current_loss_B_to_A = -ve::min(0.f, base_B_to_A);
+
+			auto current_decay_from_loss = ve::max(0.f, 1.f - ve::select(current_volume > 0.f, current_loss_A_to_B / price_A_export, current_loss_B_to_A / price_B_export));
+
+			//auto super_decay = ve::select(current_profit_A_to_B + current_profit_B_to_A == 0.f, 10.f, 1.f);
+			auto change = 100.f * (current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export);
 
 			// modifier for trade to slowly decay to create soft limit on transportation
 			// essentially, regularisation of trade weights, but can lead to weird effects
@@ -624,11 +621,11 @@ void update_trade_routes_volume(
 			// update stabilizer
 			auto old_stab = state.world.trade_route_get_stabilization_volume(trade_route, c);
 			auto stabilized_volume =
-				next_volume * 0.75f
-				+ old_stab * 0.25f
-				- current_volume * trade_base_multiplicative_decay / (trade_base_multiplicative_decay * 10.f + expected_to_buy_inputs)
+				next_volume * 0.2f
+				+ old_stab * 0.8f
+				- current_volume * trade_base_multiplicative_decay
 				- volume_soft_sign * trade_base_additive_decay;
-			auto new_volume = ve::select(reset_route_commodity, 0.f, stabilized_volume);
+			auto new_volume = ve::select(reset_route_commodity, 0.f, stabilized_volume * current_decay_from_loss);
 			auto new_stab = old_stab * 0.99f + new_volume * 0.01f;
 
 			state.world.trade_route_set_volume(trade_route, c, new_volume);
