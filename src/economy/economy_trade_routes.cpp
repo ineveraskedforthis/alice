@@ -612,7 +612,7 @@ void update_trade_routes_volume(
 			auto current_decay_from_loss = ve::max(0.f, 1.f - ve::select(current_volume > 0.f, current_loss_A_to_B / price_A_export, current_loss_B_to_A / price_B_export));
 
 			//auto super_decay = ve::select(current_profit_A_to_B + current_profit_B_to_A == 0.f, 10.f, 1.f);
-			auto change = 100.f * (current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export);
+			auto change = 20.f * (current_profit_A_to_B / price_A_export - current_profit_B_to_A / price_B_export);
 
 			// modifier for trade to slowly decay to create soft limit on transportation
 			// essentially, regularisation of trade weights, but can lead to weird effects
