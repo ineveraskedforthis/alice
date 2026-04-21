@@ -1382,7 +1382,7 @@ void update_production_investement_consumption(
 			auto profit = state.world.factory_get_profit(factory);
 			auto size = state.world.factory_get_size(factory);
 
-			if(profit + subsidy > 0.f && factory_total_employment(state, factory) > 0.8f * size) {
+			if(profit + subsidy > 0.f && factory_total_desired_employment(state, factory) > 0.8f * size) {
 				auto old = investment_tokens.get(nation);
 				investment_tokens.set(nation, old + factory_priority_bonus * (profit + subsidy) / (size + 1.f));
 			}
@@ -1449,7 +1449,7 @@ void update_production_investement_consumption(
 			auto time = state.world.factory_type_get_construction_time(factory_type);
 			auto size = state.world.factory_get_size(factory);
 
-			if(profit + subsidy > 0.f && factory_total_employment(state, factory) > 0.8f * size) {
+			if(profit + subsidy > 0.f && factory_total_desired_employment(state, factory) > 0.8f * size) {
 				auto old = investment_tokens.get(nation);
 				auto investment = available_investment * factory_priority_bonus * (profit + subsidy) / (size + 1.f) / total_tokens;
 
