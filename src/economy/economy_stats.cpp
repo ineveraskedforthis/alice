@@ -579,8 +579,8 @@ float trade_supply(sys::state const& state,
 	auto stockpiles = state.world.market_get_stockpile(m, c);
 	auto sid = state.world.market_get_zone_from_local_market(m);
 	auto capital = state.world.state_instance_get_capital(sid);
-	auto result = std::max(0.f, stockpiles) * stockpile_to_supply;
-	return result;
+	auto merchants_supply = std::min(std::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(m, c) + 0.1f);
+	return merchants_supply;
 }
 
 float trade_supply(sys::state& state,
