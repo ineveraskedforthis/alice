@@ -1860,6 +1860,8 @@ void update_employment(sys::state& state, float presim_employment_mult) {
 	// note: markets are independent, so nations are independent:
 	// so we can execute in parallel over nations but not over provinces
 
+	auto workers_optimism = 0.1f;
+
 	concurrency::parallel_for(uint32_t(0), state.world.commodity_size(), [&](uint32_t k) {
 		dcon::commodity_id c{ dcon::commodity_id::value_base_t(k) };
 		auto base_output = state.world.commodity_get_rgo_amount(c);
@@ -1880,11 +1882,12 @@ void update_employment(sys::state& state, float presim_employment_mult) {
 
 			auto wage_per_worker = state.world.province_get_labor_price(pids, labor::no_education);
 
+			auto workers_availability = state.world.province_get_labor_demand_satisfaction(pids, labor::no_education);
+
 			auto current_size = state.world.province_get_rgo_size(pids, c);
 			auto efficiency = state.world.province_get_rgo_efficiency(pids, c);
 			auto current_employment_target = state.world.province_get_rgo_target_employment(pids, c);
-			auto current_employment = current_employment_target
-				* state.world.province_get_labor_demand_satisfaction(pids, labor::no_education);
+			auto current_employment = current_employment_target * workers_availability;
 			auto output_per_worker = base_output * efficiency / state.defines.alice_rgo_per_size_employment;
 			
 			auto supply = state.world.market_get_aggregated_supply_history(m, c);
@@ -1899,17 +1902,14 @@ void update_employment(sys::state& state, float presim_employment_mult) {
 			auto sales_expected_rate = state.world.market_get_expected_probability_to_sell(m, c);
 			auto spending_per_worker_perception = wage_per_worker * (1.f + aristocrats_greed);
 			auto gradient = gradient_employment_i<ve::fp_vector>(
-				output_per_worker * predicted_price * (sales_optimism + (1.f - sales_optimism) * sales_expected_rate),
+				(workers_optimism + (1.f - workers_optimism) * workers_availability) * output_per_worker * predicted_price * (sales_optimism + (1.f - sales_optimism) * sales_expected_rate),
 				1.f,
 				spending_per_worker_perception
 			);
 
 			auto mult = ve::select(
 				gradient > 0.f,
-				ve::max(
-					0.f,
-					state.world.province_get_labor_demand_satisfaction(pids, labor::no_education) - 0.5f
-				),
+				ve::max(0.f, workers_availability - 0.5f),
 				1.f
 			);
 
@@ -1980,10 +1980,12 @@ void update_employment(sys::state& state, float presim_employment_mult) {
 		auto wage_basic_education = state.world.province_get_labor_price(pid, labor::basic_education);
 		auto wage_high_education = state.world.province_get_labor_price(pid, labor::high_education);
 
+		auto probability_to_hire_uneducated_worker = state.world.province_get_labor_demand_satisfaction(pid, labor::no_education);
+
 		employment_data<2, decltype(wage_no_education)> primary_employment{
 			{ unqualified, primary },
 			{
-				unqualified * state.world.province_get_labor_demand_satisfaction(pid, labor::no_education),
+				unqualified * probability_to_hire_uneducated_worker,
 				primary * state.world.province_get_labor_demand_satisfaction(pid, labor::basic_education)
 			},
 			{ unqualified_throughput_multiplier, 1.f },
