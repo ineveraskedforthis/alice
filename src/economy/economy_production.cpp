@@ -516,17 +516,14 @@ ve::fp_vector consume_labor_guild(
 
 struct preconsumption_data {
 	inputs_data direct_inputs_data{ };
-	inputs_data efficiency_inputs_data{ };
 
 	float output_price = 0.f;
 	float output_amount_per_production_unit = 0.f;
 	float direct_inputs_cost_per_production_unit = 0.f;
 	float direct_inputs_cost_per_production_unit_availability_adjusted = 0.f;
-	float efficiency_inputs_cost_per_production_unit = 0.f;
-	float efficiency_inputs_cost_per_production_unit_availability_adjusted = 0.f;
 };
 
-struct ve_preconsumption_data_guild {
+struct ve_preconsumption_data {
 	ve_inputs_data direct_inputs_data{ };
 
 	ve::fp_vector output_price = 0.f;
@@ -535,50 +532,23 @@ struct ve_preconsumption_data_guild {
 	ve::fp_vector direct_inputs_cost_per_production_unit_availability_adjusted = 0.f;
 };
 
-struct preconsumption_data_guild {
-	inputs_data direct_inputs_data{ };
-
-	float output_price = 0.f;
-	float output_amount_per_production_unit = 0.f;
-	float direct_inputs_cost_per_production_unit = 0.f;
-	float direct_inputs_cost_per_production_unit_availability_adjusted = 0.f;
-};
-
 preconsumption_data prepare_data_for_consumption(
 	sys::state& state,
 	dcon::market_id market,
 	economy::commodity_set const& inputs,
-	economy::small_commodity_set const& efficiency_inputs,
 	dcon::commodity_id output,
 	float output_amount,
 
-	float input_multiplier, float efficiency_inputs_multiplier, float output_multiplier
+	float input_multiplier, float output_multiplier
 ) {
 	auto direct_inputs_data = get_inputs_data(state, market, inputs);
-	auto efficiency_inputs_data = get_inputs_data(state, market, efficiency_inputs);
 	assert(direct_inputs_data.min_available >= 0.f);
-	assert(efficiency_inputs_data.min_available >= 0.f);
 
 	auto output_price = price(state, market, output);
 
 	auto output_per_production_unit =
 		output_amount
 		* output_multiplier;
-
-	auto max_efficiency_penalty =
-		output_per_production_unit
-		* output_price
-		* lack_of_efficiency_inputs_penalty;
-
-	if(max_efficiency_penalty < efficiency_inputs_data.total_cost * efficiency_inputs_multiplier)
-		efficiency_inputs_data.min_available = 0.f;
-
-	output_per_production_unit =
-		output_per_production_unit
-		* (
-			(1.f - lack_of_efficiency_inputs_penalty)
-			+ lack_of_efficiency_inputs_penalty * efficiency_inputs_data.min_available
-		);
 
 	float output_cost_per_production_unit =
 		output_per_production_unit
@@ -586,47 +556,17 @@ preconsumption_data prepare_data_for_consumption(
 
 	preconsumption_data result = {
 		.direct_inputs_data = direct_inputs_data,
-		.efficiency_inputs_data = efficiency_inputs_data,
-
-		.output_price = output_price,
-		.output_amount_per_production_unit = output_per_production_unit,
-		.direct_inputs_cost_per_production_unit = direct_inputs_data.total_cost * input_multiplier,
-		.direct_inputs_cost_per_production_unit_availability_adjusted = direct_inputs_data.total_cost_availability_adjusted * input_multiplier,
-		.efficiency_inputs_cost_per_production_unit = efficiency_inputs_data.total_cost * input_multiplier * efficiency_inputs_multiplier,
-		.efficiency_inputs_cost_per_production_unit_availability_adjusted = efficiency_inputs_data.total_cost_availability_adjusted * input_multiplier * efficiency_inputs_multiplier
-	};
-
-	return result;
-}
-
-preconsumption_data_guild prepare_data_for_consumption(
-	sys::state& state,
-	dcon::market_id market,
-	economy::commodity_set const& inputs,
-	dcon::commodity_id output,
-	float output_amount,
-	float input_multiplier, float output_multiplier
-) {
-	auto direct_inputs_data = get_inputs_data(state, market, inputs);
-	auto output_price = price(state, market, output);
-	auto output_per_production_unit =
-		output_amount
-		* output_multiplier;
-	auto output_cost_per_production_unit =
-		output_per_production_unit
-		* output_price;
-	preconsumption_data_guild result = {
-		.direct_inputs_data = direct_inputs_data,
 		.output_price = output_price,
 		.output_amount_per_production_unit = output_per_production_unit,
 		.direct_inputs_cost_per_production_unit = direct_inputs_data.total_cost * input_multiplier,
 		.direct_inputs_cost_per_production_unit_availability_adjusted = direct_inputs_data.total_cost_availability_adjusted * input_multiplier,
 	};
+
 	return result;
 }
 
 template<typename M>
-ve_preconsumption_data_guild prepare_data_for_consumption(
+ve_preconsumption_data ve_prepare_data_for_consumption(
 	sys::state& state,
 	M market,
 	economy::commodity_set const& inputs,
@@ -642,7 +582,7 @@ ve_preconsumption_data_guild prepare_data_for_consumption(
 	auto output_cost_per_production_unit =
 		output_per_production_unit
 		* output_price;
-	ve_preconsumption_data_guild result = {
+	ve_preconsumption_data result = {
 		.direct_inputs_data = direct_inputs_data,
 		.output_price = output_price,
 		.output_amount_per_production_unit = output_per_production_unit,
@@ -654,16 +594,14 @@ ve_preconsumption_data_guild prepare_data_for_consumption(
 
 struct consumption_data {
 	float direct_inputs_cost;
-	float efficiency_inputs_cost;
 	float output;
 
 	float direct_inputs_scale;
-	float efficiency_inputs_scale;
 
 	float input_cost_per_employment_unit;
 	float output_per_employment_unit;
 };
-struct ve_consumption_data_guild {
+struct ve_consumption_data {
 	ve::fp_vector direct_inputs_cost;
 	ve::fp_vector output;
 
@@ -672,23 +610,13 @@ struct ve_consumption_data_guild {
 	ve::fp_vector input_cost_per_employment_unit;
 	ve::fp_vector output_per_employment_unit;
 };
-struct consumption_data_guild {
-	float direct_inputs_cost;
-	float output;
-
-	float direct_inputs_scale;
-
-	float input_cost_per_employment_unit;
-	float output_per_employment_unit;
-};
 
 consumption_data imitate_consume(
 	sys::state& state,
 	economy::commodity_set const& inputs,
-	economy::small_commodity_set const& efficiency_inputs,
 	preconsumption_data& additional_data,
 
-	float input_multiplier, float efficiency_inputs_multiplier, float throughput_multiplier, float output_multiplier,
+	float input_multiplier, float throughput_multiplier, float output_multiplier,
 	float employment_units, float output_multiplier_from_workers_with_high_education,
 	float max_employment
 ) {
@@ -696,18 +624,12 @@ consumption_data imitate_consume(
 	float input_scale =
 		input_multiplier
 		* production_units;
-	float e_input_scale =
-		input_multiplier
-		* efficiency_inputs_multiplier
-		* production_units;
 
 	consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
-		.efficiency_inputs_cost = additional_data.efficiency_inputs_cost_per_production_unit_availability_adjusted * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
 		.direct_inputs_scale = input_scale,
-		.efficiency_inputs_scale = e_input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
 		.output_per_employment_unit = additional_data.output_amount_per_production_unit * throughput_multiplier
@@ -716,10 +638,10 @@ consumption_data imitate_consume(
 	return result;
 }
 
-consumption_data_guild imitate_consume(
+consumption_data imitate_consume(
 	sys::state& state,
 	economy::commodity_set const& inputs,
-	preconsumption_data_guild& additional_data,
+	preconsumption_data& additional_data,
 	float input_multiplier, float throughput_multiplier, float output_multiplier,
 	float employment_units
 ) {
@@ -728,7 +650,7 @@ consumption_data_guild imitate_consume(
 		input_multiplier
 		* production_units;
 
-	consumption_data_guild result = {
+	consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
@@ -747,10 +669,9 @@ consumption_data consume(
 	std::vector<ve::vectorizable_buffer<float, dcon::province_id>>& buffer_demanded,
 	std::vector<ve::vectorizable_buffer<float, dcon::province_id>>& buffer_consumed,
 	economy::commodity_set const& inputs,
-	economy::small_commodity_set const& efficiency_inputs,
 	preconsumption_data& additional_data,
 
-	float input_multiplier, float efficiency_inputs_multiplier, float throughput_multiplier, float output_multiplier,
+	float input_multiplier, float throughput_multiplier, float output_multiplier,
 	float employment_units, float output_multiplier_from_workers_with_high_education,
 	float max_employment,
 	economy_reason reason
@@ -758,7 +679,6 @@ consumption_data consume(
 	assert(input_multiplier >= 0.f);
 	assert(throughput_multiplier >= 0.f);
 	assert(output_multiplier >= 0.f);
-	assert(efficiency_inputs_multiplier >= 0.f);
 
 	float production_units = employment_units * throughput_multiplier;
 	assert(production_units >= 0.f);
@@ -768,20 +688,10 @@ consumption_data consume(
 		* production_units;
 	assert(input_scale >= 0.f);
 
-	float e_input_scale =
-		input_multiplier
-		* efficiency_inputs_multiplier
-		* production_units;
-	assert(e_input_scale >= 0.f);
-
 	save_inputs_to_buffers(state, province, buffer_demanded, buffer_consumed, inputs, input_scale, additional_data.direct_inputs_data.min_available);
-	save_inputs_to_buffers(state, province, buffer_demanded, buffer_consumed, efficiency_inputs, e_input_scale * efficiency_inputs_multiplier, additional_data.efficiency_inputs_data.min_available);
 
 	consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted
-		* production_units,
-
-		.efficiency_inputs_cost = additional_data.efficiency_inputs_cost_per_production_unit_availability_adjusted
 		* production_units,
 
 		.output =
@@ -791,7 +701,6 @@ consumption_data consume(
 			* output_multiplier_from_workers_with_high_education,
 
 		.direct_inputs_scale = input_scale,
-		.efficiency_inputs_scale = e_input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
 		.output_per_employment_unit =
@@ -804,13 +713,13 @@ consumption_data consume(
 }
 
 template<typename PROV>
-ve_consumption_data_guild consume(
+ve_consumption_data consume(
 	sys::state& state,
 	PROV province,
 	std::vector<ve::vectorizable_buffer<float, dcon::province_id>>& buffer_demanded,
 	std::vector<ve::vectorizable_buffer<float, dcon::province_id>>& buffer_consumed,
 	economy::commodity_set const& inputs,
-	ve_preconsumption_data_guild& additional_data,
+	ve_preconsumption_data& additional_data,
 	ve::fp_vector input_multiplier, ve::fp_vector throughput_multiplier, ve::fp_vector output_multiplier,
 	ve::fp_vector employment_units,
 	economy_reason reason
@@ -820,7 +729,7 @@ ve_consumption_data_guild consume(
 
 	save_inputs_to_buffers(state, province, buffer_demanded, buffer_consumed, inputs, input_scale, additional_data.direct_inputs_data.min_available);
 
-	ve_consumption_data_guild result = {
+	ve_consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
@@ -871,10 +780,10 @@ void update_artisan_consumption(
 		auto actual_workers = ve::select(valid_mask, target_workers * mobilization_impact, 0.f);
 		auto employment_units = ve::select(valid_mask, consume_labor_guild(state, provinces, actual_workers), 0.f);
 
-		ve_preconsumption_data_guild prepared_data = prepare_data_for_consumption(
+		ve_preconsumption_data prepared_data = ve_prepare_data_for_consumption(
 			state, markets, inputs, cid, output_amount, input_multiplier, output_multiplier
 		);
-		ve_consumption_data_guild consumption_data = consume(
+		ve_consumption_data consumption_data = consume(
 			state, provinces, buffer_demanded, buffer_consumed,
 			inputs, prepared_data,
 			input_multiplier, throughput_multiplier, output_multiplier,
@@ -1166,9 +1075,8 @@ output_multipliers_explanation explain_output_multiplier(sys::state const& state
 	}
 
 	{
-		inputs_data efficiency_inputs_data = get_inputs_data<economy::small_commodity_set>(state, m, factory_type.get_efficiency_inputs());
-		result.from_efficiency_goods = (1.f - lack_of_efficiency_inputs_penalty)
-			+ lack_of_efficiency_inputs_penalty * efficiency_inputs_data.min_available;
+		//inputs_data efficiency_inputs_data = get_inputs_data<economy::small_commodity_set>(state, m, factory_type.get_efficiency_inputs());
+		result.from_efficiency_goods = 1.f;
 	}
 
 	{
@@ -1252,8 +1160,8 @@ struct factory_update_data {
 };
 
 struct guild_update_data {
-	preconsumption_data_guild base;
-	consumption_data_guild consumption;
+	preconsumption_data base;
+	consumption_data consumption;
 };
 
 guild_update_data imitate_artisan_consumption(
@@ -1279,10 +1187,10 @@ guild_update_data imitate_artisan_consumption(
 	float actual_workers = target_workers * mobilization_impact;
 	float employment_units = employment_units_guild(state, p, actual_workers);
 
-	preconsumption_data_guild prepared_data = prepare_data_for_consumption(
+	preconsumption_data prepared_data = prepare_data_for_consumption(
 		state, markets, inputs, cid, output_amount, input_multiplier, output_multiplier
 	);
-	consumption_data_guild consumption_data = imitate_consume(
+	consumption_data consumption_data = imitate_consume(
 		state,
 		inputs,
 		prepared_data,
@@ -1316,14 +1224,13 @@ factory_update_data imitate_single_factory_consumption(
 	float output_multiplier = factory_output_multiplier_no_secondary_workers(state, fac, n, p);
 
 	auto& direct_inputs = fac_type.get_inputs();
-	auto& efficiency_inputs = fac_type.get_efficiency_inputs();
 	auto max_employment = fac.get_size();
 
-	auto base_data = prepare_data_for_consumption(
+	economy::preconsumption_data base_data = prepare_data_for_consumption(
 		state, m,
-		direct_inputs, efficiency_inputs,
+		direct_inputs,
 		fac_type.get_output(), fac_type.get_output_amount(),
-		input_multiplier, mfactor, output_multiplier
+		input_multiplier, output_multiplier
 	);
 
 	auto employment = employment_units(
@@ -1333,8 +1240,8 @@ factory_update_data imitate_single_factory_consumption(
 	);
 
 	auto consumption_data = imitate_consume(
-		state, direct_inputs, efficiency_inputs, base_data,
-		input_multiplier, mfactor, throughput_multiplier, output_multiplier,
+		state, direct_inputs, base_data,
+		input_multiplier, throughput_multiplier, output_multiplier,
 		employment,
 		output_multiplier_from_workers_with_high_education(
 			state, fac.get_province_from_factory_location(), fac.get_secondary_employment(), max_employment
@@ -1462,7 +1369,7 @@ void update_production_investement_consumption(
 				for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
 					auto cid = costs.commodity_type[i];
 					if (!cid) break;
-					auto amount = costs.commodity_amounts[i] / time;
+					auto amount = costs.commodity_amounts[i] / time / 3.f;
 					economy::register_demand(state, market, costs.commodity_type[i], expansion_scale * amount);
 					actually_spent = actually_spent + expansion_scale * amount * price(state, market, cid) * state.world.market_get_actual_probability_to_buy(market, cid);
 				}
@@ -1500,7 +1407,7 @@ void update_production_investement_consumption(
 
 				auto& e_inputs = state.world.commodity_get_rgo_efficiency_inputs(c);
 				inputs_data e_inputs_data = get_inputs_data(state, market, e_inputs);
-				auto can_buy = investment / e_inputs_data.total_cost;
+				auto can_buy = std::min(100.f, investment / e_inputs_data.total_cost);
 				auto size = state.world.province_get_rgo_size(province, c);
 				auto new_efficiency = current_efficiency * 0.9999f + can_buy * e_inputs_data.min_available * 0.01f;
 				auto validated_efficiency = ve::select(size == 0.f, 0.f, ve::min(max_efficiency, ve::max(free_efficiency, new_efficiency)));
@@ -1548,13 +1455,12 @@ void update_single_factory_consumption(
 	float output_multiplier = factory_output_multiplier_no_secondary_workers(state, fac, n, p);
 
 	auto& direct_inputs = fac_type.get_inputs();
-	auto& efficiency_inputs = fac_type.get_efficiency_inputs();
 
 	auto base_data = prepare_data_for_consumption(
 		state, m,
-		direct_inputs, efficiency_inputs,
+		direct_inputs,
 		fac_type.get_output(), fac_type.get_output_amount(),
-		input_multiplier, mfactor, output_multiplier
+		input_multiplier, output_multiplier
 	);
 
 	auto max_employment = state.world.factory_get_size(fac);
@@ -1568,9 +1474,9 @@ void update_single_factory_consumption(
 
 	auto data = consume(
 		state, p, buffer_demanded, buffer_consumed,
-		direct_inputs, efficiency_inputs,
+		direct_inputs,
 		base_data,
-		input_multiplier, mfactor, throughput_multiplier, output_multiplier,
+		input_multiplier, throughput_multiplier, output_multiplier,
 		employment_units,
 		output_multiplier_from_workers_with_high_education(
 			state, fac.get_province_from_factory_location(), fac.get_secondary_employment(), max_employment
@@ -1586,7 +1492,6 @@ void update_single_factory_consumption(
 		* base_data.output_price
 		* state.world.market_get_actual_probability_to_sell(m, fac_type.get_output())
 		- data.direct_inputs_cost
-		- data.efficiency_inputs_cost
 		- actual_wages;
 
 	/*
@@ -1609,7 +1514,7 @@ void update_single_factory_consumption(
 	fac.set_output(data.output);
 	fac.set_output_per_worker(data.output_per_employment_unit / float(fac_type.get_base_workforce()));
 	fac.set_input_cost_per_worker(data.input_cost_per_employment_unit / float(fac_type.get_base_workforce()));
-	fac.set_input_cost(data.direct_inputs_cost + data.efficiency_inputs_cost);
+	fac.set_input_cost(data.direct_inputs_cost);
 }
 
 void set_initial_factory_values(sys::state& state, dcon::factory_id f) {
@@ -2446,16 +2351,10 @@ float factory_type_input_cost(
 ) {
 	auto fac_type = dcon::fatten(state.world, factory_type);
 	auto const& inputs = fac_type.get_inputs();
-	auto const& e_inputs = fac_type.get_efficiency_inputs();
-
 	auto inputs_data = get_inputs_data(state, m, inputs);
-	auto e_inputs_data = get_inputs_data(state, m, e_inputs);
-
-	//modifiers
-	auto const maint_multiplier = state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_maintenance) + 1.0f;
 	float input_multiplier = nation_factory_input_multiplier(state, fac_type, n);
 
-	return inputs_data.total_cost * input_multiplier + e_inputs_data.total_cost * input_multiplier * maint_multiplier;
+	return inputs_data.total_cost * input_multiplier;
 }
 
 float estimate_factory_profit_margin(
@@ -2500,7 +2399,6 @@ float estimate_factory_consumption(sys::state& state, dcon::commodity_id c, dcon
 	auto fac = fatten(state.world, f);
 	auto fac_type = fac.get_building_type();
 	auto& direct_inputs = fac_type.get_inputs();
-	auto& efficiency_inputs = fac_type.get_efficiency_inputs();
 	auto result = 0.f;
 	auto states = state.world.province_get_state_membership(fac.get_province_from_factory_location());
 	auto markets = state.world.state_instance_get_market_from_local_market(states);
@@ -2512,19 +2410,6 @@ float estimate_factory_consumption(sys::state& state, dcon::commodity_id c, dcon
 					data.consumption.direct_inputs_scale
 					* direct_inputs.commodity_amounts[i]
 					* state.world.market_get_actual_probability_to_buy(markets, direct_inputs.commodity_type[i]);
-				break;
-			}
-		} else {
-			break;
-		}
-	}
-	for(uint32_t i = 0; i < small_commodity_set::set_size; ++i) {
-		if(efficiency_inputs.commodity_type[i]) {
-			if(efficiency_inputs.commodity_type[i] == c) {
-				result +=
-					data.consumption.efficiency_inputs_scale
-					* efficiency_inputs.commodity_amounts[i]
-					* state.world.market_get_actual_probability_to_buy(markets, efficiency_inputs.commodity_type[i]);
 				break;
 			}
 		} else {
@@ -2691,19 +2576,6 @@ float rgo_wage(sys::state& state, dcon::commodity_id c, dcon::province_id p) {
 	return rgo_employment(state, c, p) * state.world.province_get_labor_price(p, labor::no_education);
 }
 
-float rgo_efficiency_spending(sys::state& state, dcon::commodity_id c, dcon::province_id p) {
-	auto n = state.world.province_get_nation_from_province_ownership(p);
-	auto s = state.world.province_get_state_membership(p);
-	auto m = state.world.state_instance_get_market_from_local_market(s);
-	auto max_efficiency = state.world.province_get_rgo_max_efficiency(p, c);
-	auto efficiency = state.world.province_get_rgo_efficiency(p, c);
-	auto& e_inputs = state.world.commodity_get_rgo_efficiency_inputs(c);
-	auto e_inputs_data = get_inputs_data(state, m, e_inputs);
-	auto workers = rgo_employment(state, c, p);
-	auto demand_scale = workers * std::max(efficiency - free_efficiency, 0.f);
-	return demand_scale * e_inputs_data.total_cost * e_inputs_data.min_available;
-}
-
 float rgo_employment(sys::state& state, dcon::province_id p) {
 	float total = 0.f;
 	state.world.for_each_commodity([&](dcon::commodity_id c) {
@@ -2711,7 +2583,6 @@ float rgo_employment(sys::state& state, dcon::province_id p) {
 	});
 	return total;
 }
-
 
 float rgo_max_employment(sys::state& state, dcon::commodity_id c, dcon::province_id p) {
 	return state.world.province_get_rgo_size(p, c);
@@ -2789,22 +2660,7 @@ commodity_set rgo_calculate_actual_efficiency_inputs(sys::state& state, dcon::na
 	if(size <= 0.f) {
 		return commodity_set{};
 	}
-	auto max_efficiency = state.world.province_get_rgo_max_efficiency(pid, c);
-	auto current_efficiency = state.world.province_get_rgo_efficiency(pid, c);
-	auto e_inputs = state.world.commodity_get_rgo_efficiency_inputs(c);
-	auto workers = state.world.province_get_rgo_target_employment(pid, c)
-		* state.world.province_get_labor_demand_satisfaction(pid, labor::no_education)
-		* mobilization_impact;
-	auto demand_scale = workers * std::max(state.world.province_get_rgo_efficiency(pid, c) - free_efficiency, 0.f);
-	for(uint32_t i = 0; i < economy::commodity_set::set_size; ++i) {
-		if(e_inputs.commodity_type[i]) {
-			e_inputs.commodity_amounts[i] *= demand_scale;
-		} else {
-			break;
-		}
-	}
-
-	return e_inputs;
+	return state.world.commodity_get_rgo_efficiency_inputs(c);
 }
 
 float artisan_employment_target(sys::state& state, dcon::commodity_id c, dcon::province_id id) {
@@ -2978,11 +2834,9 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 
 
 	auto& primary_inputs = fac_type.get_inputs();
-	auto& efficiency_inputs = fac_type.get_efficiency_inputs();
 	auto& construction_costs = state.world.factory_type_get_construction_costs(fac_type);
 
 	inputs_data primary_inputs_data = get_inputs_data<economy::commodity_set>(state, m, primary_inputs);
-	inputs_data efficiency_inputs_data = get_inputs_data<economy::small_commodity_set>(state, m, efficiency_inputs);
 	inputs_data construction_costs_data = get_inputs_data<economy::commodity_set>(state, m, construction_costs);
 
 	result.base_type = fac.get_building_type();
@@ -3040,14 +2894,6 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 		true
 	);
 
-	result.efficiency_inputs = add_details_to_commodity_set(
-		state, m, efficiency_inputs,
-		result.input_multipliers.total
-		* result.required_efficiency_inputs_multiplier
-		* result.production_units,
-		true
-	);
-
 	result.output = fac_type.get_output();
 	result.output_price = price(state, m, result.output);
 	result.output_base_amount = fac_type.get_output_amount();
@@ -3056,18 +2902,6 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 
 	result.output_amount_per_production_unit_ignore_inputs = result.output_base_amount
 		* result.output_multipliers.total_ignore_inputs;
-
-	auto cost_of_efficiency_inputs = efficiency_inputs_data.total_cost * result.maintenance_multiplier;
-	auto value_from_efficiency_inputs = result.output_amount_per_production_unit_ignore_inputs
-		* result.output_price
-		/ result.output_multipliers.from_efficiency_goods
-		* lack_of_efficiency_inputs_penalty;
-
-	if(value_from_efficiency_inputs < cost_of_efficiency_inputs) {
-		result.efficiency_inputs_worth_it = false;
-		result.output_multipliers.total /= result.output_multipliers.from_efficiency_goods;
-		result.output_multipliers.from_efficiency_goods = (1.f - lack_of_efficiency_inputs_penalty);
-	}
 
 	result.output_amount_per_employment_unit =
 		result.output_amount_per_production_unit
@@ -3097,19 +2931,12 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 		* result.output_actually_sold_ratio
 		* result.output_price;
 	result.spending_from_primary_inputs =
-		primary_inputs_data.total_cost
+		primary_inputs_data.total_cost_availability_adjusted
 		* result.input_multipliers.total
-		* result.production_units
-		* primary_inputs_data.min_available;
-	result.spending_from_efficiency_inputs =
-		efficiency_inputs_data.total_cost
-		* result.input_multipliers.total
-		* result.production_units
-		* efficiency_inputs_data.min_available;
+		* result.production_units;
 	result.spending_from_maintenance =
-		construction_costs_data.total_cost
-		* maintenance_scale
-		* construction_costs_data.min_available;
+		construction_costs_data.total_cost_availability_adjusted
+		* maintenance_scale;
 	result.spending_from_wages = (
 		result.employment.unqualified * result.employment_wages_per_person.unqualified
 		+ result.employment.primary * result.employment_wages_per_person.primary
@@ -3118,7 +2945,6 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 
 	result.profit = result.income_from_sales
 		- result.spending_from_primary_inputs
-		- result.spending_from_efficiency_inputs
 		- result.spending_from_maintenance
 		- result.spending_from_wages;
 
@@ -3126,35 +2952,6 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 		result.employment_target.unqualified
 		+ result.employment_target.primary
 		+ result.employment_target.secondary;
-
-	/*
-	TODO: replace with new logic
-	auto expansion_scale = base_expansion_scale / state.world.factory_type_get_construction_time(fac_type);
-
-	if(result.profit > 0 && total_employment >= current_size * expansion_trigger) {
-		// limit with 10% budget
-		expansion_scale = std::min(
-			expansion_scale,
-			result.profit * 0.1f / construction_costs_data.total_cost
-		);
-		// reduce speed during shortage of direct inputs 
-		expansion_scale *= std::max(0.f, primary_inputs_data.min_expected - 0.5f);
-	} else {
-		expansion_scale = 0.f;
-	}
-
-	result.expansion_inputs = add_details_to_commodity_set(
-		state, m, construction_costs, expansion_scale, true
-	);
-	result.spending_from_expansion =
-		construction_costs_data.total_cost
-		* expansion_scale
-		* construction_costs_data.min_available;
-	result.profit = result.profit - result.spending_from_expansion;
-
-	result.expansion_scale = expansion_scale;
-	result.expansion_size = expansion_scale * base_size * construction_costs_data.min_available;
-	*/
 
 	employment_data<2, float> basic_employment{
 		{ result.employment_target.unqualified, result.employment_target.primary },
@@ -3257,8 +3054,7 @@ breakdown breakdown_province(sys::state& state, dcon::province_id pid) {
 	float rgo_gdp = 0.f;
 	state.world.for_each_commodity([&](auto cid) {
 		auto value_produced = economy::rgo_output(state, cid, pid) * state.world.commodity_get_median_price(cid);
-		auto intermediate_consumption = economy::rgo_efficiency_spending(state, cid, pid);
-		rgo_gdp += value_produced - intermediate_consumption;
+		rgo_gdp += value_produced;
 	});
 
 	// factories
@@ -3280,17 +3076,6 @@ breakdown breakdown_province(sys::state& state, dcon::province_id pid) {
 			intermediate_consumption +=
 				factory_details.primary_inputs.commodity_actual_amount[i]
 				* state.world.commodity_get_median_price(cid_in);
-		}
-
-		if(factory_details.efficiency_inputs_worth_it) {
-			for(uint32_t i = 0; i < factory_details.primary_inputs.set_size; i++) {
-				auto cid_in = factory_details.primary_inputs.commodity_type[i];
-				if(!cid_in) break;
-
-				intermediate_consumption +=
-					factory_details.primary_inputs.commodity_actual_amount[i]
-					* state.world.commodity_get_median_price(cid_in);
-			}
 		}
 
 		factories_gdp += value_produced - intermediate_consumption;
