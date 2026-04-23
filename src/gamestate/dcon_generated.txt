@@ -1615,7 +1615,7 @@ object {
 		tag{ save }
 	}
 	property{
-		name{ rgo_demand }
+		name{ rgo_base_efficiency }
 		type{ array{commodity_id}{float} }
 		tag{ save }
 	}

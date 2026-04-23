@@ -2400,7 +2400,7 @@ void state::load_scenario_data(parsers::error_handler& err, sys::year_month_day 
 	world.province_resize_rgo_potential(world.commodity_size());
 	world.province_resize_rgo_efficiency(world.commodity_size());
 	world.province_resize_rgo_max_efficiency(world.commodity_size());
-	world.province_resize_rgo_demand(world.commodity_size());
+	world.province_resize_rgo_base_efficiency(world.commodity_size());
 	world.province_resize_rgo_target_employment(world.commodity_size());
 	world.province_resize_rgo_output(world.commodity_size());
 	world.province_resize_rgo_output_per_worker(world.commodity_size());

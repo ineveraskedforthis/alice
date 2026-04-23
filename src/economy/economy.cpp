@@ -202,7 +202,7 @@ float need_weight_change(sys::state& state, dcon::market_id n, dcon::commodity_i
 	auto cost_per_person = base_amount * price(state, n, c) / state.defines.alice_needs_scaling_factor;
 	auto score_price = -cost_per_person / priority / budget;
 	auto score_availability = state.world.market_get_expected_probability_to_buy(n, c);
-	return (score_availability + 0.1f) / (current + 0.25f) + score_price;
+	return (score_availability + 0.1f) / (current + 0.01f) + score_price;
 }
 
 // maximize sum of w_i
@@ -688,9 +688,20 @@ void initialize(sys::state& state) {
 
 	if(state.defines.alice_rgo_generate_distribution > 0.0f) {
 		province::for_each_land_province(state, [&](dcon::province_id p) {
+			/*
+			Here we set up initial distribution of "mine" and "farm rgos"
+			Max total potential size of "farm" rgos is limited by local province area.
+			Initial size might be reduced depending on population.
+
+			"Major mines" are defined as main rgo, they add a fixed amount of initial size
+			"Secondary mines" add amount calculated from distribution and local population
+			*/
+
+			
+
 			auto fp = fatten(state.world, p);
 			//max size of exploitable land:
-			auto max_rgo_size = std::ceil(100.f * state.map_state.map_data.province_area_km2[province::to_map_id(p)]);
+			auto max_agriculture_size = std::ceil(100.f * state.map_state.map_data.province_area_km2[province::to_map_id(p)]);
 			// currently exploited land
 			float pop_amount = 0.0f;
 			for(auto pt : state.world.in_pop_type) {
@@ -700,7 +711,7 @@ void initialize(sys::state& state) {
 					pop_amount += state.world.province_get_demographics(p, demographics::to_key(state, pt));
 				}
 			}
-			fp.set_rgo_base_size(max_rgo_size);
+			fp.set_rgo_base_size(max_agriculture_size);
 
 			if(state.world.province_get_rgo_was_set_during_scenario_creation(p)) {
 				return;
@@ -712,6 +723,7 @@ void initialize(sys::state& state) {
 
 			state.world.for_each_commodity([&](dcon::commodity_id c) {
 				fp.set_rgo_target_employment(c, 0.f);
+				state.world.province_set_rgo_base_efficiency(p, c, 1.f);
 			});
 
 			static std::vector<float> true_distribution;
@@ -780,26 +792,43 @@ void initialize(sys::state& state) {
 			// distribution of rgo land per good
 			state.world.for_each_commodity([&](dcon::commodity_id c) {
 				assert(std::isfinite(true_distribution[c.index()]));
-				auto proposed_size = (pop_amount * 20.f + state.defines.alice_base_rgo_employment_bonus) * true_distribution[c.index()];
-				if(proposed_size > state.defines.alice_secondary_rgos_min_employment) {
+				auto major_mine_base_max_size = state.defines.alice_base_rgo_employment_bonus * 300'000.f;
+				auto secondary_mine_base_max_size = state.defines.alice_base_rgo_employment_bonus * 50'000.f;
+
+				auto max_size = 0.f;
+				auto efficiency = (0.1f + 0.9f * true_distribution[c.index()]);
+				if(state.world.commodity_get_is_mine(c)) {
+					if(main_rgo == c) {
+						max_size += major_mine_base_max_size;
+						efficiency += state.defines.alice_base_rgo_efficiency_bonus;
+					}
+					max_size += secondary_mine_base_max_size * true_distribution[c.index()];
+				} else {
+					max_size = max_agriculture_size;
+				}
+
+				auto actual_size = std::min(max_size, (10000.f + pop_amount * 1.f) * true_distribution[c.index()]);
+
+				if(actual_size > state.defines.alice_secondary_rgos_min_employment || main_rgo == c) {
 					state.world.province_set_rgo_size(p, c,
-						state.world.province_get_rgo_size(p, c) + proposed_size
+						state.world.province_get_rgo_size(p, c) + actual_size
 					);
 					state.world.province_set_rgo_potential(p, c,
-						state.world.province_get_rgo_potential(p, c) + max_rgo_size * true_distribution[c.index()]
+						state.world.province_get_rgo_potential(p, c) + max_size
 					);
 					state.world.province_set_rgo_efficiency(p, c, 1.f);
 					state.world.province_set_rgo_max_efficiency(p, c, 1.f);
-					state.world.province_set_rgo_demand(p, c, 0.f);
 					state.world.province_set_rgo_target_employment(p, c, std::min(pop_amount / non_zero_count, state.world.province_get_rgo_size(p, c)));
 					state.world.province_set_rgo_target_employment(p, c, 0.f);
+					state.world.province_set_rgo_base_efficiency(p, c, state.world.province_get_rgo_base_efficiency(p, c) + efficiency);
 				}
 			});
 
 			// add a trickle of money rgo everywhere to produce a source of inflation
-			state.world.province_set_rgo_size(p, economy::money,
-				state.world.province_get_rgo_size(p, economy::money) + 2500.f
-			);
+			state.world.province_set_rgo_size(p, economy::money, state.world.province_get_rgo_size(p, economy::money) + 2500.f);
+			state.world.province_set_rgo_potential(p, economy::money, state.world.province_get_rgo_size(p, economy::money) + 5000.f);
+			state.world.province_set_rgo_efficiency(p, economy::money, 1.f);
+			state.world.province_set_rgo_max_efficiency(p, economy::money, 1.f);
 		});
 	}
 
@@ -3166,7 +3195,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			*/
 
 			auto stockpiles = state.world.market_get_stockpile(ids, c);
-			auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(ids, c) * 1.5f + 0.1f);
+			auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(ids, c) * (1.f + 0.5f * state.world.market_get_price(ids, c) / state.world.commodity_get_median_price(c)) + 0.1f);
 			auto production_and_merchants_supply = state.world.market_get_supply(ids, c);
 			// we draw from stockpile in capital
 			auto national_stockpile = ve::select(
@@ -3930,7 +3959,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto states = state.world.market_get_zone_from_local_market(markets);
 				auto capitals = state.world.state_instance_get_capital(states);
 				auto price = ve_price(state, markets, c);
-				auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(markets, c) * 1.5f + 0.1f);
+				auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(markets, c) * (1.f + 0.5f * state.world.market_get_price(markets, c) / state.world.commodity_get_median_price(c)) + 0.1f);
 				state.world.market_set_supply(markets, c, state.world.market_get_supply(markets, c) + merchants_supply);
 			}
 		});

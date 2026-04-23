@@ -59,7 +59,12 @@ inputs_data get_inputs_data(sys::state const& state, dcon::market_id markets, SE
 void update_factories_production(sys::state& state);
 void update_rgo_production(sys::state& state);
 
-float base_artisan_profit(
+float base_artisan_output_cost(
+	const sys::state& state,
+	dcon::market_id market,
+	dcon::commodity_id c
+);
+float base_artisan_input_cost(
 	const sys::state& state,
 	dcon::market_id market,
 	dcon::commodity_id c

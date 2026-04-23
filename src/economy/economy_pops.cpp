@@ -164,7 +164,7 @@ auto prepare_pop_budget_templated(
 	// we want to focus on life needs first if we are poor AND our satisfaction is low
 
 	VALUE base_life_costs = (0.00001f + life_costs * pop_size / state.defines.alice_needs_scaling_factor);
-	VALUE is_poor = adaptive_ve::max<VALUE>(0.f, 1.f - 4.f * savings / base_life_costs);
+	VALUE is_poor = adaptive_ve::max<VALUE>(0.01f, 1.f - 4.f * savings / base_life_costs);
 	VALUE current_life = pop_demographics::get_life_needs(state, ids);
 	is_poor = adaptive_ve::min<VALUE>(1.f, adaptive_ve::max<VALUE>(0.f, is_poor + (1.f - current_life) * 2.f));
 
@@ -242,7 +242,7 @@ auto prepare_pop_budget_templated(
 		adaptive_ve::min<VALUE>
 			(
 				1000.f,
-				(1.f - old_life) * adaptive_ve::max<VALUE>(0.f, spend_on_life_needs - result.life_needs.required * 5.f) / result.life_needs.required
+				(1.05f - old_life) * adaptive_ve::max<VALUE>(0.f, spend_on_life_needs - result.life_needs.required * 5.f) / result.life_needs.required
 			)
 	);
 	result.life_needs.spent = adaptive_ve::min<VALUE>(spend_on_life_needs, result.life_needs.required * (1.f + rich_but_life_needs_are_not_satisfied));
@@ -296,7 +296,7 @@ auto prepare_pop_budget_templated(
 		adaptive_ve::min<VALUE>
 		(
 			1000.f,
-			(1.f - old_everyday) * adaptive_ve::max<VALUE>(0.f, spend_on_everyday_needs - result.everyday_needs.required * 5.f) / result.everyday_needs.required
+			(1.05f - old_everyday) * adaptive_ve::max<VALUE>(0.f, spend_on_everyday_needs - result.everyday_needs.required * 5.f) / result.everyday_needs.required
 		)
 	);
 	result.everyday_needs.spent = adaptive_ve::min<VALUE>(savings, adaptive_ve::min<VALUE>(spend_on_everyday_needs, result.everyday_needs.required * (1.f + rich_but_everyday_needs_are_not_satisfied)));
@@ -331,7 +331,7 @@ auto prepare_pop_budget_templated(
 		adaptive_ve::min<VALUE>
 		(
 			1000.f,
-			(1.f - old_luxury) * adaptive_ve::max<VALUE>(0.f, spend_on_luxury_needs - result.luxury_needs.required * 5.f) / result.luxury_needs.required
+			(1.05f - old_luxury) * adaptive_ve::max<VALUE>(0.f, spend_on_luxury_needs - result.luxury_needs.required * 5.f) / result.luxury_needs.required
 		)
 	);
 	result.luxury_needs.spent = adaptive_ve::min<VALUE>(savings, adaptive_ve::min<VALUE>(spend_on_luxury_needs, result.luxury_needs.required * (1.f + rich_but_luxury_needs_are_not_satisfied)));
@@ -370,7 +370,7 @@ auto prepare_pop_budget_templated(
 			adaptive_ve::min<VALUE>
 			(
 				1000.f,
-				(1.f - literacy)
+				(1.05f - literacy)
 				* adaptive_ve::max<VALUE>(0.f, spend_on_education - result.education.required * 5.f)
 				/ result.education.required
 			) - 0.1f

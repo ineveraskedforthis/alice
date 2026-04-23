@@ -2176,7 +2176,16 @@ void set_rgo(sys::state& state, dcon::province_id prov, dcon::commodity_id c) {
 	// immediately employ workers
 	state.world.province_set_rgo_target_employment(prov, c, state.world.province_get_rgo_target_employment(prov, c) + next_size);
 	state.world.province_set_rgo_max_size(prov, c, state.world.province_get_rgo_max_size(prov, c) + next_size);
-	state.world.province_set_rgo_efficiency(prov, c, 1.f);
+	state.world.province_set_rgo_efficiency(prov, c, 2.f);
+	state.world.province_set_rgo_max_efficiency(prov, c, 10.f);
+	state.world.province_set_rgo_base_efficiency(prov, c, 2.f);
+
+	if(state.world.commodity_get_is_mine(c)) {			
+		state.world.province_set_rgo_potential(prov, c, state.world.province_get_rgo_potential(prov, c) + next_size);
+	} else {
+		state.world.province_set_rgo_potential(prov, c, state.world.province_get_rgo_base_size(prov));
+	}
+
 	if(state.world.commodity_get_is_mine(old_rgo) != state.world.commodity_get_is_mine(c)) {
 		if(state.world.commodity_get_is_mine(c)) {
 			for(auto pop : state.world.province_get_pop_location(prov)) {
