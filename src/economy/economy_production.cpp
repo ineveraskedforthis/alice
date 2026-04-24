@@ -1361,6 +1361,8 @@ void update_production_investement_consumption(
 				}
 				auto actual_expansion = expansion_scale * costs_data.min_available;
 				state.world.factory_set_size(factory, std::max(1.f, size * 0.99999f - 1.f) + actual_expansion);
+			} else {
+				state.world.factory_set_size(factory, std::max(1.f, size * 0.99999f - 1.f));
 			}
 		}
 
@@ -1448,6 +1450,15 @@ void update_production_investement_consumption(
 				auto labor_demand = state.world.province_get_labor_demand(province, economy::labor::basic_education);
 				state.world.province_set_labor_demand(province, economy::labor::basic_education, labor_demand + labor_to_expand_rgo * can_expand);
 				actually_spent = actually_spent + expansion_cost * can_expand * available_labor;
+			} else {
+				auto size = state.world.province_get_rgo_size(province, c);
+				auto current_efficiency = state.world.province_get_rgo_efficiency(province, c);
+				auto new_efficiency = current_efficiency * 0.9999f;
+				auto validated_efficiency = ve::select(size == 0.f, 0.f, ve::max(free_efficiency, new_efficiency));
+				state.world.province_set_rgo_efficiency(province, c, validated_efficiency);
+
+				auto new_size = std::min(current_max_size, size * 0.9999f);
+				state.world.province_set_rgo_size(province, c, new_size);
 			}
 
 			if(!state.world.commodity_get_is_mine(c)) {
@@ -1872,21 +1883,26 @@ employment_vector<N, VALUE> get_profit_gradient(
 	return result;
 }
 
+constexpr inline float employment_strategy_caution = 0.75f;
+static_assert(employment_strategy_caution >= 0.f);
+static_assert(employment_strategy_caution < 1.f);
+constexpr inline float employment_strategy_caution_multiplier = 1.f / (1.f - employment_strategy_caution);
+
 template<typename VALUE>
 VALUE gradient_to_employment_change(VALUE gradient, VALUE wage, VALUE current_employment, VALUE sat) {
 	if constexpr(std::same_as<VALUE, float>) {
 		auto mult = 
 			gradient > 0.f
-			? std::max(0.f, (sat - 0.9f) * 10.f)
+			? std::max(0.f, (sat - employment_strategy_caution) * employment_strategy_caution_multiplier)
 			: 1.f;
-		return (current_employment * 0.05f + 1.f) * gradient * mult;
+		return (current_employment * 0.01f + 1.f) * gradient * mult;
 	} else {
 		auto mult = ve::select(
 			gradient > 0.f,
-			ve::max(0.f, (sat - 0.9f) * 10.f),
+			ve::max(0.f, (sat - employment_strategy_caution) * employment_strategy_caution_multiplier),
 			1.f
 		);
-		return (current_employment * 0.05f + 1.f) * gradient * mult;
+		return (current_employment * 0.01f + 1.f) * gradient * mult;
 	}
 }
 

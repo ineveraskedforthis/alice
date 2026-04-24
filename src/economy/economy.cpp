@@ -1932,98 +1932,101 @@ void run_private_investment(sys::state& state) {
 	for(auto n : state.world.in_nation) {
 		auto nation_rules = n.get_combined_issue_rules();
 
-		if(n.get_owned_province_count() > 0 && n.get_is_civilized() && ((nation_rules & issue_rule::pop_build_factory) != 0 || (nation_rules & issue_rule::pop_expand_factory) != 0)) {
-			float est_private_const_spending = estimate_private_construction_spendings(state, n);
-			bool stop = false;
-			auto craved_constructions = estimate_private_investment_construct(state, n, true, est_private_const_spending, stop);
-			for(auto const& r : craved_constructions) {
-				if(economy::do_resource_potentials_allow_construction(state, r.nation, r.province, r.type)) {
-					auto new_up = fatten(
-					state.world,
-					state.world.force_create_factory_construction(r.province, r.nation)
-					);
+		//we do not want to delete unciv money
+		if(n.get_is_civilized()) {
+			if(n.get_owned_province_count() > 0 && ((nation_rules & issue_rule::pop_build_factory) != 0 || (nation_rules & issue_rule::pop_expand_factory) != 0)) {
+				float est_private_const_spending = estimate_private_construction_spendings(state, n);
+				bool stop = false;
+				auto craved_constructions = estimate_private_investment_construct(state, n, true, est_private_const_spending, stop);
+				for(auto const& r : craved_constructions) {
+					if(economy::do_resource_potentials_allow_construction(state, r.nation, r.province, r.type)) {
+						auto new_up = fatten(
+						state.world,
+						state.world.force_create_factory_construction(r.province, r.nation)
+						);
 
-					new_up.set_is_pop_project(r.is_pop_project);
-					new_up.set_is_upgrade(r.is_upgrade);
-					new_up.set_type(r.type);
-					est_private_const_spending += r.cost;
-				}
-			}
-
-			if(stop) {
-				continue;
-			}
-
-			/*
-			auto upgrades = estimate_private_investment_upgrade(state, n, est_private_const_spending);
-
-			for(auto const& r : upgrades) {
-				auto new_up = fatten(
-				state.world,
-				state.world.force_create_factory_construction(r.province, r.nation)
-				);
-
-				new_up.set_is_pop_project(r.is_pop_project);
-				new_up.set_is_upgrade(r.is_upgrade);
-				new_up.set_type(r.type);
-				est_private_const_spending += r.cost;
-			}
-			*/
-
-			auto constructions = estimate_private_investment_construct(state, n, false, est_private_const_spending, stop);
-
-			for(auto const& r : constructions) {
-				if(economy::do_resource_potentials_allow_construction(state, r.nation, r.province, r.type)) {
-					auto new_up = fatten(
-					state.world,
-					state.world.force_create_factory_construction(r.province, r.nation)
-					);
-
-					new_up.set_is_pop_project(r.is_pop_project);
-					new_up.set_is_upgrade(r.is_upgrade);
-					new_up.set_type(r.type);
-					est_private_const_spending += r.cost;
-				}
-			}
-
-			if(stop) {
-				continue;
-			}
-
-			auto province_constr = estimate_private_investment_province(state, n, est_private_const_spending);
-
-			for(auto const& r : province_constr) {
-				auto new_rr = fatten(
-					state.world,
-					state.world.force_create_province_building_construction(r.province, r.nation)
-				);
-				new_rr.set_is_pop_project(r.is_pop_project);
-				new_rr.set_type(uint8_t(r.type));
-				est_private_const_spending += r.cost;
-			}
-
-			// If nowhere to invest
-			if(est_private_const_spending < 1.f && craved_constructions.size() == 0 && constructions.size() == 0 && province_constr.size() == 0) {
-				// If it's an overlord - prioritize distributing some private invesmtent to subjects
-				// If it's a subject - transfer private investment to overlord
-				auto rel = state.world.nation_get_overlord_as_subject(n);
-				auto overlord = state.world.overlord_get_ruler(rel);
-
-				auto amt = state.world.nation_get_private_investment(n) * state.defines.alice_privateinvestment_subject_transfer / 100.f;
-				state.world.nation_set_private_investment(n, state.world.nation_get_private_investment(n) - amt);
-
-				auto subjects = nations::nation_get_subjects(state, n);
-				if(subjects.size() > 0) {
-					auto part = amt / subjects.size();
-					for(auto s : subjects) {
-						state.world.nation_set_private_investment(s, state.world.nation_get_private_investment(s) + part);
+						new_up.set_is_pop_project(r.is_pop_project);
+						new_up.set_is_upgrade(r.is_upgrade);
+						new_up.set_type(r.type);
+						est_private_const_spending += r.cost;
 					}
-				} else if(overlord) {
-					state.world.nation_set_private_investment(overlord, state.world.nation_get_private_investment(overlord) + amt);
 				}
+
+				if(stop) {
+					continue;
+				}
+
+				/*
+				auto upgrades = estimate_private_investment_upgrade(state, n, est_private_const_spending);
+
+				for(auto const& r : upgrades) {
+					auto new_up = fatten(
+					state.world,
+					state.world.force_create_factory_construction(r.province, r.nation)
+					);
+
+					new_up.set_is_pop_project(r.is_pop_project);
+					new_up.set_is_upgrade(r.is_upgrade);
+					new_up.set_type(r.type);
+					est_private_const_spending += r.cost;
+				}
+				*/
+
+				auto constructions = estimate_private_investment_construct(state, n, false, est_private_const_spending, stop);
+
+				for(auto const& r : constructions) {
+					if(economy::do_resource_potentials_allow_construction(state, r.nation, r.province, r.type)) {
+						auto new_up = fatten(
+						state.world,
+						state.world.force_create_factory_construction(r.province, r.nation)
+						);
+
+						new_up.set_is_pop_project(r.is_pop_project);
+						new_up.set_is_upgrade(r.is_upgrade);
+						new_up.set_type(r.type);
+						est_private_const_spending += r.cost;
+					}
+				}
+
+				if(stop) {
+					continue;
+				}
+
+				auto province_constr = estimate_private_investment_province(state, n, est_private_const_spending);
+
+				for(auto const& r : province_constr) {
+					auto new_rr = fatten(
+						state.world,
+						state.world.force_create_province_building_construction(r.province, r.nation)
+					);
+					new_rr.set_is_pop_project(r.is_pop_project);
+					new_rr.set_type(uint8_t(r.type));
+					est_private_const_spending += r.cost;
+				}
+
+				// If nowhere to invest
+				if(est_private_const_spending < 1.f && craved_constructions.size() == 0 && constructions.size() == 0 && province_constr.size() == 0) {
+					// If it's an overlord - prioritize distributing some private invesmtent to subjects
+					// If it's a subject - transfer private investment to overlord
+					auto rel = state.world.nation_get_overlord_as_subject(n);
+					auto overlord = state.world.overlord_get_ruler(rel);
+
+					auto amt = state.world.nation_get_private_investment(n) * state.defines.alice_privateinvestment_subject_transfer / 100.f;
+					state.world.nation_set_private_investment(n, state.world.nation_get_private_investment(n) - amt);
+
+					auto subjects = nations::nation_get_subjects(state, n);
+					if(subjects.size() > 0) {
+						auto part = amt / subjects.size();
+						for(auto s : subjects) {
+							state.world.nation_set_private_investment(s, state.world.nation_get_private_investment(s) + part);
+						}
+					} else if(overlord) {
+						state.world.nation_set_private_investment(overlord, state.world.nation_get_private_investment(overlord) + amt);
+					}
+				}
+			} else { // private investment not allowed
+				state.world.nation_set_private_investment(n, 0.0f);
 			}
-		} else { // private investment not allowed
-			state.world.nation_set_private_investment(n, 0.0f);
 		}
 	}
 
