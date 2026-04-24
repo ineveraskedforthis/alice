@@ -218,6 +218,7 @@ void good::color(color_from_3i v, error_handler& err, int32_t line, good_context
 
 void good::cost(association_type, float v, error_handler& err, int32_t line, good_context& context) {
 	context.outer_context.state.world.commodity_set_cost(context.id, v);
+	context.outer_context.state.world.commodity_set_median_price(context.id, v);
 }
 
 void good::available_from_start(association_type, bool b, error_handler& err, int32_t line, good_context& context) {
