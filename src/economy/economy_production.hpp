@@ -88,10 +88,7 @@ float factory_throughput_additional_multiplier(sys::state const& state, dcon::fa
 struct profit_explanation {
 	float inputs;
 	float wages;
-	float maintenance;
-	float expansion;
 	float output;
-
 	float profit;
 };
 

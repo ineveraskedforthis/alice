@@ -673,11 +673,11 @@ void update_trade_routes_volume(
 
 			auto diff_A_to_B = 2.f * (earn_A_to_B - spend_A_to_B) / (earn_A_to_B + economy::price_properties::commodity::min);
 			auto diff_A_to_B_clamped = ve::max(-1.f, ve::min(1.f, diff_A_to_B));
-			auto change_A_to_B = (ve::select(current_volume > 0.f, current_volume, 0.f) * 0.001f + 0.001f) * diff_A_to_B_clamped;
+			auto change_A_to_B = (ve::select(current_volume > 0.f, current_volume, 0.f) * 0.01f + 0.01f) * diff_A_to_B_clamped;
 
 			auto diff_B_to_A = 2.f * (earn_B_to_A - spend_B_to_A) / (earn_B_to_A + economy::price_properties::commodity::min);
 			auto diff_B_to_A_clamped = ve::max(-1.f, ve::min(1.f, diff_B_to_A));
-			auto change_B_to_A = (ve::select(current_volume < 0.f, -current_volume, 0.f) * 0.001f + 0.001f) * diff_B_to_A_clamped;
+			auto change_B_to_A = (ve::select(current_volume < 0.f, -current_volume, 0.f) * 0.01f + 0.01f) * diff_B_to_A_clamped;
 
 			auto current_sum = state.world.trade_route_get_stabilization_volume(trade_route, c);
 

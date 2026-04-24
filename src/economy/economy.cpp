@@ -3195,7 +3195,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			*/
 
 			auto stockpiles = state.world.market_get_stockpile(ids, c);
-			auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(ids, c) * (1.f + 0.5f * state.world.market_get_price(ids, c) / state.world.commodity_get_median_price(c)) + 0.1f);
+			auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(ids, c) * (0.85f + state.world.market_get_price(ids, c) / state.world.commodity_get_median_price(c)) + 0.1f);
 			auto production_and_merchants_supply = state.world.market_get_supply(ids, c);
 			// we draw from stockpile in capital
 			auto national_stockpile = ve::select(
@@ -3210,8 +3210,11 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			auto new_actual_probability_to_buy = ve::min(1.f, ve::select(total_demand == 0.f, 0.f, total_supply / total_demand));
 			auto new_actual_probability_to_sell = ve::min(1.f, ve::select(total_supply == 0.f, 0.f, total_demand / total_supply));
 
-			auto new_expected_probability_to_buy = ve::min(1.f, ve::select(total_demand == 0.f, 1.f, total_supply / total_demand));
-			auto new_expected_probability_to_sell = ve::min(1.f, ve::select(total_supply == 0.f, 1.f, total_demand / total_supply));
+			auto aggregated_demand = state.world.market_get_aggregated_demand_history(ids, c);
+			auto aggregated_supply = state.world.market_get_aggregated_supply_history(ids, c);
+
+			auto new_expected_probability_to_buy = ve::min(1.f, ve::select(aggregated_demand == 0.f, 1.f, aggregated_supply / aggregated_demand));
+			auto new_expected_probability_to_sell = ve::min(1.f, ve::select(aggregated_supply == 0.f, 1.f, aggregated_demand / aggregated_supply));
 
 			auto old_expected_probability_to_buy = state.world.market_get_expected_probability_to_buy(ids, c);
 			auto old_expected_probability_to_sell = state.world.market_get_expected_probability_to_sell(ids, c);
@@ -3959,7 +3962,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto states = state.world.market_get_zone_from_local_market(markets);
 				auto capitals = state.world.state_instance_get_capital(states);
 				auto price = ve_price(state, markets, c);
-				auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(markets, c) * (1.f + 0.5f * state.world.market_get_price(markets, c) / state.world.commodity_get_median_price(c)) + 0.1f);
+				auto merchants_supply = ve::min(ve::max(0.f, stockpiles) * stockpile_to_supply, state.world.market_get_aggregated_demand_history(markets, c) * (0.85f + state.world.market_get_price(markets, c) / state.world.commodity_get_median_price(c)) + 0.1f);
 				state.world.market_set_supply(markets, c, state.world.market_get_supply(markets, c) + merchants_supply);
 			}
 		});
