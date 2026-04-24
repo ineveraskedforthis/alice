@@ -23,9 +23,8 @@ VALUE investment_rate(const sys::state& state, POPS ids) {
 	auto nations = state.world.state_instance_get_nation_from_state_ownership(states);
 	auto pop_type = state.world.pop_get_poptype(ids);
 	auto nation_rules = state.world.nation_get_combined_issue_rules(nations);
-	auto is_civilised = state.world.nation_get_is_civilized(nations);
 	auto allows_investment_mask = (nation_rules & can_invest) != 0;
-	auto nation_allows_investment = is_civilised && allows_investment_mask;
+	auto nation_allows_investment = allows_investment_mask;
 
 	auto capitalists_mask = pop_type == state.culture_definitions.capitalists;
 	auto middle_class_investors_mask = pop_type == state.culture_definitions.artisans || pop_type == state.culture_definitions.secondary_factory_worker;
