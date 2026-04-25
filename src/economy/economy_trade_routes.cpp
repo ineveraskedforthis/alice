@@ -471,7 +471,7 @@ void update_trade_routes_volume(
 			auto valid = ve::apply([&](auto m) {
 				return state.world.market_is_valid(m);
 			}, market);
-			total_count = total_count + ve::select(valid, 1.f, 0.f);
+			total_count = total_count + ve::select(valid, ve::fp_vector{1.f}, ve::fp_vector{0.f});
 			total_reality_buy = total_reality_buy + ve::select(valid, state.world.market_get_expected_probability_to_buy(market, cid), 0.f);
 			total_reality_sell = total_reality_sell + ve::select(valid, state.world.market_get_expected_probability_to_sell(market, cid), 0.f);
 			total_confidence = total_confidence + ve::select(valid,
