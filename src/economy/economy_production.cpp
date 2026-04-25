@@ -829,7 +829,7 @@ float nation_factory_output_multiplier(sys::state const& state, dcon::factory_ty
 
 inline constexpr float input_multiplier_per_capitalist_percentage = -2.5f;
 static constexpr float max_premium_size = 1'500'000.f;
-static constexpr float base_urban_premium = 1.0f;
+static constexpr float base_urban_premium = 0.5f;
 
 namespace factory_operation {
 input_multipliers_explanation explain_input_multiplier(sys::state const& state, dcon::factory_id f) {
@@ -1895,14 +1895,14 @@ VALUE gradient_to_employment_change(VALUE gradient, VALUE wage, VALUE current_em
 			gradient > 0.f
 			? std::max(0.f, (sat - employment_strategy_caution) * employment_strategy_caution_multiplier)
 			: 1.f;
-		return (current_employment * 0.01f + 1.f) * gradient * mult;
+		return (current_employment * 0.001f + 1.f) * gradient * mult;
 	} else {
 		auto mult = ve::select(
 			gradient > 0.f,
 			ve::max(0.f, (sat - employment_strategy_caution) * employment_strategy_caution_multiplier),
 			1.f
 		);
-		return (current_employment * 0.01f + 1.f) * gradient * mult;
+		return (current_employment * 0.001f + 1.f) * gradient * mult;
 	}
 }
 

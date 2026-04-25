@@ -474,12 +474,16 @@ void update_trade_routes_volume(
 			total_count = total_count + ve::select(valid, 1.f, 0.f);
 			total_reality_buy = total_reality_buy + ve::select(valid, state.world.market_get_expected_probability_to_buy(market, cid), 0.f);
 			total_reality_sell = total_reality_sell + ve::select(valid, state.world.market_get_expected_probability_to_sell(market, cid), 0.f);
-			total_confidence = total_confidence + ve::select(valid, state.world.market_get_expected_probability_to_sell(market, cid) * state.world.market_get_aggregated_supply_history(market, cid), 0.f);
+			total_confidence = total_confidence + ve::select(valid,
+				state.world.market_get_aggregated_supply_history(market, cid)
+				+ state.world.market_get_aggregated_demand_history(market, cid)
+				, 0.f
+			);
 		});
 
-		optimism_buy.set(cid, 0.3f + 0.7f * total_reality_buy.reduce() / (total_count.reduce() + 1.f));
-		optimism_sell.set(cid, 0.3f + 0.7f * total_reality_sell.reduce() / (total_count.reduce() + 1.f));
-		optimism_confidence.set(cid, 2.f + (total_confidence + 1.f) / (total_count.reduce() + 1.f));
+		optimism_buy.set(cid, 0.5f + 0.5f * total_reality_buy.reduce() / (total_count.reduce() + 1.f));
+		optimism_sell.set(cid, 0.5f + 0.5f * total_reality_sell.reduce() / (total_count.reduce() + 1.f));
+		optimism_confidence.set(cid, 2.f + 2.f * (total_confidence + 1.f) / (total_count.reduce() + 1.f));
 	});
 
 
@@ -634,8 +638,8 @@ void update_trade_routes_volume(
 			auto expected_to_sell_A = state.world.market_get_expected_probability_to_sell(A, c);
 			auto expected_to_sell_B = state.world.market_get_expected_probability_to_sell(B, c);
 
-			auto pessimism_confidence_A = state.world.market_get_aggregated_demand_history(A, c) + state.world.market_get_aggregated_supply_history(A, c);
-			auto pessimism_confidence_B = state.world.market_get_aggregated_demand_history(B, c) + state.world.market_get_aggregated_supply_history(B, c);
+			auto pessimism_confidence_A = 0.5f * (state.world.market_get_aggregated_demand_history(A, c) + state.world.market_get_aggregated_supply_history(A, c));
+			auto pessimism_confidence_B = 0.5f * (state.world.market_get_aggregated_demand_history(B, c) + state.world.market_get_aggregated_supply_history(B, c));
 
 			/*
 			
@@ -671,18 +675,19 @@ void update_trade_routes_volume(
 			auto earn_B_to_A = price_A_import * sold_boundary * sell_rate_perception_A * buy_rate_perception_B / perception_divisor * buy_transport_perception;
 
 
+			auto current_sum = state.world.trade_route_get_stabilization_volume(trade_route, c);
+			auto current_A_to_B = (current_sum + current_volume) / 2.f;
+			auto current_B_to_A = (current_sum - current_volume) / 2.f;
+
+
 			auto diff_A_to_B = 2.f * (earn_A_to_B - spend_A_to_B) / (earn_A_to_B + economy::price_properties::commodity::min);
 			auto diff_A_to_B_clamped = ve::max(-1.f, ve::min(1.f, diff_A_to_B));
-			auto change_A_to_B = (ve::select(current_volume > 0.f, current_volume, 0.f) * 0.01f + 0.01f) * diff_A_to_B_clamped;
+			auto change_A_to_B = (current_A_to_B * 0.002f + 0.002f) * diff_A_to_B_clamped;
 
 			auto diff_B_to_A = 2.f * (earn_B_to_A - spend_B_to_A) / (earn_B_to_A + economy::price_properties::commodity::min);
 			auto diff_B_to_A_clamped = ve::max(-1.f, ve::min(1.f, diff_B_to_A));
-			auto change_B_to_A = (ve::select(current_volume < 0.f, -current_volume, 0.f) * 0.01f + 0.01f) * diff_B_to_A_clamped;
+			auto change_B_to_A = (current_B_to_A * 0.002f + 0.002f) * diff_B_to_A_clamped;
 
-			auto current_sum = state.world.trade_route_get_stabilization_volume(trade_route, c);
-
-			auto current_A_to_B = (current_sum + current_volume) / 2.f;
-			auto current_B_to_A = (current_sum - current_volume) / 2.f;
 
 			auto next_A_to_B = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_A_to_B + change_A_to_B));
 			auto next_B_to_A = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_B_to_A + change_B_to_A));
