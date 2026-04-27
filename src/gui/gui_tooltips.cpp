@@ -84,7 +84,7 @@ void labor_tooltip(sys::state& state, text::columnar_layout& contents, int32_t l
 
 	float money_flow = price * amount * direction;
 
-	text::add_to_layout_box(state, contents, amount_box, text::fp_two_places{ amount });
+	text::add_to_layout_box(state, contents, amount_box, text::prettify((int)amount));
 
 	if(money_flow > 0) {
 		text::add_to_layout_box(state, contents, cost_box, text::fp_currency{ money_flow }, text::text_color::red);
@@ -133,14 +133,14 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 		text::add_line(state, contents, "factory_money_flow_primary_inputs", text::variable_type::value, text::format_money(-details.spending_from_primary_inputs), indent);
 		commodity_set_tooltip(state, contents, details.primary_inputs, true);
 
-		text::add_line(state, contents, "factory_money_flow_secondary_inputs", text::variable_type::value, text::format_money(-details.spending_from_efficiency_inputs), indent);
-		commodity_set_tooltip(state, contents, details.efficiency_inputs, true);
+		//text::add_line(state, contents, "factory_money_flow_secondary_inputs", text::variable_type::value, text::format_money(-details.spending_from_efficiency_inputs), indent);
+		//commodity_set_tooltip(state, contents, details.efficiency_inputs, true);
 
-		text::add_line(state, contents, "factory_money_flow_expansion", text::variable_type::value, text::format_money(-details.spending_from_expansion), indent);
-		commodity_set_tooltip(state, contents, details.expansion_inputs, true);
+		//text::add_line(state, contents, "factory_money_flow_expansion", text::variable_type::value, text::format_money(-details.spending_from_expansion), indent);
+		//commodity_set_tooltip(state, contents, details.expansion_inputs, true);
 
-		text::add_line(state, contents, "factory_money_flow_maintenance", text::variable_type::value, text::format_money(-details.spending_from_maintenance), indent);
-		commodity_set_tooltip(state, contents, details.maintenance_inputs, true);
+		//text::add_line(state, contents, "factory_money_flow_maintenance", text::variable_type::value, text::format_money(-details.spending_from_maintenance), indent);
+		//commodity_set_tooltip(state, contents, details.maintenance_inputs, true);
 
 		text::add_line(state, contents, "factory_money_flow_wages", text::variable_type::value, text::format_money(-details.spending_from_wages), indent);
 		labor_tooltip(state, contents,
@@ -187,13 +187,6 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 			);
 		}
 
-		text::add_line(state, contents, "factory_historical_profitability_unqualified",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_unqualified_employment_historical_point_of_profitability(fid))
-		);
-		text::add_line(state, contents, "factory_historical_unprofitability_unqualified",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_unqualified_employment_historical_point_of_unprofitability(fid))
-		);
-
 		text::add_line_break_to_layout(state, contents);
 
 		text::add_line(state, contents, "factory_hired_primary",
@@ -211,12 +204,6 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 				text::variable_type::x, text::format_float(details.employment_target.primary)
 			);
 		}
-		text::add_line(state, contents, "factory_historical_profitability_primary",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_primary_employment_historical_point_of_profitability(fid))
-		);
-		text::add_line(state, contents, "factory_historical_unprofitability_primary",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_primary_employment_historical_point_of_unprofitability(fid))
-		);
 		text::add_line_break_to_layout(state, contents);
 
 		text::add_line(state, contents, "factory_hired_secondary",
@@ -235,13 +222,6 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 				text::variable_type::x, text::format_float(details.employment_target.secondary)
 			);
 		}
-
-		text::add_line(state, contents, "factory_historical_profitability_secondary",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_secondary_employment_historical_point_of_profitability(fid))
-		);
-		text::add_line(state, contents, "factory_historical_unprofitability_secondary",
-			text::variable_type::val, text::fp_two_places(state.world.factory_get_secondary_employment_historical_point_of_unprofitability(fid))
-		);
 	}
 
 	// description of expansion
@@ -311,9 +291,6 @@ void factory_stats_tooltip(sys::state& state, text::columnar_layout& contents, d
 
 		text::add_line(state, contents, "factory_output_multiplier_lack_of_inputs",
 			text::variable_type::val, text::format_percentage(details.output_multipliers.from_inputs_lack)
-		);
-		text::add_line(state, contents, "factory_output_multiplier_efficiency_inputs",
-			text::variable_type::val, text::format_percentage(details.output_multipliers.from_efficiency_goods)
 		);
 		text::add_line(state, contents, "factory_output_multiplier_secondary_workers",
 			text::variable_type::val, text::format_percentage(details.output_multipliers.from_secondary_workers)

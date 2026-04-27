@@ -29,7 +29,7 @@ uint32_t size(sys::state const& state);
 
 namespace economy {
 
-inline constexpr float secondary_employment_output_bonus = 3.f;
+inline constexpr float secondary_employment_output_bonus = 10.f;
 inline constexpr float unqualified_throughput_multiplier = 0.2f;
 inline constexpr float artisans_per_employment_unit = 10'000.f;
 inline constexpr float construction_units_to_maintenance_units = 0.0001f;
@@ -74,7 +74,7 @@ float priority_multiplier(sys::state const& state, dcon::factory_type_id fac_typ
 float nation_factory_input_multiplier(sys::state const& state, dcon::factory_type_id fac_type, dcon::nation_id n);
 float nation_factory_output_multiplier(sys::state const& state, dcon::factory_type_id fac_type, dcon::nation_id n);
 
-void update_employment(sys::state& state, float presim_employment_mult = 1.0f);
+void update_employment(sys::state& state, bool ignore_reality, float presim_employment_mult = 1.0f);
 void update_rgo_profit(sys::state& state);
 
 void update_artisan_production(sys::state& state);
@@ -182,7 +182,6 @@ struct output_multipliers_explanation {
 	float total = 1.f;
 	float total_ignore_inputs = 1.f;
 	float from_modifiers = 1.f;
-	float from_efficiency_goods = 1.f;
 	float from_secondary_workers = 1.f;
 	float from_inputs_lack = 1.f;
 };

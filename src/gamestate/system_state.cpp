@@ -3030,6 +3030,8 @@ void state::load_scenario_data(parsers::error_handler& err, sys::year_month_day 
 	world.nation_resize_factory_type_experience_priority_national(world.factory_type_size());
 	world.nation_resize_factory_type_experience_priority_private(world.factory_type_size());
 
+	world.factory_resize_efficiency_level(economy::commodity_set::set_size);
+
 	world.market_resize_price(world.commodity_size());
 	world.market_resize_supply(world.commodity_size());
 	world.market_resize_demand(world.commodity_size());
@@ -3451,7 +3453,7 @@ void state::load_scenario_data(parsers::error_handler& err, sys::year_month_day 
 	military::regenerate_ship_scores(*this);
 	nations::update_industrial_scores(*this);
 	military::update_naval_supply_points(*this);
-	economy::update_employment(*this);
+	economy::update_employment(*this, true, 1.f);
 	nations::update_military_scores(*this); // depends on ship score, land unit average
 	nations::update_rankings(*this);		// depends on industrial score, military scores
 
@@ -4406,7 +4408,7 @@ void state::single_game_tick() {
 				military::regenerate_total_regiment_counts(*this);
 				break;
 			case 7:
-				economy::update_employment(*this);
+				economy::update_employment(*this, false, 1.f);
 				break;
 			case 8:
 				nations::update_national_administrative_efficiency(*this);

@@ -4934,35 +4934,14 @@ object {
 		type{ float }
 		tag{ save }
 	}
-	property {
-		name{ unqualified_employment_historical_point_of_profitability }
-		type{ float }
+	property{
+		name{efficiency_level}
+		type{array{uint8_t}{float}}
 		tag{ save }
 	}
-	property {
-		name{ primary_employment_historical_point_of_profitability }
-		type{ float }
-		tag{ save }
-	}
-	property {
-		name{ secondary_employment_historical_point_of_profitability }
-		type{ float }
-		tag{ save }
-	}
-	
-	property {
-		name{ unqualified_employment_historical_point_of_unprofitability }
-		type{ float }
-		tag{ save }
-	}
-	property {
-		name{ primary_employment_historical_point_of_unprofitability }
-		type{ float }
-		tag{ save }
-	}
-	property {
-		name{ secondary_employment_historical_point_of_unprofitability }
-		type{ float }
+	property{
+		name{technology_scale}
+		type{float}
 		tag{ save }
 	}
 	property{

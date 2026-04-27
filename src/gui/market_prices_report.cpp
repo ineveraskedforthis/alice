@@ -355,8 +355,8 @@ void  market_prices_report_body_price_list_t::update(sys::state& state, layout_w
 						auto demand_b = economy::demand(state, mid, b.cid);
 						float local_a = economy::price(state, sid, a.cid);
 						float local_b = economy::price(state, sid, b.cid);
-						float value_a = economy::price_properties::change(local_a, supply_a, demand_a);
-						float value_b = economy::price_properties::change(local_b, supply_b, demand_b);
+						float value_a = economy::price_properties::change(local_a, supply_a, demand_a, economy::price_properties::commodity::min);
+						float value_b = economy::price_properties::change(local_b, supply_b, demand_b, economy::price_properties::commodity::min);
 						result = cmp3(value_a, value_b);
 // END
 						return -result == table_source->list_future_change_sort_direction;
@@ -1445,7 +1445,7 @@ void market_prices_report_list_item_bg_t::on_update(sys::state& state) noexcept 
 	set_local_price_text(state, text::format_money(local));
 	set_median_price_text(state, text::format_money(median));
 	set_ratio_price_text(state, text::format_percentage(local / median));
-	set_future_change_text(state, text::format_money(economy::price_properties::change<float>(local, supply, demand)));
+	set_future_change_text(state, text::format_money(economy::price_properties::change<float>(local, supply, demand, economy::price_properties::commodity::min)));
 // END
 }
 void market_prices_report_list_item_bg_t::on_create(sys::state& state) noexcept {

@@ -3,7 +3,7 @@
 
 namespace economy {
 namespace price_properties {
-inline constexpr float speed_multiplier = 0.001f;
+inline constexpr float speed_multiplier = 0.0015f;
 inline constexpr float additive_smoothing = 0.001f;
 //inline constexpr float relative_speed_limit = 0.05f;
 
@@ -27,7 +27,7 @@ inline constexpr float epsilon = min * 0.1f;
 }
 
 template<typename VALUE>
-VALUE change(VALUE current_price, VALUE supply, VALUE demand) {
+VALUE change(VALUE current_price, VALUE supply, VALUE demand, VALUE min_price) {
 	// avoid singularity
 	supply = supply + additive_smoothing * 3.f;
 	demand = demand + additive_smoothing;
@@ -55,7 +55,7 @@ VALUE change(VALUE current_price, VALUE supply, VALUE demand) {
 		);
 
 	//auto relative_price_change_clamped = adaptive_ve::min<VALUE>(adaptive_ve::max<VALUE>(relative_price_change, -relative_speed_limit), relative_speed_limit);
-	return relative_price_change * current_price;
+	return relative_price_change * (current_price + min_price * 10.f);
 }
 }
 }
