@@ -134,7 +134,8 @@ float estimate_factory_profit_margin(
 float estimate_factory_payback_time(
 	sys::state& state,
 	dcon::province_id pid,
-	dcon::factory_type_id factory_type
+	dcon::factory_type_id factory_type,
+	bool pop_project
 );
 
 float factory_output(sys::state& state, dcon::commodity_id c, dcon::province_id id);

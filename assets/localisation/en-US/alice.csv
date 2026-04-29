@@ -1799,6 +1799,16 @@ gdp_rest;Gdp of the rest of the nation
 market_report;External trade in the local market of ?Y$province$?W
 market_prices_report;Prices in ?Y$province$?W
 rgo_report;Resource extraction: ?Y$province$?W
+province_factories_report;Industries of ?Y$province$?W
+net_profit_label;Net profit
+total_sold_label;Revenue
+total_bought_label;Inputs
+total_wage_label;Wages
+total_employment_label;Total employed
+target_employment_tooltip;Target employment
+max_total_employment;Max employment
+pop_project_target_label;Investors target
+no_factory_type;None
 trade_balance;Balance
 rgo_details_name;Name
 rgo_efficiency_super_header;Efficiency
