@@ -194,6 +194,7 @@ struct province_factories_table_body_icon_t : public alice_ui::legacy_commodity_
 struct province_factories_table_body_details_button_t : public alice_ui::template_icon_button {
 // BEGIN table_body::details_button::variables
 // END
+	bool button_action(sys::state& state) noexcept override;
 	void on_update(sys::state& state) noexcept override;
 };
 struct province_factories_table_header_table_header_control_t : public ui::element_base {
@@ -230,6 +231,7 @@ struct province_factories_table_header_table_header_control_t : public ui::eleme
 struct province_factories_main_t : public layout_window_element {
 // BEGIN main::variables
 	dcon::factory_type_id desired_pop_project;
+	ui::element_base* factory_details_window;
 // END
 	std::unique_ptr<province_factories_main_main_header_t> main_header;
 	std::unique_ptr<template_label> net_profit_label;
@@ -1645,6 +1647,12 @@ void province_factories_main_t::on_create(sys::state& state) noexcept {
 	page_text_color = win_data.page_text_color;
 	create_layout_level(state, layout, win_data.layout_data, win_data.layout_data_size);
 // BEGIN main::create
+	{
+		auto u_ptr = make_factory_details_main(state);
+		factory_details_window = u_ptr.get();
+		factory_details_window->set_visible(state, false);
+		state.ui_state.root->add_child_to_back(std::move(u_ptr));
+	}
 // END
 }
 std::unique_ptr<ui::element_base> make_province_factories_main(sys::state& state) {
@@ -1922,6 +1930,18 @@ void province_factories_table_body_details_button_t::on_update(sys::state& state
 	province_factories_main_t& main = *((province_factories_main_t*)(parent->parent)); 
 // BEGIN table_body::details_button::update
 // END
+}
+bool province_factories_table_body_details_button_t::button_action(sys::state& state) noexcept {
+	province_factories_table_body_t& table_body = *((province_factories_table_body_t*)(parent)); 
+	province_factories_main_t& main = *((province_factories_main_t*)(parent->parent)); 
+// BEGIN table_body::details_button::lbutton_action
+	state.selected_factory = table_body.factory;
+	auto target_is_visible = main.factory_details_window->is_visible();
+	main.factory_details_window->set_visible(state, true);
+	main.factory_details_window->impl_on_update(state);
+	main.factory_details_window->parent->move_child_to_front(main.factory_details_window);
+// END
+	return true;
 }
 void  province_factories_table_body_t::set_alternate(bool alt) noexcept {
 	window_template = alt ? 2 : 4;

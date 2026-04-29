@@ -1045,6 +1045,7 @@ std::unique_ptr<ui::element_base> make_production_rh_view(sys::state& state);
 std::unique_ptr<ui::element_base> make_production_directives_window(sys::state& state);
 
 std::unique_ptr<ui::element_base> make_province_factories_main(sys::state& state);
+std::unique_ptr<ui::element_base> make_factory_details_main(sys::state& state);
 
 void pop_screen_sort_state_rows(sys::state& state, std::vector<dcon::state_instance_id>& state_instances, alice_ui::layout_window_element* parent);
 

@@ -580,6 +580,9 @@ factory_stats_5;Inputs availability:
 factory_stats_6;Efficiency inputs availability:
 factory_stats_7;Economy of scale throughput bonus: ?G+$val$?!
 factory_stats_wage;Wage:
+factory_stats_wage_no_education;Wage paid to unqualified labourers
+factory_stats_wage_basic_education;Wage paid to educated craftsmen
+factory_stats_wage_high_education;Wage paid to experts
 factory_stats_expenses;Total expenses
 factory_stats_desired_income;Desired raw profit
 factory_money_flow_sum;?Y$value$?W is predicted profit (income minus expenses)
@@ -1500,6 +1503,12 @@ trade_good_name_header;Trade good
 per_nation;Per nation
 per_commodity;Per commodity
 price;Price
+commodity_volume;Volume
+monetary_transaction_volume;Monetary transaction volume
+transaction_success_probability;Probability to successfully perform transaction
+factory_output;Output
+factory_inputs;Inputs
+factory_expected_profit;Expected profit
 labour_price;Wage
 labour_price_10k;Wage(10k people)
 supply;Supply
