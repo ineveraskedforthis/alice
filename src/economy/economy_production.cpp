@@ -1465,7 +1465,7 @@ void update_production_investement_consumption(
 					for(uint8_t i = 0; i < economy::small_commodity_set::set_size; i++) {
 						auto cid = efficiency_inputs.commodity_type[i];
 						if (!cid) break;
-						auto current_scale = (1.f + size) / 50'000'000.f;
+						auto current_scale = (1.f + size) / state.defines.alice_rgo_per_size_employment;
 						auto amount = efficiency_inputs.commodity_amounts[i] * current_scale;
 						auto cost = amount * price(state, market, cid);
 						auto can_afford = std::max(0.f, investment_rgo_efficiency / cost - 1.f);
@@ -1475,7 +1475,7 @@ void update_production_investement_consumption(
 						for(uint8_t i = 0; i < economy::small_commodity_set::set_size; i++) {
 							auto cid = efficiency_inputs.commodity_type[i];
 							if (!cid) break;
-							auto current_scale = (1.f + size) / 50'000'000.f;
+							auto current_scale = (1.f + size) / state.defines.alice_rgo_per_size_employment;
 							auto amount = efficiency_inputs.commodity_amounts[i] * current_scale;
 							auto cost = amount * price(state, market, cid);
 							auto can_afford = std::max(0.f, investment_rgo_efficiency / cost - 1.f);

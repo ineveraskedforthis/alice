@@ -53,7 +53,7 @@ inline constexpr float subsistence_score_total = subsistence_score_life;
 // move to defines later
 inline constexpr float payouts_spending_multiplier = 10.f;
 
-inline constexpr float investment_pool_investment_per_day = 0.01f;
+inline constexpr float investment_pool_investment_per_day = 0.25f;
 
 // greed drives incomes of corresponding pops up
 // while making life worse on average
