@@ -1595,11 +1595,14 @@ trade_centre_exports_volume;Exports volume: ?Y$val$
 trade_centre_exports_value;Exports value: ?Y$val$
 trade_centre_trade_routes_profit;Profit from trade routes: ?Y$val$
 trade_centre_money;Money stockpile: ?Y$val$
+trade_centre_wealth;Total cost of stockpiles: ?Y$val$
+trade_centre_wealth_and_money;Total wealth: ?Y$val$
 trade_centre_estimated_money;Estimated next balance: ?Y$val$
 trade_centre_estimated_change;Estimated change: ?Y$val$
 trade_centre_import;Import purchases: ?Y$val$
 trade_centre_export;Export margin: ?Y$val$
 trade_centre_sold;Sales: ?Y$val$
+trade_centre_arbitrage;Arbitrage: ?Y$val$
 trade_centre_bought;Local purchases: ?Y$val$
 trade_centre_investments;Pops investment in trade: ?Y$val$
 trade_centre_dividents;Dividents to investors: ?Y$val$
@@ -1752,6 +1755,7 @@ province_market_demand;Demand: ?R$val$?!
 province_market_production;Production: ?G$val$?!
 province_market_consumption;Consumption: ?R$val$?!
 province_market_stockpiles;Stockpiles: ?Y$val$?!
+province_market_stockpiles_sales;Stockpiles sale target: ?Y$val$?!
 province_market_balance;Balance: ?Y$val$?!
 province_market_trade_in;Trade in: ?G$val$?!
 province_market_trade_out;Trade out: ?R$val$?!
