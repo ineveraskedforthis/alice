@@ -34,6 +34,12 @@ struct trade_route_volume_change_reasons {
 	float current_volume = 0.f;
 	float base_change = 0.f;
 	float expected_to_buy_in_origin_ratio = 0.f;
+	float transport_availability = 0.f;
+	float export_price_confidence = 1.f;
+	float import_price_confidence = 1.f;
+	float risk = 0.f;
+	float budget_availability = 0.f;
+	float import_ratio = 0.f;
 	float expansion_multiplier = 0.f;
 	float decay = 0.f;
 	float final_change = 0.f;

@@ -30,6 +30,7 @@ namespace economy {
 
 // assume that max speed is measured in ~knots which are roughly 2. of km/h
 constexpr float vic2_knots_to_km_per_day = 24.f * 2.f;
+constexpr float vic2_hull_to_tonn = 40.f;
 
 float pop_min_wage_factor(sys::state& state, dcon::nation_id n) {
 	return state.world.nation_get_modifier_values(n, sys::national_mod_offsets::minimum_wage);
@@ -945,7 +946,7 @@ float sphere_leader_share_factor(sys::state& state, dcon::nation_id sphere_leade
 void update_factory_triggered_modifiers(sys::state& state) {
 	state.world.for_each_factory([&](dcon::factory_id f) {
 		auto fac_type = fatten(state.world, state.world.factory_get_building_type(f));
-		float sum = 1.0f;
+		float sum = 0.0f;
 		auto prov = state.world.factory_get_province_from_factory_location(f);
 		auto pstate = state.world.province_get_state_membership(prov);
 		auto powner = state.world.province_get_nation_from_province_ownership(prov);
@@ -3424,7 +3425,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 		auto capital_mask = capital_states == zones;
 
 		// market transportation section
-		auto naval_momentum = state.world.market_get_naval_transportation_supply(ids) * vic2_knots_to_km_per_day;
+		auto naval_momentum = state.world.market_get_naval_transportation_supply(ids) * vic2_knots_to_km_per_day * vic2_hull_to_tonn;
 		auto required_naval_momentum = state.world.market_get_naval_transportation_demand(ids);
 		auto naval_momentum_satisfaction = ve::select(required_naval_momentum == 0.f, 1.f, ve::min(ve::fp_vector{1.f}, naval_momentum / required_naval_momentum));
 		state.world.market_set_naval_transportation_demand_satisfaction(ids, naval_momentum_satisfaction);
@@ -4849,12 +4850,20 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			ve::fp_vector supply = state.world.market_get_aggregated_supply_history(ids, cid);
 			ve::fp_vector demand = state.world.market_get_aggregated_demand_history(ids, cid);
 			auto current_price = ve_price(state, ids, cid);
-			current_price = current_price + price_properties::commodity::change<ve::fp_vector>(current_price, supply, demand);
+			auto next_price = current_price + price_properties::commodity::change<ve::fp_vector>(current_price, supply, demand);
 #ifndef NDEBUG
-			ve::apply([&](auto value) { assert(std::isfinite(value)); }, current_price);
+			ve::apply([&](auto value) { assert(std::isfinite(value)); }, next_price);
 #endif
-			current_price = ve::min(ve::max(current_price, price_properties::commodity::min), price_properties::commodity::max);
-			state.world.market_set_price(ids, cid, current_price);
+			auto next_price_clamped = ve::min(ve::max(next_price, price_properties::commodity::min), price_properties::commodity::max);
+
+			auto current_confidence = state.world.market_get_price_confidence(ids, cid);
+			auto price_ratio = current_price / next_price_clamped;
+			auto next_confidence = ve::min(0.99f * current_confidence * ve::min(price_ratio, 1.f / price_ratio) + 0.01f, 1.f);
+#ifndef NDEBUG
+			ve::apply([&](auto value) { assert(std::isfinite(value)); }, next_confidence);
+#endif
+			state.world.market_set_price(ids, cid, next_price_clamped);
+			state.world.market_set_price_confidence(ids, cid, next_confidence);
 		});
 	});
 

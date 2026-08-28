@@ -3252,6 +3252,7 @@ void state::load_scenario_data(parsers::error_handler& err, sys::year_month_day 
 	world.factory_resize_efficiency_level(economy::commodity_set::set_size);
 
 	world.market_resize_price(world.commodity_size());
+	world.market_resize_price_confidence(world.commodity_size());
 	world.market_resize_supply(world.commodity_size());
 	world.market_resize_demand(world.commodity_size());
 	world.market_resize_stockpile(world.commodity_size());

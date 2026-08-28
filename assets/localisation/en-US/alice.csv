@@ -1585,8 +1585,13 @@ trade_route_volume_profit_score_export;Export score: ?Y$val$?W. Export profit ?Y
 trade_route_volume_profit_score_import;Import score: ?Y$val$?W. Minus import profit ?Y$x$?W divided by their export price ?Y$y$?W
 trade_route_volume_base_change;Base expected change: ?Y$val$?W (Profit score times expansion multiplier)
 trade_route_volume_expansion_multiplier;Expansion multiplier: ?Y$val$?W (Depends on actual access to commodity in exporting market)
+trade_route_volume_transport_availability;Transport availability: ?Y$val$?W
+trade_route_volume_budget_availability;Available import budget: ?Y$val$?W
+trade_route_volume_risk;Riskiness of the trade (Depends on ratio of price to available funds) : ?Y$val$?W
 trade_route_volume_decay;Decay: ?Y$val$?W (Prevents trade volume from running too far away and slowly decreases volume of low profit routes)
 trade_route_volume_final_change;Expected change: ?Y$val$
+trade_route_confidence_export;Confidence in export price: ?Y$val$
+trade_route_confidence_import;Confidence in import price: ?Y$val$
 trade_centre_trade_volume;Trade volume: ?Y$val$
 trade_centre_trade_value;Trade value: ?Y$val$
 trade_centre_imports_volume;Imports volume: ?Y$val$

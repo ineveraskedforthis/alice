@@ -174,7 +174,8 @@ auto max_rgo_efficiency(sys::state& state, NATIONS n, PROV p, dcon::commodity_id
 		return free_efficiency + result * 0.1f;
 	}
 
-	return free_efficiency + result;
+	// to compensate for smaller mine sizes, we provide additional potential efficiency, if they are able to reach it
+	return free_efficiency + result * ve::select(is_mine, 10.f, 1.f);
 }
 
 rgo_workers_breakdown rgo_relevant_population(sys::state& state, dcon::province_id p, dcon::nation_id n) {
@@ -879,13 +880,8 @@ input_multipliers_explanation explain_input_multiplier(sys::state const& state, 
 	}
 
 	{
-		result.from_triggered_modifiers = std::max(0.1f, state.world.factory_get_triggered_modifiers(f));
-	}
-
-	{
 		result.total = result.from_competition
 			* result.from_modifiers
-			* result.from_triggered_modifiers
 			* result.from_scale
 			* result.from_specialisation;
 	}

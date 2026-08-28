@@ -78,6 +78,21 @@ void make_trade_volume_tooltip(
 	text::add_line(state, contents, "trade_route_volume_expansion_multiplier",
 		text::variable_type::val, text::fp_two_places{ prediction.expansion_multiplier }
 	);
+	text::add_line(state, contents, "trade_route_volume_transport_availability",
+		text::variable_type::val, text::fp_two_places{ prediction.transport_availability }
+	);
+	text::add_line(state, contents, "trade_route_volume_budget_availability",
+		text::variable_type::val, text::fp_two_places{ prediction.import_ratio }
+	);
+	text::add_line(state, contents, "trade_route_volume_risk",
+		text::variable_type::val, text::fp_two_places{ prediction.risk }
+	);
+	text::add_line(state, contents, "trade_route_confidence_export",
+		text::variable_type::val, text::fp_two_places{ prediction.export_price_confidence }
+	);
+	text::add_line(state, contents, "trade_route_confidence_import",
+		text::variable_type::val, text::fp_two_places{ prediction.import_price_confidence }
+	);
 
 	text::add_line(state, contents, "trade_route_volume_decay",
 		text::variable_type::val, text::fp_two_places{ multiplier * prediction.decay }
@@ -229,18 +244,14 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	auto merchant_cut = same_nation ? economy::merchant_cut_domestic : economy::merchant_cut_foreign;
 
 	// US3AC14
-	auto import_tariff_A = (same_nation || A_is_open_to_B) ? 0.f : effective_tariff_import_rate(state, controller_capital_A, A);
-	auto export_tariff_A = (same_nation || A_is_open_to_B) ? 0.f : effective_tariff_export_rate(state, controller_capital_A, A);
-	auto import_tariff_B = (same_nation || B_is_open_to_A) ? 0.f : effective_tariff_import_rate(state, controller_capital_B, B);
-	auto export_tariff_B = (same_nation || B_is_open_to_A) ? 0.f : effective_tariff_export_rate(state, controller_capital_B, B);
+	auto export_tariff = (same_nation || A_is_open_to_B) ? 0.f : effective_tariff_export_rate(state, controller_capital_A, A);
+	auto import_tariff = (same_nation || B_is_open_to_A) ? 0.f : effective_tariff_import_rate(state, controller_capital_B, B);
 
 	auto distance = state.world.trade_route_get_distance_km(route);
 	auto trade_good_loss_mult = std::max(0.f, 1.f - trade_goods_lost_per_km * distance);
 
 	auto current_volume = state.world.trade_route_get_volume(route, cid);
 	result.current_volume = current_volume;
-
-	auto absolute_volume = std::abs(current_volume);
 
 	auto owner = state.world.trade_route_get_owner(route);
 
@@ -265,15 +276,11 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 		state.world.commodity_get_rgo_amount(cid) > 0.f
 		&& !state.world.commodity_get_actually_exists_in_nature(cid);
 
-	auto price_export = price(state, A, cid) * (1.f + export_tariff_A);
-	result.export_price = price_export;
+	auto price_export_adjusted = price(state, A, cid) * (1.f + export_tariff + merchant_cut);
+	result.export_price = price_export_adjusted;
 
-	auto price_import = price(state, B, cid) * (1.f - import_tariff_B) * trade_good_loss_mult;
-	result.import_price = price_import;
-
-	auto current_profit = price_import - price_export * (1.f + export_tariff_A + merchant_cut) - transport_cost_per_weight;
-	result.export_profit = current_profit;
-
+	auto price_import_adjusted = price(state, B, cid) * (1.f - import_tariff) * trade_good_loss_mult;
+	result.import_price = price_import_adjusted;
 
 	auto c = cid;
 
@@ -300,54 +307,82 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	auto sell_optimism = 0.5f + 0.5f * total_reality_sell.reduce() / (total_count.reduce() + 1.f);
 	auto optimism_confidence = 2.f + 2.f * (total_confidence.reduce() + 1.f) / (total_count.reduce() + 1.f);
 
-	auto expected_to_buy_A = std::min(state.world.market_get_expected_probability_to_buy(A, c) * 2.f, 1.f);
-	auto expected_to_buy_B = std::min(state.world.market_get_expected_probability_to_buy(B, c) * 2.f, 1.f);
+	auto expected_to_buy = std::min(state.world.market_get_expected_probability_to_buy(A, c) * 2.f, 1.f);
 
-	auto expected_to_sell_A = std::min(state.world.market_get_expected_probability_to_sell(A, c) * 2.f, 1.f);
-	auto expected_to_sell_B = std::min(state.world.market_get_expected_probability_to_sell(B, c) * 2.f, 1.f);
+	auto expected_to_sell = std::min(state.world.market_get_expected_probability_to_sell(B, c) * 2.f, 1.f);
 
 	auto pessimism_confidence_A = 0.5f * (state.world.market_get_aggregated_demand_history(A, c) + state.world.market_get_aggregated_supply_history(A, c));
 	auto pessimism_confidence_B = 0.5f * (state.world.market_get_aggregated_demand_history(B, c) + state.world.market_get_aggregated_supply_history(B, c));
 
-	auto transport_availability = is_sea_route ? state.world.market_get_naval_transportation_demand_satisfaction(owner) : 1.f;
-
 	auto sold_boundary = stockpile_to_supply / (stockpile_spoilage + stockpile_to_supply);
+
+	auto confidence_export = std::max(0.01f, state.world.market_get_price_confidence(A, c));
+	auto confidence_import = std::max(0.01f, state.world.market_get_price_confidence(B, c));
+
+	result.export_price_confidence = confidence_export;
+	result.import_price_confidence = confidence_import;
+
+	auto price_export = price(state, A, c) / confidence_export;
+	auto price_import = price(state, B, c) * confidence_import;
+
+	auto transport_availability = is_sea_route
+		? state.world.market_get_naval_transportation_demand_satisfaction(owner)
+		: state.world.market_get_land_transportation_demand_satisfaction(owner);
 
 	auto spend = price_export * merchant_cut + transport_cost_per_weight;
 
-	auto sell_rate_perception_B = (optimism_confidence * std::max(expected_to_sell_B, sell_optimism) + pessimism_confidence_B * expected_to_sell_B);
-	auto buy_rate_perception_A = (optimism_confidence * std::max(expected_to_buy_A, buy_optimism) + pessimism_confidence_A * expected_to_buy_A);
-	auto buy_transport_perception = std::min(1.f, (economy::numerical::employment_unit::epsilon / (1.f + absolute_volume) + transport_availability * 2.f));
+	auto sell_rate_perception_B = (optimism_confidence * std::max(expected_to_sell, sell_optimism) + pessimism_confidence_B * expected_to_sell);
+	auto buy_rate_perception_A = (optimism_confidence * std::max(expected_to_buy, buy_optimism) + pessimism_confidence_A * expected_to_buy);
+	auto buy_transport_perception = std::min(1.f, (economy::numerical::employment_unit::epsilon / (1.f + current_volume) + transport_availability * 2.f));
 
 	auto perception_divisor = (optimism_confidence + pessimism_confidence_B) * (optimism_confidence + pessimism_confidence_A);
 
 	auto earn = price_import * sold_boundary * sell_rate_perception_B * buy_rate_perception_A / perception_divisor * buy_transport_perception;
 
+	result.export_profit = earn - spend;
 
-	auto diff = 2.f * (earn - spend) / (earn + economy::price_properties::commodity::min);
-	auto change = (current_volume * 0.002f + 0.002f) * diff;
+	auto earn_per_unit = price_import * trade_good_loss_mult;
+	auto pay_per_unit = price_export * (1.f + export_tariff + merchant_cut) + price_import * import_tariff + transport_cost_per_weight;
 
-	auto next = std::max(0.f, current_volume * 0.99999f + change);
+
+	auto budget_scale = state.world.market_get_trade_house_budget_import_scale(B);
+
+	//auto perception_divisor_origin = (optimism_confidence.get(c) + pessimism_confidence_origin);
+	//auto perception_divisor_target = (optimism_confidence.get(c) + pessimism_confidence_target);
+	//auto perception_divisor = perception_divisor_origin * perception_divisor_target;
+
+	//auto earn_expectation = earn_per_unit * sold_boundary * sell_rate_perception * buy_rate_perception / perception_divisor;
+
+	auto budget = 1.f + state.world.market_get_total_earn(owner);
+	//auto risk = std::min(1.f, budget * expected_to_sell == 0.f ? 1.f : (economy::price_properties::commodity::min + price_export) / (budget * 0.01f));
+	auto risk = std::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+
+	auto hard_limit = transport_availability;
+	auto soft_limit = budget_scale * expected_to_sell * expected_to_buy;
+	auto change_multiplier = std::max(0.f, (hard_limit - 0.9f) / 0.1f) * (soft_limit + 0.1f) * risk;
+	auto decay = std::max(0.999f, hard_limit * soft_limit);
+
+
+	auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
+	auto base_change = (current_volume * 0.001f + 0.01f) * diff;
+	auto change = std::min(base_change, std::max(0.f, budget / (economy::price_properties::commodity::min + price_export) - 1.f));
+	change = change <= 0.f ? change : change * change_multiplier;
+	auto next = std::max(0.f, current_volume * decay + change);
 
 	result.profit_score = diff;
 
-	// expand the route slower if goods are not actually bought in origin:
-	// use expectation because it's a behaviour-related update
-	auto bought = state.world.market_get_expected_probability_to_buy(A, cid);
+	result.expected_to_buy_in_origin_ratio = expected_to_buy;
 
-	result.expected_to_buy_in_origin_ratio = bought;
+	result.expansion_multiplier = change_multiplier;
+	result.import_ratio = budget_scale;
+	result.transport_availability = transport_availability;
+	result.risk = risk;
 
-	result.expansion_multiplier = 1.f;
+	result.profit = earn - spend;
 
-	change = change * (current_volume + change) >= 0.f
-		? change * result.expansion_multiplier
-		: change;
-
-	result.profit = current_profit;
-
-	result.base_change = change;
-	result.decay = current_volume * 0.99999f;
-	result.final_change = next - current_volume;
+	result.base_change = base_change;
+	result.decay = current_volume * (1.f - decay);
+	result.final_change = next;
 
 	return result;
 }
@@ -485,8 +520,11 @@ void update_trade_routes_volume(
 
 			auto current_volume = state.world.trade_route_get_volume(trade_route, c);
 
-			auto price_export = ve_price(state, origin, c);
-			auto price_import = ve_price(state, target, c);
+			auto confidence_export = ve::max(0.01f, state.world.market_get_price_confidence(origin, c));
+			auto confidence_import = ve::max(0.01f, state.world.market_get_price_confidence(target, c));
+
+			auto price_export = ve_price(state, origin, c) / confidence_export;
+			auto price_import = ve_price(state, target, c) * confidence_import;
 
 			auto earn_per_unit = price_import * trade_good_loss_mult;
 			auto pay_per_unit = price_export * (1.f + export_tariff + merchant_cut) + price_import * import_tariff + transport_cost;
@@ -547,14 +585,18 @@ void update_trade_routes_volume(
 
 			auto earn_expectation = earn_per_unit * sold_boundary * sell_rate_perception * buy_rate_perception / perception_divisor;
 
-			auto hard_limit = budget_scale * transport_availability;
-			auto soft_limit = expected_to_sell * expected_to_buy;
-			auto change_multiplier = ve::max(ve::fp_vector{ 0.f }, (hard_limit - 0.9f) / 0.1f) * (soft_limit + 0.1f);
-			auto decay = ve::max(0.995f, hard_limit * soft_limit);
+			//auto risk = ve::min(1.f, ve::select(budget * expected_to_sell == 0.f, 1.f, (economy::price_properties::commodity::min + price_export) / (budget * 0.01f)));
+			auto risk = ve::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+
+			auto hard_limit = transport_availability;
+			auto soft_limit = budget_scale * expected_to_sell * expected_to_buy;
+			auto change_multiplier = ve::max(ve::fp_vector{ 0.f }, (hard_limit - 0.9f) / 0.1f) * (soft_limit + 0.1f) * risk;
+			auto decay = ve::max(0.999f, hard_limit * soft_limit);
 
 			auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
-			auto change = ve::min((current_volume * 0.001f + 0.01f) * diff, ve::max(ve::fp_vector{0.f}, budget / (economy::price_properties::commodity::min + price_export) - 1.f));
-			change = ve::select(change <= 0.f, change, change * change_multiplier); //* ve::max(0.f, (buy_rate_perception / perception_divisor_origin - 0.2f) / 0.8f));
+			auto change = (current_volume * 0.001f + 0.01f) * diff;
+			change = ve::select(change <= 0.f, change, change * change_multiplier);
+			//* ve::max(0.f, (buy_rate_perception / perception_divisor_origin - 0.2f) / 0.8f));
 			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change));
 			state.world.trade_route_set_volume(trade_route, c, next);
 		}

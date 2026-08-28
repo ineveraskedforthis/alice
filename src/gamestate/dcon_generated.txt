@@ -416,8 +416,6 @@ object {
 	property{
 		name{ producer_payout_fraction }
 		type{ float }
-		
-		
 	}
 	property{
 		name{ price_record }
@@ -4692,6 +4690,11 @@ object{
 	}
 	property {
 		name{ price }
+		type{ array{commodity_id}{float} }
+		tag{ save }
+	}
+	property {
+		name{ price_confidence }
 		type{ array{commodity_id}{float} }
 		tag{ save }
 	}
