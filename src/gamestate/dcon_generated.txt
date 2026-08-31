@@ -4609,10 +4609,25 @@ object{
 		name{ shipbuilding_refund }
 		type{ float }
 		tag{ save }
-	}
-	
+	}	
 	property {
 		name{ shipbuilding_spending_ratio }
+		type{ float }
+	}	
+	property {
+		name{ ships_maintenance_spending_ratio }
+		type{ float }
+	}
+	property {
+		name{ port_services_weighted_price }
+		type{ float }
+	}
+	property {
+		name{ port_services_demand }
+		type{ float }
+	}
+	property {
+		name{ port_services_demand_satisfaction }
 		type{ float }
 	}
 	property {
@@ -5204,6 +5219,11 @@ object {
 	}
 	property {
 		name{ input_cost_per_worker }
+		type{ float }
+		tag{ save }
+	}	
+	property {
+		name{ input_expected_cost_per_worker }
 		type{ float }
 		tag{ save }
 	}	

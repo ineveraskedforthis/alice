@@ -17,7 +17,7 @@ class SVGRootElement;
 
 class SVGNode {
 public:
-    SVGNode(Document* document)
+    SVGNode(Document* document [[clang::lifetimebound]] )
         : m_document(document)
     {}
 
@@ -52,7 +52,7 @@ public:
 
     bool isTextNode() const final { return true; }
 
-    const std::string& data() const { return m_data; }
+    const std::string& data() const [[clang::lifetimebound]] { return m_data; }
     void setData(const std::string& data);
 
     std::unique_ptr<SVGNode> clone(bool deep) const final;
@@ -70,7 +70,7 @@ public:
 
     int specificity() const { return m_specificity; }
     PropertyID id() const { return m_id; }
-    const std::string& value() const { return m_value; }
+    const std::string& value() const [[clang::lifetimebound]] { return m_value; }
 
 private:
     int m_specificity;
@@ -150,9 +150,9 @@ public:
     SVGNode* lastChild() const;
 
     ElementID id() const { return m_id; }
-    const AttributeList& attributes() const { return m_attributes; }
-    const SVGPropertyList& properties() const { return m_properties; }
-    const SVGNodeList& children() const { return m_children; }
+    const AttributeList& attributes() const [[clang::lifetimebound]] { return m_attributes; }
+    const SVGPropertyList& properties() const [[clang::lifetimebound]] { return m_properties; }
+    const SVGNodeList& children() const [[clang::lifetimebound]] { return m_children; }
 
     virtual Transform localTransform() const { return Transform::Identity; }
     virtual Rect fillBoundingBox() const;
@@ -256,8 +256,8 @@ class SVGFitToViewBox {
 public:
     SVGFitToViewBox(SVGElement* element);
 
-    const SVGRect& viewBox() const { return m_viewBox; }
-    const SVGPreserveAspectRatio& preserveAspectRatio() const { return m_preserveAspectRatio; }
+    const SVGRect& viewBox() const [[clang::lifetimebound]] { return m_viewBox; }
+    const SVGPreserveAspectRatio& preserveAspectRatio() const [[clang::lifetimebound]] { return m_preserveAspectRatio; }
     Transform viewBoxToViewTransform(const Size& viewportSize) const;
     Rect getClipRect(const Size& viewportSize) const;
 
@@ -270,8 +270,8 @@ class SVGURIReference {
 public:
     SVGURIReference(SVGElement* element);
 
-    const SVGString& href() const { return m_href; }
-    const std::string& hrefString() const { return m_href.value(); }
+    const SVGString& href() const [[clang::lifetimebound]] { return m_href; }
+    const std::string& hrefString() const [[clang::lifetimebound]] { return m_href.value(); }
     SVGElement* getTargetElement(const Document* document) const;
 
 private:
@@ -281,14 +281,14 @@ private:
 class SVGPaintServer {
 public:
     SVGPaintServer() = default;
-    SVGPaintServer(const SVGPaintElement* element, const Color& color, float opacity)
+    SVGPaintServer(const SVGPaintElement* element [[clang::lifetimebound]], const Color& color, float opacity)
         : m_element(element), m_color(color), m_opacity(opacity)
     {}
 
     bool isRenderable() const { return m_opacity > 0.f && (m_element || m_color.alpha() > 0); }
 
     const SVGPaintElement* element() const { return m_element; }
-    const Color& color() const { return  m_color; }
+    const Color& color() const [[clang::lifetimebound]] { return  m_color; }
     float opacity() const { return m_opacity; }
 
     bool applyPaint(SVGRenderState& state) const;
@@ -305,7 +305,7 @@ public:
 
     bool isGraphicsElement() const final { return true; }
 
-    const SVGTransform& transform() const { return m_transform; }
+    const SVGTransform& transform() const [[clang::lifetimebound]] { return m_transform; }
     Transform localTransform() const override { return m_transform.value(); }
 
     SVGPaintServer getPaintServer(const Paint& paint, float opacity) const;
@@ -319,10 +319,10 @@ class SVGSVGElement : public SVGGraphicsElement, public SVGFitToViewBox {
 public:
     SVGSVGElement(Document* document);
 
-    const SVGLength& x() const { return m_x; }
-    const SVGLength& y() const { return m_y; }
-    const SVGLength& width() const { return m_width; }
-    const SVGLength& height() const { return m_height; }
+    const SVGLength& x() const [[clang::lifetimebound]] { return m_x; }
+    const SVGLength& y() const [[clang::lifetimebound]] { return m_y; }
+    const SVGLength& width() const [[clang::lifetimebound]] { return m_width; }
+    const SVGLength& height() const [[clang::lifetimebound]] { return m_height; }
 
     Transform localTransform() const override;
     void render(SVGRenderState& state) const override;
@@ -362,10 +362,10 @@ class SVGUseElement final : public SVGGraphicsElement, public SVGURIReference {
 public:
     SVGUseElement(Document* document);
 
-    const SVGLength& x() const { return m_x; }
-    const SVGLength& y() const { return m_y; }
-    const SVGLength& width() const { return m_width; }
-    const SVGLength& height() const { return m_height; }
+    const SVGLength& x() const [[clang::lifetimebound]] { return m_x; }
+    const SVGLength& y() const [[clang::lifetimebound]] { return m_y; }
+    const SVGLength& width() const [[clang::lifetimebound]] { return m_width; }
+    const SVGLength& height() const [[clang::lifetimebound]] { return m_height; }
 
     Transform localTransform() const final;
     void render(SVGRenderState& state) const final;
@@ -383,12 +383,12 @@ class SVGImageElement final : public SVGGraphicsElement {
 public:
     SVGImageElement(Document* document);
 
-    const SVGLength& x() const { return m_x; }
-    const SVGLength& y() const { return m_y; }
-    const SVGLength& width() const { return m_width; }
-    const SVGLength& height() const { return m_height; }
-    const SVGPreserveAspectRatio& preserveAspectRatio() const { return m_preserveAspectRatio; }
-    const Bitmap& image() const { return m_image; }
+    const SVGLength& x() const [[clang::lifetimebound]] { return m_x; }
+    const SVGLength& y() const [[clang::lifetimebound]] { return m_y; }
+    const SVGLength& width() const [[clang::lifetimebound]]  { return m_width; }
+    const SVGLength& height() const [[clang::lifetimebound]] { return m_height; }
+    const SVGPreserveAspectRatio& preserveAspectRatio() const [[clang::lifetimebound]] { return m_preserveAspectRatio; }
+    const Bitmap& image() const [[clang::lifetimebound]] { return m_image; }
 
     Rect fillBoundingBox() const final;
     Rect strokeBoundingBox() const final;
@@ -425,12 +425,12 @@ class SVGMarkerElement final : public SVGElement, public SVGFitToViewBox {
 public:
     SVGMarkerElement(Document* document);
 
-    const SVGLength& refX() const { return m_refX; }
-    const SVGLength& refY() const { return m_refY; }
-    const SVGLength& markerWidth() const { return m_markerWidth; }
-    const SVGLength& markerHeight() const { return m_markerHeight; }
-    const SVGEnumeration<MarkerUnits>& markerUnits() const { return m_markerUnits; }
-    const SVGAngle& orient() const { return m_orient; }
+    const SVGLength& refX() const [[clang::lifetimebound]] { return m_refX; }
+    const SVGLength& refY() const [[clang::lifetimebound]] { return m_refY; }
+    const SVGLength& markerWidth() const [[clang::lifetimebound]] { return m_markerWidth; }
+    const SVGLength& markerHeight() const [[clang::lifetimebound]] { return m_markerHeight; }
+    const SVGEnumeration<MarkerUnits>& markerUnits() const [[clang::lifetimebound]] { return m_markerUnits; }
+    const SVGAngle& orient() const [[clang::lifetimebound]] { return m_orient; }
 
     Point refPoint() const;
     Size markerSize() const;
@@ -454,7 +454,7 @@ class SVGClipPathElement final : public SVGGraphicsElement {
 public:
     SVGClipPathElement(Document* document);
 
-    const SVGEnumeration<Units>& clipPathUnits() const { return m_clipPathUnits; }
+    const SVGEnumeration<Units>& clipPathUnits() const [[clang::lifetimebound]] { return m_clipPathUnits; }
     Rect clipBoundingBox(const SVGElement* element) const;
 
     void applyClipMask(SVGRenderState& state) const;
@@ -470,12 +470,12 @@ class SVGMaskElement final : public SVGElement {
 public:
     SVGMaskElement(Document* document);
 
-    const SVGLength& x() const { return m_x; }
-    const SVGLength& y() const { return m_y; }
-    const SVGLength& width() const { return m_width; }
-    const SVGLength& height() const { return m_height; }
-    const SVGEnumeration<Units>& maskUnits() const { return m_maskUnits; }
-    const SVGEnumeration<Units>& maskContentUnits() const { return m_maskContentUnits; }
+    const SVGLength& x() const [[clang::lifetimebound]] { return m_x; }
+    const SVGLength& y() const [[clang::lifetimebound]] { return m_y; }
+    const SVGLength& width() const [[clang::lifetimebound]] { return m_width; }
+    const SVGLength& height() const [[clang::lifetimebound]] { return m_height; }
+    const SVGEnumeration<Units>& maskUnits() const [[clang::lifetimebound]] { return m_maskUnits; }
+    const SVGEnumeration<Units>& maskContentUnits() const [[clang::lifetimebound]] { return m_maskContentUnits; }
 
     Rect maskRect(const SVGElement* element) const;
     Rect maskBoundingBox(const SVGElement* element) const;

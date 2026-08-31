@@ -263,12 +263,12 @@ chunk CA: bone animation (v2)
 */
 
 namespace emfx {
-const char* parse_xac_cstring(const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_cstring(const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const len = parse_xac_any_binary<uint32_t>(&start, end, err);
 	return start + len;
 }
 
-const char* parse_xac_cstring_nodiscard(std::string& out, const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_cstring_nodiscard(std::string& out, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const len = parse_xac_any_binary<uint32_t>(&start, end, err);
 	out.resize(size_t(len), '\0');
 	std::memcpy(&out[0], start, size_t(len));
@@ -297,7 +297,7 @@ const char* parse_xac_metadata_v2(xac_context& context, const char* start, const
 	return start;
 }
 
-const char* parse_xac_material_block_v1(xac_context& context, const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_material_block_v1(xac_context& context, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const mh = parse_xac_any_binary<xac_material_block_v1_chunk_header>(&start, end, err);
 #ifdef XAC_DEBUG
 	std::printf("NumStd=%u,NumFx=%u\n", mh.num_standard_materials, mh.num_fx_materials);
@@ -354,7 +354,7 @@ const char* parse_xac_material_v2(xac_context& context, const char* start, const
 	return start;
 }
 
-const char* parse_xac_node_hierachy_v1(xac_context& context, const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_node_hierachy_v1(xac_context& context, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const ch = parse_xac_any_binary<xac_node_hierachy_v1_chunk_header>(&start, end, err);
 	if(int32_t(ch.num_nodes) <= 0) {
 		err.accumulated_errors += "Unexpected number of nodes (on NodeHierachy) on " + err.file_name + "\n";
@@ -392,7 +392,7 @@ const char* parse_xac_node_hierachy_v1(xac_context& context, const char* start, 
 	return start;
 }
 
-const char* parse_xac_mesh_v1(xac_context& context, const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_mesh_v1(xac_context& context, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const cd = parse_xac_any_binary<xac_mesh_v1_chunk_header>(&start, end, err);
 	if(cd.node_id >= int32_t(context.nodes.size())) {
 		err.accumulated_errors += "Object references OOB node (" + err.file_name + ")\n";
@@ -518,7 +518,7 @@ const char* parse_xac_mesh_v1(xac_context& context, const char* start, const cha
 	return start;
 }
 
-const char* parse_xac_skinning_v3(xac_context& context, const char* start, const char* end, parsers::error_handler& err) {
+const char* parse_xac_skinning_v3(xac_context& context, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err) {
 	auto const sh = parse_xac_any_binary<xac_skinning_v3_chunk_header>(&start, end, err);
 #ifdef XAC_DEBUG
 	std::printf("NInfluences=%u\n", sh.num_influences);

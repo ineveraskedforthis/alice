@@ -175,7 +175,7 @@ auto max_rgo_efficiency(sys::state& state, NATIONS n, PROV p, dcon::commodity_id
 	}
 
 	// to compensate for smaller mine sizes, we provide additional potential efficiency, if they are able to reach it
-	return free_efficiency + result * ve::select(is_mine, 10.f, 1.f);
+	return free_efficiency + result * (is_mine ? 5.f : 1.f);
 }
 
 rgo_workers_breakdown rgo_relevant_population(sys::state& state, dcon::province_id p, dcon::nation_id n) {
@@ -270,66 +270,49 @@ detailed_commodity_set add_details_to_commodity_set(sys::state const& state, dco
 template<typename M, typename SET>
 ve_inputs_data get_inputs_data(sys::state const& state, M markets, SET const& inputs) {
 	ve::fp_vector input_total = 0.0f;
+	ve::fp_vector input_total_expected = 0.0f;
 	ve::fp_vector input_total_adjusted = 0.0f;
 	ve::fp_vector min_available = 1.0f;
 	ve::fp_vector min_expected = 1.0f;
 	for(uint32_t j = 0; j < SET::set_size; ++j) {
-		if(inputs.commodity_type[j]) {
-			input_total =
-				input_total
-				+ inputs.commodity_amounts[j]
-				* ve_price(state, markets, inputs.commodity_type[j]);
-			input_total_adjusted =
-				input_total_adjusted
-				+ inputs.commodity_amounts[j]
-				* ve_price(state, markets, inputs.commodity_type[j])
-				* state.world.market_get_actual_probability_to_buy(markets, inputs.commodity_type[j]);
-			min_available = ve::min(
-				min_available,
-				state.world.market_get_actual_probability_to_buy(markets, inputs.commodity_type[j])
-			);
-			min_expected = ve::min(
-				min_expected,
-				state.world.market_get_expected_probability_to_buy(markets, inputs.commodity_type[j])
-			);
-		} else {
-			break;
-		}
+		auto cid = inputs.commodity_type[j];
+		if(!cid) break;
+		auto amount = inputs.commodity_amounts[j];
+		auto price = state.world.market_get_price(markets, cid);
+		auto confidence = ve::max(0.01f, state.world.market_get_price_confidence(markets, cid));
+		auto sell_probs = state.world.market_get_actual_probability_to_buy(markets, cid);
+		auto sell_probs_expected = state.world.market_get_expected_probability_to_buy(markets, cid);
+		input_total = input_total + amount * price;
+		input_total_expected = input_total_expected + amount * price / confidence;
+		input_total_adjusted = input_total_adjusted + amount * price * sell_probs;
+		min_available = ve::min(min_available, sell_probs);
+		min_expected = ve::min(min_expected, sell_probs_expected);
 	}
-	return { min_expected, min_available, input_total, input_total_adjusted };
+	return { min_expected, min_available, input_total, input_total_expected, input_total_adjusted };
 }
 template<typename SET>
 inputs_data get_inputs_data(sys::state const& state, dcon::market_id markets, SET const& inputs) {
 	float input_total = 0.0f;
 	float input_total_adjusted = 0.0f;
+	float input_total_expected = 0.0f;
 	float min_available = 1.0f;
 	float min_expected = 1.0f;
 	for(uint32_t j = 0; j < SET::set_size; ++j) {
-		if(inputs.commodity_type[j]) {
-			input_total =
-				input_total
-				+ inputs.commodity_amounts[j]
-				* price(state, markets, inputs.commodity_type[j]);
-			input_total_adjusted =
-				input_total_adjusted
-				+ inputs.commodity_amounts[j]
-				* price(state, markets, inputs.commodity_type[j])
-				* state.world.market_get_actual_probability_to_buy(markets, inputs.commodity_type[j]);
-			min_available = std::min(
-				min_available,
-				state.world.market_get_actual_probability_to_buy(markets, inputs.commodity_type[j])
-			);
-			min_expected = std::min(
-				min_expected,
-				state.world.market_get_expected_probability_to_buy(markets, inputs.commodity_type[j])
-			);
-		} else {
-			break;
-		}
+		auto cid = inputs.commodity_type[j];
+		if(!cid) break;
+		auto amount = inputs.commodity_amounts[j];
+		auto price = state.world.market_get_price(markets, cid);
+		auto confidence = std::max(0.01f, state.world.market_get_price_confidence(markets, cid));
+		auto sell_probs = state.world.market_get_actual_probability_to_buy(markets, cid);
+		auto sell_probs_expected = state.world.market_get_expected_probability_to_buy(markets, cid);
+		input_total = input_total + amount * price;
+		input_total_expected = input_total_expected + amount * price / confidence;
+		input_total_adjusted = input_total_adjusted + amount * price * sell_probs;
+		min_available = std::min(min_available, sell_probs);
+		min_expected = std::min(min_expected, sell_probs_expected);
 	}
-
 	assert(input_total >= 0.f);
-	return { min_expected, min_available, input_total, input_total_adjusted };
+	return { min_expected, min_available, input_total, input_total_expected, input_total_adjusted };
 }
 
 template<typename PROV, typename SET, typename VALUE>
@@ -480,6 +463,7 @@ struct preconsumption_data {
 	float output_price = 0.f;
 	float output_amount_per_production_unit = 0.f;
 	float direct_inputs_cost_per_production_unit = 0.f;
+	float direct_inputs_expected_cost_per_production_unit = 0.f;
 	float direct_inputs_cost_per_production_unit_availability_adjusted = 0.f;
 };
 
@@ -489,6 +473,7 @@ struct ve_preconsumption_data {
 	ve::fp_vector output_price = 0.f;
 	ve::fp_vector output_amount_per_production_unit = 0.f;
 	ve::fp_vector direct_inputs_cost_per_production_unit = 0.f;
+	ve::fp_vector direct_inputs_expected_cost_per_production_unit = 0.f;
 	ve::fp_vector direct_inputs_cost_per_production_unit_availability_adjusted = 0.f;
 };
 
@@ -519,6 +504,7 @@ preconsumption_data prepare_data_for_consumption(
 		.output_price = output_price,
 		.output_amount_per_production_unit = output_per_production_unit,
 		.direct_inputs_cost_per_production_unit = direct_inputs_data.total_cost * input_multiplier,
+		.direct_inputs_expected_cost_per_production_unit = direct_inputs_data.total_expected_cost * input_multiplier,
 		.direct_inputs_cost_per_production_unit_availability_adjusted = direct_inputs_data.total_cost_availability_adjusted * input_multiplier,
 	};
 
@@ -547,6 +533,7 @@ ve_preconsumption_data ve_prepare_data_for_consumption(
 		.output_price = output_price,
 		.output_amount_per_production_unit = output_per_production_unit,
 		.direct_inputs_cost_per_production_unit = direct_inputs_data.total_cost * input_multiplier,
+		.direct_inputs_expected_cost_per_production_unit = direct_inputs_data.total_expected_cost * input_multiplier, 
 		.direct_inputs_cost_per_production_unit_availability_adjusted = direct_inputs_data.total_cost_availability_adjusted * input_multiplier,
 	};
 	return result;
@@ -554,20 +541,24 @@ ve_preconsumption_data ve_prepare_data_for_consumption(
 
 struct consumption_data {
 	float direct_inputs_cost;
+	float direct_inputs_expected_cost;
 	float output;
 
 	float direct_inputs_scale;
 
 	float input_cost_per_employment_unit;
+	float input_expected_cost_per_employment_unit;
 	float output_per_employment_unit;
 };
 struct ve_consumption_data {
 	ve::fp_vector direct_inputs_cost;
+	ve::fp_vector direct_inputs_expected_cost;
 	ve::fp_vector output;
 
 	ve::fp_vector direct_inputs_scale;
 
 	ve::fp_vector input_cost_per_employment_unit;
+	ve::fp_vector input_expected_cost_per_employment_unit;
 	ve::fp_vector output_per_employment_unit;
 };
 
@@ -587,11 +578,13 @@ consumption_data imitate_consume(
 
 	consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
+		.direct_inputs_expected_cost = additional_data.direct_inputs_expected_cost_per_production_unit * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
 		.direct_inputs_scale = input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
+		.input_expected_cost_per_employment_unit = additional_data.direct_inputs_expected_cost_per_production_unit * throughput_multiplier,
 		.output_per_employment_unit = additional_data.output_amount_per_production_unit * throughput_multiplier
 	};
 
@@ -612,11 +605,13 @@ consumption_data imitate_consume(
 
 	consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
+		.direct_inputs_expected_cost = additional_data.direct_inputs_expected_cost_per_production_unit * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
 		.direct_inputs_scale = input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
+		.input_expected_cost_per_employment_unit = additional_data.direct_inputs_expected_cost_per_production_unit * throughput_multiplier,
 		.output_per_employment_unit = additional_data.output_amount_per_production_unit * throughput_multiplier
 	};
 
@@ -651,8 +646,8 @@ consumption_data consume(
 	save_inputs_to_buffers(state, province, buffer_demanded, buffer_consumed, inputs, input_scale, additional_data.direct_inputs_data.min_available);
 
 	consumption_data result = {
-		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted
-		* production_units,
+		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
+		.direct_inputs_expected_cost = additional_data.direct_inputs_expected_cost_per_production_unit * production_units,
 
 		.output =
 			additional_data.output_amount_per_production_unit
@@ -663,6 +658,7 @@ consumption_data consume(
 		.direct_inputs_scale = input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
+		.input_expected_cost_per_employment_unit = additional_data.direct_inputs_expected_cost_per_production_unit * throughput_multiplier	,
 		.output_per_employment_unit =
 			additional_data.output_amount_per_production_unit
 			* throughput_multiplier
@@ -691,11 +687,13 @@ ve_consumption_data consume(
 
 	ve_consumption_data result = {
 		.direct_inputs_cost = additional_data.direct_inputs_cost_per_production_unit_availability_adjusted * production_units,
+		.direct_inputs_expected_cost = additional_data.direct_inputs_expected_cost_per_production_unit * production_units,
 		.output = additional_data.output_amount_per_production_unit * production_units * additional_data.direct_inputs_data.min_available,
 
 		.direct_inputs_scale = input_scale,
 
 		.input_cost_per_employment_unit = additional_data.direct_inputs_cost_per_production_unit * throughput_multiplier,
+		.input_expected_cost_per_employment_unit = additional_data.direct_inputs_expected_cost_per_production_unit * throughput_multiplier	,
 		.output_per_employment_unit = additional_data.output_amount_per_production_unit * throughput_multiplier
 	};
 
@@ -1661,6 +1659,7 @@ void update_single_factory_consumption(
 	fac.set_output(data.output);
 	fac.set_output_per_worker(data.output_per_employment_unit / float(fac_type.get_base_workforce()));
 	fac.set_input_cost_per_worker(data.input_cost_per_employment_unit / float(fac_type.get_base_workforce()));
+	fac.set_input_expected_cost_per_worker(data.input_expected_cost_per_employment_unit / float(fac_type.get_base_workforce()));
 	fac.set_input_cost(data.direct_inputs_cost);
 }
 
@@ -2147,7 +2146,8 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 			auto priority = state.world.nation_get_production_directive(n, production_directives::to_key(state, cid));
 			auto priority_local = state.world.state_instance_get_production_directive(state_instance, production_directives::to_key(state, cid));
 			auto subsidy = (priority_local || priority ? state.world.nation_get_subsidy_token_price(n) / base : 0.f) ;
-			return state.world.market_get_price(market, cid) + subsidy;
+			auto confidence = state.world.market_get_price_confidence(market, cid);
+			return state.world.market_get_price(market, cid) * confidence + subsidy;
 		}, state.world.province_get_nation_from_province_ownership(pid), sid, mid, output, base_output);
 
 		auto supply = ve::apply([&](dcon::market_id market, dcon::commodity_id cid) {
@@ -2162,8 +2162,6 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 		auto unqualified = state.world.factory_get_unqualified_employment(facids);
 		auto primary = state.world.factory_get_primary_employment(facids);
 		auto secondary = state.world.factory_get_secondary_employment(facids);
-		auto profit_push = output_per_worker * price_output;
-		auto spending_push = state.world.factory_get_input_cost_per_worker(facids);
 		auto wage_no_education = state.world.province_get_labor_price(pid, labor::no_education);
 		auto wage_basic_education = state.world.province_get_labor_price(pid, labor::basic_education);
 		auto wage_high_education = state.world.province_get_labor_price(pid, labor::high_education);
@@ -2183,9 +2181,9 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 			}
 		};
 
-		auto price_speed = price_properties::commodity::change<ve::fp_vector>(price_output, supply, demand);
+		//auto price_speed = price_properties::commodity::change<ve::fp_vector>(price_output, supply, demand);
 
-		auto price_prediction = (price_output + price_speed);
+
 		auto size = state.world.factory_get_size(facids);
 
 		auto sold_expectation = ve::apply([&](dcon::market_id market, dcon::commodity_id cid) {
@@ -2194,11 +2192,11 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 
 		auto profit_per_worker =
 			output_per_worker
-			* price_prediction
+			* price_output
 			* (sales_optimism + (1.f - sales_optimism) * sold_expectation)
 			* (purchase_optimism + (1.f - purchase_optimism) * min_expected_input);
 
-		auto input_cost_per_worker = state.world.factory_get_input_cost_per_worker(facids) * (1.f + capitalists_greed);
+		auto input_cost_per_worker = state.world.factory_get_input_expected_cost_per_worker(facids) * (1.f + capitalists_greed);
 
 		auto secondary_power = ve::apply([&](dcon::nation_id local_nation, dcon::commodity_id output_commodity) {
 			return high_education_power(state, local_nation, output_commodity);
@@ -2232,7 +2230,7 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 		// do not hire too expensive workers:
 		// ideally decided by factory budget but it is what it is
 
-		auto budget = factory_profit_to_wage_bound * state.world.factory_get_size(facids) * output_per_worker * price_prediction;
+		auto budget = factory_profit_to_wage_bound * state.world.factory_get_size(facids) * output_per_worker * price_output;
 
 		unqualified_next = ve::max(0.f, ve::min(state.world.factory_get_size(facids), ve::min(budget / wage_no_education - 1.f, unqualified_next)));
 		primary_next = ve::max(0.f, ve::min(state.world.factory_get_size(facids), ve::min(budget / wage_basic_education - 1.f, primary_next)));

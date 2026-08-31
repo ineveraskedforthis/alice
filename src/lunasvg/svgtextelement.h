@@ -21,7 +21,7 @@ struct SVGCharacterPosition {
 using SVGCharacterPositions = std::map<size_t, SVGCharacterPosition>;
 
 struct SVGTextPosition {
-    SVGTextPosition(const SVGNode* node, size_t startOffset, size_t endOffset)
+    SVGTextPosition(const SVGNode* node [[clang::lifetimebound]], size_t startOffset, size_t endOffset)
         : node(node), startOffset(startOffset), endOffset(endOffset)
     {}
 
@@ -73,18 +73,18 @@ public:
 
     bool isTextPositioningElement() const final { return true; }
 
-    const LengthList& x() const { return m_x.values(); }
-    const LengthList& y() const { return m_y.values(); }
-    const LengthList& dx() const { return m_dx.values(); }
-    const LengthList& dy() const { return m_dy.values(); }
-    const NumberList& rotate() const { return m_rotate.values(); }
+    const LengthList& x() const [[clang::lifetimebound]] { return m_x.values(); }
+    const LengthList& y() const [[clang::lifetimebound]] { return m_y.values(); }
+    const LengthList& dx() const [[clang::lifetimebound]] { return m_dx.values(); }
+    const LengthList& dy() const [[clang::lifetimebound]] { return m_dy.values(); }
+    const NumberList& rotate() const [[clang::lifetimebound]] { return m_rotate.values(); }
 
-    const SVGLength& textLength() const { return m_textLength; }
+    const SVGLength& textLength() const [[clang::lifetimebound]] { return m_textLength; }
     LengthAdjust lengthAdjust() const { return m_lengthAdjust.value(); }
 
     const Font& font() const { return m_font; }
-    const SVGPaintServer& fill() const { return m_fill; }
-    const SVGPaintServer& stroke() const { return m_stroke; }
+    const SVGPaintServer& fill() const [[clang::lifetimebound]] { return m_fill; }
+    const SVGPaintServer& stroke() const [[clang::lifetimebound]] { return m_stroke; }
 
     bool isVerticalWritingMode() const { return m_writing_mode == WritingMode::Vertical; }
     bool isUprightTextOrientation() const { return m_text_orientation == TextOrientation::Upright; }

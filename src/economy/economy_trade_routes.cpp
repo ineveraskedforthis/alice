@@ -504,7 +504,7 @@ void update_trade_routes_volume(
 				state.world.commodity_get_rgo_amount(c) > 0.f
 				&& !state.world.commodity_get_actually_exists_in_nature(c)
 			) {
-				continue;
+			                continue;
 			}
 
 			// US3AC20.
@@ -545,15 +545,15 @@ void update_trade_routes_volume(
 			auto expected_to_sell = ve::min(state.world.market_get_expected_probability_to_sell(target, c) * 2.f, 1.f);
 
 			if(ignore_reality) {
-				expected_to_buy = 1.f;
-				expected_to_sell = 1.f;
+			                expected_to_buy = 1.f;
+			                expected_to_sell = 1.f;
 			}
 
 			auto pessimism_confidence_origin = 0.5f * (state.world.market_get_aggregated_demand_history(origin, c) + state.world.market_get_aggregated_supply_history(origin, c));
 			auto pessimism_confidence_target = 0.5f * (state.world.market_get_aggregated_demand_history(target, c) + state.world.market_get_aggregated_supply_history(target, c));
 
 			/*
-			
+
 			New model of trade update:
 			Assume that there is a segment [0, 1] of traders operating this route.
 			Trader 0 gets 0x of the sales.
@@ -594,7 +594,7 @@ void update_trade_routes_volume(
 			auto decay = ve::max(0.999f, hard_limit * soft_limit);
 
 			auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
-			auto change = (current_volume * 0.001f + 0.01f) * diff;
+			auto change = (current_volume * 0.0001f + 0.001f) * diff;
 			change = ve::select(change <= 0.f, change, change * change_multiplier);
 			//* ve::max(0.f, (buy_rate_perception / perception_divisor_origin - 0.2f) / 0.8f));
 			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change));

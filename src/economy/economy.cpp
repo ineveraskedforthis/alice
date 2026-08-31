@@ -30,7 +30,10 @@ namespace economy {
 
 // assume that max speed is measured in ~knots which are roughly 2. of km/h
 constexpr float vic2_knots_to_km_per_day = 24.f * 2.f;
-constexpr float vic2_hull_to_tonn = 40.f;
+constexpr float vic2_hull_to_tonn = 20.f;
+// measured and provided via port capacity
+constexpr float vic2_ship_crew_size = 150.f;
+constexpr float cargo_ship_maintenance_reduction = 0.1f;
 
 float pop_min_wage_factor(sys::state& state, dcon::nation_id n) {
 	return state.world.nation_get_modifier_values(n, sys::national_mod_offsets::minimum_wage);
@@ -3246,12 +3249,12 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 		auto supposed_construction_spending = 0.f;
 		auto shipping_satisfaction = state.world.market_get_naval_transportation_demand_satisfaction(market);
-		auto ship_building_spend = earn * 0.1f * (1.f - shipping_satisfaction);
+		auto ship_building_spend = earn * ve::min(0.1f, (1.f - shipping_satisfaction));
 
 		auto total_shipbuilding_costs = ve::fp_vector{ 0.f };
 
 		auto current_size = state.world.market_get_total_port_capacity(market);
-		auto ship_building_speed = current_size / 50000.f;
+		auto ship_building_speed = current_size / 10000.f;		
 
 		/*
 		Ships scoring:
@@ -3277,6 +3280,11 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			auto score = researched * speed * hull / (price_properties::commodity::min + ship_cost);
 			total_score = total_score + score;
 		}
+
+		ve::fp_vector total_abstract_cargo_potential{ 0.f };
+		ve::fp_vector total_maintenance_costs{ 0.f };
+		ve::fp_vector total_port_services_required{ 0.f };
+
 		for(uint32_t u = 0; u < state.military_definitions.unit_base_definitions.size(); ++u) {
 			dcon::unit_type_id uid = dcon::unit_type_id{ dcon::unit_type_id::value_base_t(u) };
 			military::unit_definition& def = state.military_definitions.unit_base_definitions[uid];
@@ -3291,24 +3299,49 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto amount = costs.commodity_amounts[i];
 				ship_cost = ship_cost + state.world.market_get_price(market, cid) * amount;
 			}
+
 			auto speed = ve::apply([&](dcon::nation_id n) { return state.world.nation_get_unit_stats(n, uid).maximum_speed;}, nation);
 			auto hull = ve::apply([&](dcon::nation_id n) { return state.world.nation_get_unit_stats(n, uid).defence_or_hull;}, nation);
-			auto score = researched * speed * hull / (price_properties::commodity::min + ship_cost);
+			auto cargo_abstract_per_day = researched * speed * hull;
+
+			auto score = cargo_abstract_per_day / (price_properties::commodity::min + ship_cost);
 			auto weight = ve::select(total_score == 0.f, 0.f, score / total_score);
+
+			auto maintenance_per_ship = vic2_ship_crew_size * state.world.market_get_port_services_weighted_price(market);
+			auto& supply_cost = def.supply_cost;
+			for(uint8_t i = 0; i < supply_cost.set_size; i++) {
+				auto cid = supply_cost.commodity_type[i];
+				if(!cid) break;
+				auto amount = supply_cost.commodity_amounts[i] * cargo_ship_maintenance_reduction;
+				maintenance_per_ship = maintenance_per_ship + state.world.market_get_price(market, cid) * amount;
+			}
+			auto existing_count = state.world.market_get_owned_ships(market, uid);
+			auto estimated_maintenance_cost = maintenance_per_ship * existing_count;
+
+			total_port_services_required = existing_count + vic2_ship_crew_size * existing_count;
+
+			total_maintenance_costs = total_maintenance_costs + estimated_maintenance_cost;
+			total_abstract_cargo_potential = total_abstract_cargo_potential + cargo_abstract_per_day;
 
 			total_shipbuilding_costs = total_shipbuilding_costs + ship_building_speed * weight * ship_cost;
 		}
 
 		ship_building_spend = ve::min(ship_building_spend, total_shipbuilding_costs);
+		auto ship_maintenance_spend = ve::min(total_maintenance_costs, earn * 0.1f);
+		
+		auto maintenance_costs_per_abstract_unit_of_cargo = ve::select(total_abstract_cargo_potential == 0.f, 0.f, total_maintenance_costs / (total_abstract_cargo_potential));
+		state.world.market_set_naval_transportation_price(market, maintenance_costs_per_abstract_unit_of_cargo / vic2_hull_to_tonn / vic2_knots_to_km_per_day);
 
-		auto spend = ve::select(arbitrage > 0.f, 0.f, -arbitrage) + import_spent + purchases + next_dividends + debt_payment + ship_building_spend;
+		auto spend = ve::select(arbitrage > 0.f, 0.f, -arbitrage) + import_spent + purchases + next_dividends + debt_payment + ship_building_spend + ship_maintenance_spend;
 
+		auto spend_on_ships_maintenance_ratio = ve::select(total_maintenance_costs == 0.f, 0.f, ship_maintenance_spend / total_maintenance_costs);
 		auto spend_on_ships_ratio = ve::select(total_shipbuilding_costs == 0.f, 0.f, ship_building_spend / total_shipbuilding_costs);
 
-		state.world.market_set_naval_transportation_price(market, 0.f);
 		state.world.market_set_land_transportation_price(market, 0.f);
 		state.world.market_set_naval_transportation_demand_satisfaction(market, 1.f);
 		state.world.market_set_land_transportation_demand_satisfaction(market, 1.f);
+
+		state.world.market_set_port_services_demand(market, 0.f);
 
 		auto spending_ability_ratio = ve::min(1.f, ve::max(0.f, ve::select(spend == 0.f, 1.f, earn / spend)));
 		// We don't want to spend a lot more than we earn on imports
@@ -3325,6 +3358,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 		state.world.market_set_total_paid(market, spend);
 
 		state.world.market_set_shipbuilding_spending_ratio(market, spend_on_ships_ratio);
+		state.world.market_set_ships_maintenance_spending_ratio(market, spend_on_ships_maintenance_ratio);
 
 		// register shipbuilding demand
 		for(uint32_t u = 0; u < state.military_definitions.unit_base_definitions.size(); ++u) {
@@ -3352,29 +3386,44 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto demanded_amount = ship_building_speed * amount * weight * spend_on_ships_ratio;
 				register_demand(state, market, cid, demanded_amount);
 			}
+
+			auto existing_count = state.world.market_get_owned_ships(market, uid);
+			auto& supply_cost = def.supply_cost;
+			for(uint8_t i = 0; i < supply_cost.set_size; i++) {
+				auto cid = supply_cost.commodity_type[i];
+				if(!cid) break;
+				auto amount = supply_cost.commodity_amounts[i] * cargo_ship_maintenance_reduction;
+				auto demanded_amount = existing_count * amount * spend_on_ships_maintenance_ratio;
+				register_demand(state, market, cid, demanded_amount);
+			}
+
+			auto old_port_demand = state.world.market_get_port_services_demand(market);
+			auto demanded_port_services = existing_count * vic2_ship_crew_size;
+			state.world.market_set_port_services_demand(market, old_port_demand + demanded_port_services);
 		}
 	});
 
 	set_profile_point(state, "trade_centers_consumption");
 
 	// Convert trade transportation demand
-
-	/*
-	//auto port_services_total_weight = state.world.market_make_vectorizable_float_buffer();
-	province::for_each_market_province_parallel_over_market(state, [&](dcon::market_id mid, dcon::state_instance_id sid, dcon::province_id pid) {
-		auto local_weight = 1.f / (price_properties::service::epsilon + state.world.province_get_service_price(pid, services::list::port_capacity));
-		port_services_total_weight.set(mid, port_services_total_weight.get(mid) + local_weight);
+	concurrency::parallel_for((size_t)(0), (size_t)(state.world.market_size()), [&](auto raw_mid) {
+		dcon::market_id mid{ (dcon::market_id::value_base_t)(raw_mid) };
+		auto sid = state.world.market_get_zone_from_local_market(mid);
+		auto demand_to_distribute = state.world.market_get_port_services_demand(mid);
+		auto total_weight = state.world.market_get_total_port_capacity_weight(mid);
+		if(demand_to_distribute == 0.f || total_weight == 0.f) {
+			return;
+		}
+		province::for_each_province_in_state_instance(state, sid, [&](auto pid) {
+			auto port_size = state.world.province_get_advanced_province_building_max_private_size(pid, advanced_province_buildings::list::civilian_ports);
+			auto local_weight = port_size / (price_properties::service::epsilon + state.world.province_get_service_price(pid, services::list::port_capacity));
+			auto local_demand_add = demand_to_distribute * local_weight / total_weight;
+			auto local_demand = state.world.province_get_service_demand_forbidden_public_supply(pid, services::list::port_capacity);
+			state.world.province_set_service_demand_forbidden_public_supply(pid, services::list::port_capacity, local_demand + local_demand_add);
+		});
 	});
 
-	province::for_each_market_province_parallel_over_market(state, [&](dcon::market_id mid, dcon::state_instance_id sid, dcon::province_id pid) {
-		auto local_weight = 1.f / (price_properties::service::epsilon + state.world.province_get_service_price(pid, services::list::port_capacity));
-		auto total_weight = port_services_total_weight.get(mid);
-		auto market_demand = port_services_buffer.get(mid);
-		auto local_demand = state.world.province_get_service_demand_forbidden_public_supply(pid, services::list::port_capacity);
-		state.world.province_set_service_demand_forbidden_public_supply(pid, services::list::port_capacity, local_demand + market_demand * local_weight / total_weight);
-	});
-	set_profile_point(state, "transportation_consumption");
-	*/
+	set_profile_point(state, "port_demand_conversion");
 
 	sanity_check(state);
 
@@ -3732,18 +3781,44 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 	set_profile_point(state, "refund_nations");
 
+	concurrency::parallel_for((size_t)(0), (size_t)(state.world.market_size()), [&](auto raw_mid) {
+		dcon::market_id mid{ (dcon::market_id::value_base_t)(raw_mid) };
+		auto sid = state.world.market_get_zone_from_local_market(mid);
+		auto total_sat = 0.f;
+		province::for_each_province_in_state_instance(state, sid, [&](auto pid) {
+			auto local_price = state.world.province_get_service_price(pid, services::list::port_capacity);
+			auto local_size = state.world.province_get_advanced_province_building_max_private_size(pid, advanced_province_buildings::list::civilian_ports);
+			auto local_weight = local_size / (price_properties::service::epsilon + local_price);
+			auto current_weight = state.world.market_get_total_port_capacity_weight(mid);
+
+			auto bought_locally = current_weight == 0.f ? 0.f : local_weight / current_weight;
+			auto local_satisfied = state.world.province_get_service_satisfaction(pid, services::list::education);
+
+			auto sat_contribution = bought_locally * local_satisfied;
+			total_sat = total_sat + sat_contribution;
+		});
+		state.world.market_set_port_services_demand_satisfaction(mid, total_sat);
+	});
+
+
+	set_profile_point(state, "recalculate_refund_for_services");
+
 	state.world.execute_parallel_over_market([&](auto market) {
 		auto area = state.world.market_get_zone_from_local_market(market);
 		auto nation = state.world.state_instance_get_nation_from_state_ownership(area);
 		auto current_size = state.world.market_get_total_port_capacity(market);
 
 		auto ships_ratio = state.world.market_get_shipbuilding_spending_ratio(market);
+		auto ships_maintenance_ratio = state.world.market_get_ships_maintenance_spending_ratio(market);
 		//auto income_scale = state.world.market_get_trade_house_budget_scale(market);
 		auto shipping_satisfaction = state.world.market_get_naval_transportation_demand_satisfaction(market);
 		auto ship_building_priority = 1.f - shipping_satisfaction;
-		auto ship_building_speed = current_size / 50000.f * ship_building_priority;
+		auto ship_building_speed = current_size / 10000.f * ship_building_priority;
+
+		auto port_refund = 1.f - state.world.market_get_port_services_demand_satisfaction(market);
 
 		ve::fp_vector shipbuilding_refund {0.f};
+		ve::fp_vector total_port_services_demanded{ 0.f };
 
 		ve::fp_vector total_score = 0.f;
 		for(uint32_t u = 0; u < state.military_definitions.unit_base_definitions.size(); ++u) {
@@ -3793,13 +3868,38 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto price = state.world.market_get_price(market, cid);
 				auto refunded = demanded_amount * price * (1.f - actually_bought);
 				shipbuilding_refund = shipbuilding_refund + refunded;
-				min_satisfied = ve::min(min_satisfied, state.world.market_get_actual_probability_to_buy(market, cid));
+				min_satisfied = ve::min(min_satisfied, actually_bought);
+			}
+			auto ready_ships = state.world.market_get_owned_ships(market, uid);
+			auto& supply_cost = def.supply_cost;
+			ve::fp_vector min_satisfied_maintenance = 1.f;
+			for(uint8_t i = 0; i < supply_cost.set_size; i++) {
+				auto cid = supply_cost.commodity_type[i];
+				if(!cid) break;
+				auto amount = supply_cost.commodity_amounts[i] * cargo_ship_maintenance_reduction;
+				auto actually_bought = state.world.market_get_actual_probability_to_buy(market, cid);
+				auto demanded_amount = ready_ships * amount * ships_maintenance_ratio;
+				auto price = state.world.market_get_price(market, cid);
+				auto refunded = demanded_amount * price * (1.f - actually_bought);
+				shipbuilding_refund = shipbuilding_refund + refunded;
+				min_satisfied_maintenance = ve::min(min_satisfied_maintenance, actually_bought);
 			}
 			auto advance = min_satisfied * weight * ship_building_speed * ships_ratio;
-			auto ready_ships = state.world.market_get_owned_ships(market, uid);
-			state.world.market_set_owned_ships(market, uid, ready_ships + advance);
+			auto port_services = ready_ships * vic2_ship_crew_size;
+			total_port_services_demanded = total_port_services_demanded + port_services;
+
+			state.world.market_set_owned_ships(
+				market,
+				uid,
+				ready_ships
+				* ve::max(0.99999f, ve::min(1.f, 0.5f + min_satisfied_maintenance * ships_maintenance_ratio))
+				+ advance
+			);
 		}
 
+
+		auto total_cost_port_services = total_port_services_demanded * state.world.market_get_port_services_weighted_price(market);
+		shipbuilding_refund = shipbuilding_refund + total_cost_port_services * port_refund;
 		state.world.market_set_shipbuilding_refund(market, shipbuilding_refund);
 	});
 

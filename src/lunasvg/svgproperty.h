@@ -121,7 +121,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const std::string& value() const { return m_value; }
+    const std::string& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:
@@ -136,8 +136,8 @@ public:
         : m_id(id), m_color(color)
     {}
 
-    const Color& color() const { return m_color; }
-    const std::string& id() const { return m_id; }
+    const Color& color() const [[clang::lifetimebound]] { return m_color; }
+    const std::string& id() const [[clang::lifetimebound]] { return m_id; }
     bool isNone() const { return m_id.empty() && !m_color.isVisible(); }
 
 private:
@@ -351,7 +351,7 @@ public:
 
     LengthDirection direction() const { return m_direction; }
     LengthNegativeMode negativeMode() const { return m_negativeMode; }
-    const Length& value() const { return m_value; }
+    const Length& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:
@@ -362,7 +362,7 @@ private:
 
 class LengthContext {
 public:
-    LengthContext(const SVGElement* element, Units units = Units::UserSpaceOnUse)
+    LengthContext(const SVGElement* element [[clang::lifetimebound]], Units units = Units::UserSpaceOnUse)
         : m_element(element), m_units(units)
     {}
 
@@ -387,7 +387,7 @@ public:
 
     LengthDirection direction() const { return m_direction; }
     LengthNegativeMode negativeMode() const { return m_negativeMode; }
-    const LengthList& values() const { return m_values; }
+    const LengthList& values() const [[clang::lifetimebound]] { return m_values; }
     bool parse(std::string_view input) final;
 
 private:
@@ -410,7 +410,7 @@ public:
     BaselineShift(const Length& length) : m_type(Type::Length), m_length(length) {}
 
     Type type() const { return m_type; }
-    const Length& length() const { return m_length; }
+    const Length& length() const [[clang::lifetimebound]] { return m_length; }
 
 private:
     Type m_type{Type::Baseline};
@@ -453,7 +453,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const NumberList& values() const { return m_values; }
+    const NumberList& values() const [[clang::lifetimebound]] { return m_values; }
     bool parse(std::string_view input) final;
 
 private:
@@ -466,7 +466,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const Path& value() const { return m_value; }
+    const Path& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:
@@ -479,7 +479,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const Point& value() const { return m_value; }
+    const Point& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:
@@ -494,7 +494,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const PointList& values() const { return m_values; }
+    const PointList& values() const [[clang::lifetimebound]] { return m_values; }
     bool parse(std::string_view input) final;
 
 private:
@@ -508,7 +508,7 @@ public:
         , m_value(Rect::Invalid)
     {}
 
-    const Rect& value() const { return m_value; }
+    const Rect& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:
@@ -521,7 +521,7 @@ public:
         : SVGProperty(id)
     {}
 
-    const Transform& value() const { return m_value; }
+    const Transform& value() const [[clang::lifetimebound]] { return m_value; }
     bool parse(std::string_view input) final;
 
 private:

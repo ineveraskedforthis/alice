@@ -7,12 +7,12 @@ namespace lunasvg {
 
 class SVGMarkerPosition {
 public:
-    SVGMarkerPosition(const SVGMarkerElement* element, const Point& origin, float angle)
+    SVGMarkerPosition(const SVGMarkerElement* element [[clang::lifetimebound]], const Point& origin, float angle)
         : m_element(element), m_origin(origin), m_angle(angle)
     {}
 
     const SVGMarkerElement* element() const { return m_element; }
-    const Point& origin() const { return m_origin; }
+    const Point& origin() const [[clang::lifetimebound]] { return m_origin; }
     float angle() const { return m_angle; }
 
     Rect markerBoundingBox(float strokeWidth) const;
@@ -46,7 +46,7 @@ public:
     void updateMarkerPositions(SVGMarkerPositionList& positions, const SVGLayoutState& state);
     void render(SVGRenderState& state) const override;
 
-    const Path& path() const { return m_path; }
+    const Path& path() const [[clang::lifetimebound]] { return m_path; }
 
 private:
     Path m_path;

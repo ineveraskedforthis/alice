@@ -450,7 +450,7 @@ void generate_sea_trade_routes(sys::state& state) {
 			auto pop_scale_origin = score_origin / london_pop;
 			auto pop_scale_target = score_target / ny_pop;
 
-			float score_approximation = (mult * pop_scale_origin + pop_scale_target * 0.01f) * distance_approximation_scale;
+			float score_approximation = (mult * pop_scale_origin * (0.1f + pop_scale_target)) * distance_approximation_scale;
 
 			if(!(score_approximation >= 1.f || must_connect)) {
 				return;
@@ -480,7 +480,7 @@ void generate_sea_trade_routes(sys::state& state) {
 			auto distance_scale = std::min(1.f, london_to_ny / distance_km);
 			distance_scale = distance_scale * distance_scale * distance_scale;
 
-			float score = (mult * pop_scale_origin + pop_scale_target * 0.01f) * distance_scale;
+			float score = (mult * pop_scale_origin * (0.1f + pop_scale_target)) * distance_scale;
 
 			if(score >= 1.f || must_connect) {
 				{

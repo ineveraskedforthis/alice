@@ -135,8 +135,8 @@ T parse_xac_any_binary(const char** start, const char* end, parsers::error_handl
 	return obj;
 }
 
-const char* parse_xac_cstring(const char* start, const char* end, parsers::error_handler& err);
-const char* parse_xac_cstring_nodiscard(std::string& out, const char* start, const char* end, parsers::error_handler& err);
+const char* parse_xac_cstring(const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err);
+const char* parse_xac_cstring_nodiscard(std::string& out, const char* start [[clang::lifetimebound]], const char* end, parsers::error_handler& err);
 
 struct xac_metadata_chunk_header {
 	uint32_t reposition_mask = 0;

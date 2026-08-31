@@ -110,13 +110,13 @@ constexpr Point operator-(const Point& a)
     return Point(-a.x, -a.y);
 }
 
-constexpr Point& operator+=(Point& a, const Point& b)
+constexpr Point& operator+=(Point& a [[clang::lifetimebound]], const Point& b)
 {
     a.move(b);
     return a;
 }
 
-constexpr Point& operator-=(Point& a, const Point& b)
+constexpr Point& operator-=(Point& a [[clang::lifetimebound]], const Point& b)
 {
     a.move(-b);
     return a;
@@ -163,13 +163,13 @@ constexpr Size operator-(const Size& a)
     return Size(-a.w, -a.h);
 }
 
-constexpr Size& operator+=(Size& a, const Size& b)
+constexpr Size& operator+=(Size& a [[clang::lifetimebound]], const Size& b)
 {
     a.expand(b);
     return a;
 }
 
-constexpr Size& operator-=(Size& a, const Size& b)
+constexpr Size& operator-=(Size& a [[clang::lifetimebound]], const Size& b)
 {
     a.expand(-b);
     return a;
@@ -204,8 +204,8 @@ public:
     constexpr Rect intersected(const Rect& rect) const;
     constexpr Rect united(const Rect& rect) const;
 
-    constexpr Rect& intersect(const Rect& o);
-    constexpr Rect& unite(const Rect& o);
+    constexpr Rect& intersect(const Rect& o) [[clang::lifetimebound]];
+    constexpr Rect& unite(const Rect& o) [[clang::lifetimebound]];
 
     constexpr Point origin() const { return Point(x, y); }
     constexpr Size size() const { return Size(w, h); }
@@ -280,20 +280,20 @@ public:
     Transform operator*(const Transform& transform) const;
     Transform& operator*=(const Transform& transform);
 
-    Transform& multiply(const Transform& transform);
-    Transform& translate(float tx, float ty);
-    Transform& scale(float sx, float sy);
-    Transform& rotate(float angle, float cx = 0.f, float cy = 0.f);
-    Transform& shear(float shx, float shy);
+    Transform& multiply(const Transform& transform) [[clang::lifetimebound]];
+    Transform& translate(float tx, float ty) [[clang::lifetimebound]];
+    Transform& scale(float sx, float sy) [[clang::lifetimebound]];
+    Transform& rotate(float angle, float cx = 0.f, float cy = 0.f) [[clang::lifetimebound]];
+    Transform& shear(float shx, float shy) [[clang::lifetimebound]];
 
-    Transform& postMultiply(const Transform& transform);
-    Transform& postTranslate(float tx, float ty);
-    Transform& postScale(float sx, float sy);
-    Transform& postRotate(float angle, float cx = 0.f, float cy = 0.f);
-    Transform& postShear(float shx, float shy);
+    Transform& postMultiply(const Transform& transform) [[clang::lifetimebound]];
+    Transform& postTranslate(float tx, float ty) [[clang::lifetimebound]];
+    Transform& postScale(float sx, float sy) [[clang::lifetimebound]];
+    Transform& postRotate(float angle, float cx = 0.f, float cy = 0.f) [[clang::lifetimebound]];
+    Transform& postShear(float shx, float shy) [[clang::lifetimebound]];
 
     Transform inverse() const;
-    Transform& invert();
+    Transform& invert() [[clang::lifetimebound]];
 
     void reset();
 
@@ -304,8 +304,8 @@ public:
     float xScale() const;
     float yScale() const;
 
-    const plutovg_matrix_t& matrix() const { return m_matrix; }
-    plutovg_matrix_t& matrix() { return m_matrix; }
+    const plutovg_matrix_t& matrix() const [[clang::lifetimebound]] { return m_matrix; }
+    plutovg_matrix_t& matrix() [[clang::lifetimebound]] { return m_matrix; }
 
     bool parse(const char* data, size_t length);
 
@@ -443,7 +443,7 @@ public:
 
     float measureText(const std::u32string_view& text) const;
 
-    const FontFace& face() const { return m_face; }
+    const FontFace& face() const [[clang::lifetimebound]] { return m_face; }
     float size() const { return m_size; }
 
     bool isNull() const { return m_size <= 0.f || m_face.isNull(); }
@@ -484,7 +484,7 @@ public:
     float dashOffset() const { return m_dashOffset; }
 
     void setDashArray(DashArray dashArray) { m_dashArray = std::move(dashArray); }
-    const DashArray& dashArray() const { return m_dashArray; }
+    const DashArray& dashArray() const [[clang::lifetimebound]] { return m_dashArray; }
 
     void setLineCap(LineCap lineCap) { m_lineCap = lineCap; }
     LineCap lineCap() const { return m_lineCap; }

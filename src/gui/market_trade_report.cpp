@@ -803,6 +803,10 @@ void market_trade_report_body_t::create_layout_level(sys::state& state, layout_l
 		layout_item_types t;
 		buffer.read(t);
 		switch(t) {
+			case layout_item_types::control:
+			case layout_item_types::window:
+			case layout_item_types::generator:
+				abort();
 			case layout_item_types::texture_layer:
 			{
 				texture_layer temp;
@@ -1116,6 +1120,10 @@ void market_trade_report_commodity_t::create_layout_level(sys::state& state, lay
 		layout_item_types t;
 		buffer.read(t);
 		switch(t) {
+			case layout_item_types::control:
+			case layout_item_types::window:
+			case layout_item_types::generator:
+				abort();
 			case layout_item_types::texture_layer:
 			{
 				texture_layer temp;
@@ -1787,6 +1795,10 @@ void market_trade_report_trade_item_t::create_layout_level(sys::state& state, la
 		layout_item_types t;
 		buffer.read(t);
 		switch(t) {
+		case layout_item_types::control:
+		case layout_item_types::window:
+		case layout_item_types::generator:
+			abort();
 			case layout_item_types::texture_layer:
 			{
 				texture_layer temp;
@@ -2148,6 +2160,10 @@ void market_trade_report_nation_data_t::create_layout_level(sys::state& state, l
 		layout_item_types t;
 		buffer.read(t);
 		switch(t) {
+		case layout_item_types::control:
+		case layout_item_types::window:
+		case layout_item_types::generator:
+			abort();
 			case layout_item_types::texture_layer:
 			{
 				texture_layer temp;
@@ -2707,6 +2723,10 @@ void market_trade_report_trade_header_t::create_layout_level(sys::state& state, 
 		layout_item_types t;
 		buffer.read(t);
 		switch(t) {
+		case layout_item_types::control:
+		case layout_item_types::window:
+		case layout_item_types::generator:
+			abort();
 			case layout_item_types::texture_layer:
 			{
 				texture_layer temp;
