@@ -19,7 +19,7 @@ public:
     SVGStopElement(Document* document);
 
     void layoutElement(const SVGLayoutState& state) final;
-    const SVGNumberPercentage& offset() const [[clang::lifetimebound]] { return m_offset; }
+    const SVGNumberPercentage& offset() const { return m_offset; }
     GradientStop gradientStop(float opacity) const;
 
 private:
@@ -34,9 +34,9 @@ class SVGGradientElement : public SVGPaintElement, public SVGURIReference {
 public:
     SVGGradientElement(Document* document, ElementID id);
 
-    const SVGTransform& gradientTransform() const [[clang::lifetimebound]] { return m_gradientTransform; }
-    const SVGEnumeration<Units>& gradientUnits() const [[clang::lifetimebound]] { return m_gradientUnits; }
-    const SVGEnumeration<SpreadMethod>& spreadMethod() const [[clang::lifetimebound]] { return m_spreadMethod; }
+    const SVGTransform& gradientTransform() const { return m_gradientTransform; }
+    const SVGEnumeration<Units>& gradientUnits() const { return m_gradientUnits; }
+    const SVGEnumeration<SpreadMethod>& spreadMethod() const { return m_spreadMethod; }
     void collectGradientAttributes(SVGGradientAttributes& attributes) const;
 
 private:
@@ -84,10 +84,10 @@ class SVGLinearGradientElement final : public SVGGradientElement {
 public:
     SVGLinearGradientElement(Document* document);
 
-    const SVGLength& x1() const [[clang::lifetimebound]] { return m_x1; }
-    const SVGLength& y1() const [[clang::lifetimebound]] { return m_y1; }
-    const SVGLength& x2() const [[clang::lifetimebound]] { return m_x2; }
-    const SVGLength& y2() const [[clang::lifetimebound]] { return m_y2; }
+    const SVGLength& x1() const { return m_x1; }
+    const SVGLength& y1() const { return m_y1; }
+    const SVGLength& x2() const { return m_x2; }
+    const SVGLength& y2() const { return m_y2; }
 
     bool applyPaint(SVGRenderState& state, float opacity) const final;
 
@@ -139,11 +139,11 @@ class SVGRadialGradientElement final : public SVGGradientElement {
 public:
     SVGRadialGradientElement(Document* document);
 
-    const SVGLength& cx() const [[clang::lifetimebound]] { return m_cx; }
-    const SVGLength& cy() const [[clang::lifetimebound]] { return m_cy; }
-    const SVGLength& r() const [[clang::lifetimebound]] { return m_r; }
-    const SVGLength& fx() const [[clang::lifetimebound]] { return m_fx; }
-    const SVGLength& fy() const [[clang::lifetimebound]] { return m_fy; }
+    const SVGLength& cx() const { return m_cx; }
+    const SVGLength& cy() const { return m_cy; }
+    const SVGLength& r() const { return m_r; }
+    const SVGLength& fx() const { return m_fx; }
+    const SVGLength& fy() const { return m_fy; }
 
     bool applyPaint(SVGRenderState& state, float opacity) const final;
 
@@ -199,13 +199,13 @@ class SVGPatternElement final : public SVGPaintElement, public SVGURIReference, 
 public:
     SVGPatternElement(Document* document);
 
-    const SVGLength& x() const [[clang::lifetimebound]] { return m_x; }
-    const SVGLength& y() const [[clang::lifetimebound]] { return m_y; }
-    const SVGLength& width() const [[clang::lifetimebound]] { return m_width; }
-    const SVGLength& height() const [[clang::lifetimebound]] { return m_height; }
-    const SVGTransform& patternTransform() const [[clang::lifetimebound]] { return m_patternTransform; }
-    const SVGEnumeration<Units>& patternUnits() const [[clang::lifetimebound]] { return m_patternUnits; }
-    const SVGEnumeration<Units>& patternContentUnits() const [[clang::lifetimebound]] { return m_patternContentUnits; }
+    const SVGLength& x() const { return m_x; }
+    const SVGLength& y() const { return m_y; }
+    const SVGLength& width() const { return m_width; }
+    const SVGLength& height() const { return m_height; }
+    const SVGTransform& patternTransform() const { return m_patternTransform; }
+    const SVGEnumeration<Units>& patternUnits() const { return m_patternUnits; }
+    const SVGEnumeration<Units>& patternContentUnits() const { return m_patternContentUnits; }
 
     bool applyPaint(SVGRenderState& state, float opacity) const final;
 

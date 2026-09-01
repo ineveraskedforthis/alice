@@ -177,7 +177,7 @@ public:
     /**
      * @internal
      */
-    Bitmap(plutovg_surface_t* surface [[clang::lifetimebound]]) : m_surface(surface) {}
+    Bitmap(plutovg_surface_t* surface) : m_surface(surface) {}
 
     /**
      * @brief Cleans up any resources associated with the bitmap.
@@ -309,7 +309,7 @@ public:
      * @param matrix The transformation matrix.
      * @return A reference to this box, modified by the transformation.
      */
-    Box& transform(const Matrix& matrix) [[clang::lifetimebound]];
+    Box& transform(const Matrix& matrix);
 
     /**
      * @brief Returns a new box transformed by the specified matrix.
@@ -376,7 +376,7 @@ public:
      * @param matrix The matrix to multiply with.
      * @return A reference to this matrix after multiplication.
      */
-    Matrix& multiply(const Matrix& matrix) [[clang::lifetimebound]];
+    Matrix& multiply(const Matrix& matrix);
 
     /**
      * @brief Translates this matrix by the specified offsets.
@@ -384,7 +384,7 @@ public:
      * @param ty The vertical translation offset.
      * @return A reference to this matrix after translation.
      */
-    Matrix& translate(float tx, float ty) [[clang::lifetimebound]];
+    Matrix& translate(float tx, float ty);
 
     /**
      * @brief Scales this matrix by the specified factors.
@@ -392,7 +392,7 @@ public:
      * @param sy The vertical scaling factor.
      * @return A reference to this matrix after scaling.
      */
-    Matrix& scale(float sx, float sy) [[clang::lifetimebound]];
+    Matrix& scale(float sx, float sy);
 
     /**
      * @brief Rotates this matrix by the specified angle around a point.
@@ -401,7 +401,7 @@ public:
      * @param cy The y-coordinate of the center of rotation.
      * @return A reference to this matrix after rotation.
      */
-    Matrix& rotate(float angle, float cx = 0.f, float cy = 0.f) [[clang::lifetimebound]];
+    Matrix& rotate(float angle, float cx = 0.f, float cy = 0.f);
 
     /**
      * @brief Shears this matrix by the specified factors.
@@ -409,13 +409,13 @@ public:
      * @param shy The vertical shearing factor.
      * @return A reference to this matrix after shearing.
      */
-    Matrix& shear(float shx, float shy) [[clang::lifetimebound]];
+    Matrix& shear(float shx, float shy);
 
     /**
      * @brief Inverts this matrix.
      * @return A reference to this matrix after inversion.
      */
-    Matrix& invert() [[clang::lifetimebound]];
+    Matrix& invert();
 
     /**
      * @brief Returns the inverse of this matrix.
@@ -540,7 +540,7 @@ public:
     bool operator!=(const Node& node) const { return m_node != node.m_node; }
 
 protected:
-    Node(SVGNode* node [[clang::lifetimebound]] );
+    Node(SVGNode* node );
     SVGNode* node() const { return m_node; }
     SVGNode* m_node{nullptr};
     friend class Element;
@@ -783,7 +783,7 @@ private:
     Document();
     Document(const Document&) = delete;
     Document& operator=(const Document&) = delete;
-    SVGRootElement* rootElement(bool layoutIfNeeded = false) const [[clang::lifetimebound]];
+    SVGRootElement* rootElement(bool layoutIfNeeded = false) const;
     bool parse(const char* data, size_t length);
     std::unique_ptr<SVGRootElement> m_rootElement;
     friend class SVGURIReference;

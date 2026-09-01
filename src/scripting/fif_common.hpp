@@ -29,7 +29,7 @@ inline int32_t f_date_to_year(int64_t v) {
 inline int32_t f_date_to_month(int64_t v) {
 	return int32_t(civil_from_days(v).month);
 }
-inline int32_t* f_date_to_year_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_date_to_year_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -44,7 +44,7 @@ inline int32_t* f_date_to_year_b(fif::state_stack& s, int32_t* p [[clang::lifeti
 
 	return p + 2;
 }
-inline int32_t* f_date_to_month_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_date_to_month_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -69,7 +69,7 @@ inline bool f_empty_adjacent_province(sys::state* state, int32_t p_index) {
 	}
 	return false;
 }
-inline int32_t* f_empty_adjacent_province_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_empty_adjacent_province_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -102,7 +102,7 @@ inline bool f_empty_adjacent_state(sys::state* state, int32_t p_index) {
 	}
 	return false;
 }
-inline int32_t* f_empty_adjacent_state_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_empty_adjacent_state_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -180,7 +180,7 @@ inline bool f_unowned_core(sys::state* state, int32_t n_index) {
 	acc.flush();
 	return acc.result;
 }
-inline int32_t* f_unowned_core_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_unowned_core_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -209,7 +209,7 @@ inline bool f_core_in_nation(sys::state* state, int32_t n_index, int32_t t_index
 	}
 	return false;
 }
-inline int32_t* f_core_in_nation_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_core_in_nation_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -238,7 +238,7 @@ inline bool f_core_in_province(sys::state* state, int32_t p_index, int32_t t_ind
 	auto core = state->world.get_core_by_prov_tag_key(p, t);
 	return bool(core);
 }
-inline int32_t* f_core_in_province_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_core_in_province_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -271,7 +271,7 @@ inline bool f_core_in_state(sys::state* state, int32_t s_index, int32_t t_index)
 	}
 	return false;
 }
-inline int32_t* f_core_in_state_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_core_in_state_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -304,7 +304,7 @@ inline bool f_core_fully_state(sys::state* state, int32_t s_index, int32_t t_ind
 	}
 	return true;
 }
-inline int32_t* f_core_fully_state_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_core_fully_state_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -331,7 +331,7 @@ inline bool f_has_cb_against(sys::state* state, int32_t targ_index, int32_t sour
 	dcon::nation_id t{ dcon::nation_id::value_base_t(targ_index) };
 	return military::can_use_cb_against<false>(*state, s, t);
 }
-inline int32_t* f_has_cb_against_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_cb_against_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -361,7 +361,7 @@ inline bool f_has_access_with(sys::state* state, int32_t targ_index, int32_t sou
 	}
 	return false;
 }
-inline int32_t* f_has_access_with_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_access_with_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -382,7 +382,7 @@ inline bool f_has_any_factory(sys::state* state, int32_t s_index) {
 	dcon::state_instance_id s{ dcon::state_instance_id::value_base_t(s_index) };
 	return economy::has_factory(*state, s);
 }
-inline int32_t* f_has_any_factory_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_any_factory_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -403,7 +403,7 @@ inline bool f_has_factory(sys::state* state, int32_t findex, int32_t s_index) {
 	dcon::state_instance_id s{ dcon::state_instance_id::value_base_t(s_index) };
 	return economy::has_building(*state, s, f);
 }
-inline int32_t* f_has_factory_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_factory_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -429,7 +429,7 @@ inline bool f_has_nmod(sys::state* state, int32_t m_index, int32_t n_index) {
 	}
 	return false;
 }
-inline int32_t* f_has_nmod_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_nmod_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -481,7 +481,7 @@ inline bool f_in_region(sys::state* state, int32_t rindex, int32_t p_index) {
 	}
 	return false;
 }
-inline int32_t* f_in_region_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_in_region_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -507,7 +507,7 @@ inline bool f_owns_region(sys::state* state, int32_t rindex, int32_t n_index) {
 	}
 	return true;
 }
-inline int32_t* f_owns_region_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_owns_region_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -533,7 +533,7 @@ inline bool f_owns_state(sys::state* state, int32_t rindex, int32_t n_index) {
 	}
 	return true;
 }
-inline int32_t* f_owns_state_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_owns_state_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -555,7 +555,7 @@ inline bool f_nation_a(sys::state* state, int32_t aindex, int32_t bindex) {
 	dcon::nation_id b{ dcon::nation_id::value_base_t(bindex) };
 	return bool(state->world.get_nation_adjacency_by_nation_adjacency_pair(a, b));
 }
-inline int32_t* f_nation_a_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_nation_a_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -586,7 +586,7 @@ inline bool f_units_in_state(sys::state* state, int32_t sindex, int32_t nindex) 
 	}
 	return false;
 }
-inline int32_t* f_units_in_state_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_units_in_state_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -613,7 +613,7 @@ inline bool f_units_in_province(sys::state* state, int32_t sindex, int32_t ninde
 	}
 	return false;
 }
-inline int32_t* f_units_in_province_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_units_in_province_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -640,7 +640,7 @@ inline int32_t f_count_p_units(sys::state* state, int32_t sindex) {
 	}
 	return total;
 }
-inline int32_t* f_count_p_units_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_count_p_units_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -661,7 +661,7 @@ inline bool f_are_at_war(sys::state* state, int32_t sindex, int32_t nindex) {
 	dcon::nation_id n{ dcon::nation_id::value_base_t(nindex) };
 	return military::are_at_war(*state, s, n);
 }
-inline int32_t* f_are_at_war_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_are_at_war_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -687,7 +687,7 @@ inline bool f_general_in_p(sys::state* state, int32_t sindex) {
 	}
 	return false;
 }
-inline int32_t* f_general_in_p_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_general_in_p_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -713,7 +713,7 @@ inline int32_t f_count_ships(sys::state* state, int32_t sindex) {
 	}
 	return total;
 }
-inline int32_t* f_count_ships_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_count_ships_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -733,7 +733,7 @@ inline bool f_coastal_s(sys::state* state, int32_t sindex) {
 	dcon::state_instance_id s{ dcon::state_instance_id::value_base_t(sindex) };
 	return province::state_is_coastal(*state, s);
 }
-inline int32_t* f_coastal_s_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_coastal_s_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -768,7 +768,7 @@ inline bool f_state_produces(sys::state* state, int32_t cindex, int32_t sindex) 
 
 	return false;
 }
-inline int32_t* f_state_produces_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_state_produces_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;
@@ -795,7 +795,7 @@ inline bool f_has_culture_core(sys::state* state, int32_t cindex, int32_t sindex
 	}
 	return false;
 }
-inline int32_t* f_has_culture_core_b(fif::state_stack& s, int32_t* p [[clang::lifetimebound]], fif::environment* e) {
+inline int32_t* f_has_culture_core_b(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
 			return p + 2;

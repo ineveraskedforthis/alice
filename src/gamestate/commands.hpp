@@ -158,7 +158,7 @@ enum class command_type : uint8_t {
 struct load_save_game_data {
 	bool is_new_game;
 	uint8_t filename_length;
-	const char* filename() const [[clang::lifetimebound]] {
+	const char* filename() const {
 		return reinterpret_cast<const char*>(&filename_length + 1);
 	}
 };
@@ -188,7 +188,7 @@ struct make_leader_data {
 struct save_game_data {
 	bool and_quit;
 	uint8_t filename_len;
-	const char* filename() const [[clang::lifetimebound]] {
+	const char* filename() const {
 		return reinterpret_cast<const char*>(&filename_len + 1);
 	}
 };
@@ -386,7 +386,7 @@ struct split_army_data {
 	fixed_bool_t select_both_armies; // if true will select both the existing and the new army as player. If false selects only the new army
 	dcon::army_id army;
 	uint16_t regiment_count;
-	const dcon::regiment_id* regiments() const [[clang::lifetimebound]] {
+	const dcon::regiment_id* regiments() const {
 		return reinterpret_cast<const dcon::regiment_id*>(this + 1);
 	}
 };
@@ -395,7 +395,7 @@ struct split_navy_data {
 	fixed_bool_t select_both_navies; // if true will select both the existing and the new navy as player. If false selects only the new navy
 	dcon::navy_id navy;
 	uint16_t ship_count;
-	const dcon::ship_id* ships() const [[clang::lifetimebound]] {
+	const dcon::ship_id* ships() const {
 		return reinterpret_cast<const dcon::ship_id*>(this + 1);
 	}
 };
@@ -449,7 +449,7 @@ struct split_ships_data {
 struct change_land_unit_type_data {
 	dcon::unit_type_id new_type;
 	uint16_t unit_count;
-	const dcon::regiment_id* regiments() const [[clang::lifetimebound]] {
+	const dcon::regiment_id* regiments() const {
 		return reinterpret_cast<const dcon::regiment_id*>(this + 1);
 	}
 
@@ -458,7 +458,7 @@ struct change_land_unit_type_data {
 struct change_naval_unit_type_data {
 	dcon::unit_type_id new_type;
 	uint16_t unit_count;
-	const dcon::ship_id* ships() const [[clang::lifetimebound]] {
+	const dcon::ship_id* ships() const {
 		return reinterpret_cast<const dcon::ship_id*>(this + 1);
 	}
 
@@ -487,7 +487,7 @@ struct set_factory_priority_data {
 struct chat_message_data {
 	network::chat_message_targets targets;
 	uint16_t msg_len = 0;
-	const char* body() const [[clang::lifetimebound]] {
+	const char* body() const {
 		return reinterpret_cast<const char*>(this + 1);
 	}
 };
@@ -513,7 +513,7 @@ struct notify_save_loaded_data {
 	sys::checksum_key checksum;
 	dcon::nation_id target;
 	uint32_t length;
-	const uint8_t* save_data() const [[clang::lifetimebound]] {
+	const uint8_t* save_data() const {
 		return reinterpret_cast<const uint8_t*>(&length + 1);
 	}
 
@@ -541,7 +541,7 @@ struct notify_player_timeout_data {
 };
 struct notify_oos_gamestate_data {
 	uint32_t size;
-	const uint8_t* gamestate_data() const [[clang::lifetimebound]] {
+	const uint8_t* gamestate_data() const {
 		return reinterpret_cast<const uint8_t*>(&size + 1);
 	}
 };
@@ -575,7 +575,7 @@ struct change_gamerule_setting_data {
 
 struct notify_mp_data_data {
 	uint32_t data_len = 0;
-	const uint8_t* mp_data() const [[clang::lifetimebound]] {
+	const uint8_t* mp_data() const {
 		return reinterpret_cast<const uint8_t*>(&data_len + 1);
 	}
 };

@@ -8,16 +8,16 @@ namespace lunasvg {
 class SVGLayoutState {
 public:
     SVGLayoutState() = default;
-    SVGLayoutState(const SVGLayoutState& parent [[clang::lifetimebound]], const SVGElement* element [[clang::lifetimebound]] );
+    SVGLayoutState(const SVGLayoutState& parent, const SVGElement* element );
 
     const SVGLayoutState* parent() const { return m_parent; }
     const SVGElement* element() const { return m_element; }
 
-    const Paint& fill() const [[clang::lifetimebound]] { return m_fill; }
-    const Paint& stroke() const [[clang::lifetimebound]] { return m_stroke; }
+    const Paint& fill() const { return m_fill; }
+    const Paint& stroke() const { return m_stroke; }
 
-    const Color& color() const [[clang::lifetimebound]] { return m_color; }
-    const Color& stop_color() const [[clang::lifetimebound]] { return m_stop_color; }
+    const Color& color() const { return m_color; }
+    const Color& stop_color() const { return m_stop_color; }
 
     float opacity() const { return m_opacity; }
     float stop_opacity() const { return m_stop_opacity; }
@@ -26,13 +26,13 @@ public:
     float stroke_miterlimit() const { return m_stroke_miterlimit; }
     float font_size() const { return m_font_size; }
 
-    const Length& letter_spacing() const [[clang::lifetimebound]] { return m_letter_spacing; }
-    const Length& word_spacing() const [[clang::lifetimebound]] { return m_word_spacing; }
+    const Length& letter_spacing() const { return m_letter_spacing; }
+    const Length& word_spacing() const { return m_word_spacing; }
 
-    const BaselineShift& baseline_shit() const [[clang::lifetimebound]] { return m_baseline_shit; }
-    const Length& stroke_width() const [[clang::lifetimebound]] { return m_stroke_width; }
-    const Length& stroke_dashoffset() const [[clang::lifetimebound]] { return m_stroke_dashoffset; }
-    const LengthList& stroke_dasharray() const [[clang::lifetimebound]] { return m_stroke_dasharray; }
+    const BaselineShift& baseline_shit() const { return m_baseline_shit; }
+    const Length& stroke_width() const { return m_stroke_width; }
+    const Length& stroke_dashoffset() const { return m_stroke_dashoffset; }
+    const LengthList& stroke_dasharray() const { return m_stroke_dasharray; }
 
     LineCap stroke_linecap() const { return m_stroke_linecap; }
     LineJoin stroke_linejoin() const { return m_stroke_linejoin; }
@@ -58,12 +58,12 @@ public:
     PointerEvents pointer_events() const { return m_pointer_events; }
     MaskType mask_type() const { return m_mask_type; }
 
-    const std::string& mask() const [[clang::lifetimebound]] { return m_mask; }
-    const std::string& clip_path() const [[clang::lifetimebound]] { return m_clip_path; }
-    const std::string& marker_start() const [[clang::lifetimebound]] { return m_marker_start; }
-    const std::string& marker_mid() const [[clang::lifetimebound]] { return m_marker_mid; }
-    const std::string& marker_end() const [[clang::lifetimebound]] { return m_marker_end; }
-    const std::string& font_family() const [[clang::lifetimebound]] { return m_font_family; }
+    const std::string& mask() const { return m_mask; }
+    const std::string& clip_path() const { return m_clip_path; }
+    const std::string& marker_start() const { return m_marker_start; }
+    const std::string& marker_mid() const { return m_marker_mid; }
+    const std::string& marker_end() const { return m_marker_end; }
+    const std::string& font_family() const { return m_font_family; }
 
     Font font() const;
 

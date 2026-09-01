@@ -13,7 +13,7 @@ enum class SVGRenderMode {
 class SVGBlendInfo {
 public:
     explicit SVGBlendInfo(const SVGElement* element);
-    SVGBlendInfo(const SVGClipPathElement* clipper [[clang::lifetimebound]], const SVGMaskElement* masker [[clang::lifetimebound]], float opacity)
+    SVGBlendInfo(const SVGClipPathElement* clipper, const SVGMaskElement* masker, float opacity)
         : m_clipper(clipper), m_masker(masker), m_opacity(opacity)
     {}
 
@@ -30,12 +30,12 @@ private:
 
 class SVGRenderState {
 public:
-    SVGRenderState(const SVGElement* element [[clang::lifetimebound]], const SVGRenderState& parent [[clang::lifetimebound]], const Transform& localTransform)
+    SVGRenderState(const SVGElement* element, const SVGRenderState& parent, const Transform& localTransform)
         : m_element(element), m_parent(&parent), m_currentTransform(parent.currentTransform() * localTransform)
         , m_mode(parent.mode()), m_canvas(parent.canvas())
     {}
 
-    SVGRenderState(const SVGElement* element [[clang::lifetimebound]], const SVGRenderState* parent [[clang::lifetimebound]], const Transform& currentTransform, SVGRenderMode mode, std::shared_ptr<Canvas> canvas)
+    SVGRenderState(const SVGElement* element, const SVGRenderState* parent, const Transform& currentTransform, SVGRenderMode mode, std::shared_ptr<Canvas> canvas)
         : m_element(element), m_parent(parent), m_currentTransform(currentTransform), m_mode(mode), m_canvas(std::move(canvas))
     {}
 
@@ -44,9 +44,9 @@ public:
 
     const SVGElement* element() const { return m_element; }
     const SVGRenderState* parent() const { return m_parent; }
-    const Transform& currentTransform() const [[clang::lifetimebound]] { return m_currentTransform; }
+    const Transform& currentTransform() const { return m_currentTransform; }
     SVGRenderMode mode() const { return m_mode; }
-    const std::shared_ptr<Canvas>& canvas() const [[clang::lifetimebound]] { return m_canvas; }
+    const std::shared_ptr<Canvas>& canvas() const { return m_canvas; }
 
     Rect fillBoundingBox() const { return m_element->fillBoundingBox(); }
     Rect paintBoundingBox() const { return m_element->paintBoundingBox(); }

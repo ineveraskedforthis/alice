@@ -84,8 +84,8 @@ public:
 
     bool isLessThan(const RuleData& rule) const { return std::tie(m_specificity, m_position) < std::tie(rule.m_specificity, rule.m_position); }
 
-    const Selector& selector() const [[clang::lifetimebound]] { return m_selector; }
-    const DeclarationList& declarations() const [[clang::lifetimebound]] { return m_declarations; }
+    const Selector& selector() const { return m_selector; }
+    const DeclarationList& declarations() const { return m_declarations; }
     size_t specificity() const { return m_specificity; }
     size_t position() const { return m_position; }
 
