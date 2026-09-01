@@ -205,7 +205,6 @@ set_source_files_properties(
 	PROPERTIES UNITY_GROUP "bucket-GAMESTATE"
 )
 
-set(GEN_OOS_REPORT_CPP "${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.cpp")
 
 list(APPEND ALICE_INCREMENTAL_SOURCES_LIST_RARELY_CHANGED	
 	"${PROJECT_SOURCE_DIR}/src/network/SHA512.cpp"
@@ -222,7 +221,7 @@ list(APPEND ALICE_INCREMENTAL_SOURCES_LIST_RARELY_CHANGED
 	"${PROJECT_SOURCE_DIR}/src/common_types/date_interface.cpp"
 	"${PROJECT_SOURCE_DIR}/src/common_types/prng.cpp"
 	"${PROJECT_SOURCE_DIR}/src/common_types/debug_string_convertions.cpp"
-	"${GEN_OOS_REPORT_CPP}"
+	"${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.cpp"
 )
 set_source_files_properties(
 	${ALICE_INCREMENTAL_SOURCES_LIST_RARELY_CHANGED}
@@ -600,8 +599,7 @@ add_custom_command(
 )
 
 add_custom_command(
-	OUTPUT ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.hpp
-	BYPRODUCTS ${GEN_OOS_REPORT_CPP}
+	OUTPUT ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.hpp ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.cpp
 	COMMAND DataContainer_OOS_Reporter alice ${CONTAINER_PATH}.txt dcon_oos_reporter_generated.cpp dcon_oos_reporter_generated.hpp ${PROJECT_SOURCE_DIR}/src/gamestate/
 	DEPENDS ${CONTAINER_PATH}.txt
 	DEPENDS DataContainer_OOS_Reporter
@@ -611,10 +609,11 @@ add_custom_command(
 # Sets a dependency on the generated file
 
 
-add_custom_target(GENERATE_CONTAINER DEPENDS ${CONTAINER_PATH}.hpp)
+add_custom_target(GENERATE_CONTAINER DEPENDS ${CONTAINER_PATH}.hpp ${CONTAINER_PATH}_ids.hpp)
 add_custom_target(GENERATE_CONTAINERIFACE DEPENDS ${PROJECT_SOURCE_DIR}/src/gamestate/fif_dcon_generated.hpp)
 add_custom_target(GENERATE_CONTAINER_LUA DEPENDS ${PROJECT_SOURCE_DIR}/src/gamestate/lua_dcon_generated.hpp)
-add_custom_target(GENERATE_CONTAINER_OOS DEPENDS ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.hpp)
+add_custom_target(GENERATE_CONTAINER_OOS DEPENDS ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.hpp ${PROJECT_SOURCE_DIR}/src/gamestate/dcon_oos_reporter_generated.cpp)
+
 
 foreach( AliceTarget ${AllAliceTargets} )
 	add_dependencies(${AliceTarget} GENERATE_CONTAINER ParserGenerator)
