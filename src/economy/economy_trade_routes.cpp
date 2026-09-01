@@ -360,13 +360,12 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	auto hard_limit = transport_availability;
 	auto soft_limit = budget_scale * expected_to_sell * expected_to_buy;
 	auto change_multiplier = std::max(0.f, (hard_limit - 0.9f) / 0.1f) * (soft_limit + 0.1f) * risk;
-	auto decay = std::max(0.999f, hard_limit * soft_limit);
+	auto decay = std::max(0.999f, hard_limit);
 
 
 	auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
-	auto base_change = (current_volume * 0.001f + 0.01f) * diff;
-	auto change = std::min(base_change, std::max(0.f, budget / (economy::price_properties::commodity::min + price_export) - 1.f));
-	change = change <= 0.f ? change : change * change_multiplier;
+	auto base_change = (current_volume * 0.0001f + 0.001f) * diff;
+	auto change = base_change <= 0.f ? base_change : base_change * change_multiplier;
 	auto next = std::max(0.f, current_volume * decay + change);
 
 	result.profit_score = diff;
@@ -591,7 +590,7 @@ void update_trade_routes_volume(
 			auto hard_limit = transport_availability;
 			auto soft_limit = budget_scale * expected_to_sell * expected_to_buy;
 			auto change_multiplier = ve::max(ve::fp_vector{ 0.f }, (hard_limit - 0.9f) / 0.1f) * (soft_limit + 0.1f) * risk;
-			auto decay = ve::max(0.999f, hard_limit * soft_limit);
+			auto decay = ve::max(0.999f, hard_limit);
 
 			auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
 			auto change = (current_volume * 0.0001f + 0.001f) * diff;

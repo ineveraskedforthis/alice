@@ -347,11 +347,15 @@ float employment_units(
 		* state.world.province_get_labor_demand_satisfaction(labor_market, labor::no_education);
 	float workers_basic_education = target_workers_basic_education
 		* state.world.province_get_labor_demand_satisfaction(labor_market, labor::basic_education);
+	float workers_high_education = target_workers_high_education
+		* state.world.province_get_labor_demand_satisfaction(labor_market, labor::high_education);
 	assert(workers_no_education >= 0.f);
 	assert(workers_basic_education >= 0.f);
+	assert(workers_high_education >= 0.f);
 
-	auto effective_employment = workers_no_education * unqualified_throughput_multiplier
-		+ workers_basic_education;
+	auto effective_employment =
+		workers_no_education * unqualified_throughput_multiplier
+		+ workers_basic_education + workers_high_education;
 	return effective_employment / employment_unit_size;
 }
 
@@ -1969,12 +1973,13 @@ template ve::fp_vector gradient_employment_i<ve::fp_vector>(
 template<size_t N, typename VALUE>
 VALUE gradient_employment_secondary(
 	VALUE expected_profit_per_perfect_worker,
+	VALUE expected_input_cost_per_perfect_worker,
 	VALUE current_secondary_workers_multiplier,
 	VALUE secondary_power,
 	VALUE secondary_wage,
 	employment_data<N, VALUE>& primary_employment
 ) {
-	VALUE earn = 0.f;
+	VALUE earn = expected_profit_per_perfect_worker;
 	for(size_t i = 0; i < N; i++) {
 		earn = earn
 			+ primary_employment.actual[i]
@@ -1983,7 +1988,7 @@ VALUE gradient_employment_secondary(
 			/ current_secondary_workers_multiplier
 			* secondary_power;
 	}
-	auto spend = secondary_wage;
+	auto spend = secondary_wage + expected_input_cost_per_perfect_worker;
 	auto diff = 2.f * (earn - spend) / (earn + economy::price_properties::labor::min);
 	auto clamped = adaptive_ve::min<VALUE>(100.f, adaptive_ve::max<VALUE>(-100.f, diff));
 	return clamped;
@@ -2014,6 +2019,7 @@ employment_vector<N, VALUE> get_profit_gradient(
 	}
 	result.secondary = gradient_employment_secondary(
 		expected_profit_per_perfect_primary_worker,
+		expected_input_cost_per_perfect_worker,
 		current_secondary_workers_multiplier,
 		secondary_power,
 		secondary_wage,
@@ -3128,11 +3134,8 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 		}
 	};
 
-	auto income_per_employment_unit =
-		result.output_amount_per_employment_unit_ignore_inputs
-		* result.output_price;
-	auto cost_per_employment_unit =
-		primary_inputs_data.total_cost
+	auto expected_cost_per_employment_unit =
+		primary_inputs_data.total_expected_cost
 		* result.input_multipliers.total
 		* result.throughput_multipliers.total;
 
@@ -3141,10 +3144,10 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 	auto priority = state.world.nation_get_production_directive(n, production_directives::to_key(state, result.output));
 	auto priority_local = state.world.state_instance_get_production_directive(s, production_directives::to_key(state, result.output));
 	auto subsidy = (priority_local || priority ? state.world.nation_get_subsidy_token_price(n) / result.output_base_amount : 0.f);
-
-	auto profit_per_employment_unit =
+	auto confindence = state.world.market_get_price_confidence(m, result.output);
+	auto expected_profit_per_employment_unit =
 		result.output_amount_per_employment_unit_ignore_inputs
-		* (result.output_price + subsidy)
+		* (result.output_price * confindence + subsidy)
 		* (sales_optimism + (1.f - sales_optimism) * sold_expectation)
 		* (purchase_optimism + (1.f - purchase_optimism) * primary_inputs_data.min_expected);
 
@@ -3155,8 +3158,8 @@ detailed_explanation explain_everything(sys::state const& state, dcon::factory_i
 	
 
 	auto gradient = get_profit_gradient(
-		profit_per_employment_unit / base_size,
-		cost_per_employment_unit * (1.f + capitalists_greed) / base_size,
+		expected_profit_per_employment_unit / base_size,
+		expected_cost_per_employment_unit * (1.f + capitalists_greed) / base_size,
 		result.employment_target.secondary,
 		result.employment.secondary,
 		result.output_multipliers.from_secondary_workers,
