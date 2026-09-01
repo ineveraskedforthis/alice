@@ -4,6 +4,8 @@
 
 cmake_minimum_required (VERSION 3.16)
 
+cmake_policy(SET CMP0118 NEW)
+
 project (ProjectAlice LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "The C++ standard to use")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
