@@ -343,8 +343,8 @@ void generate_sea_trade_routes(sys::state& state) {
 	// baseline: connection between new york and london
 
 	constexpr float london_to_ny = 6'000.f;
-	constexpr float london_pop = 4.f * 500'000.f;
-	constexpr float ny_pop = 4.f * 200'000.f;
+	constexpr float london_pop = 4.f * 4.f * 500'000.f;
+	constexpr float ny_pop = 4.f * 4.f * 200'000.f;
 	//constexpr float M = 0.01f * london_to_ny * london_to_ny * london_to_ny / (london_pop + ny_pop * 0.01f);//0.17f * 0.000'000'1f;
 
 
