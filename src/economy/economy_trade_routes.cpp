@@ -465,7 +465,7 @@ void update_trade_routes_volume(
 		auto is_origin_civ = state.world.nation_get_is_civilized(controller_origin);
 		auto is_target_civ = state.world.nation_get_is_civilized(controller_target);
 		auto is_sea_route = state.world.trade_route_get_is_sea_route(trade_route);
-		auto blockaded = is_origin_blockaded || is_target_blockaded;
+		auto blockaded = is_sea_route && (is_origin_blockaded || is_target_blockaded);
 		auto same_nation = controller_origin == controller_target;
 
 		// US3AC7 US3AC8 Ban international sea routes or international land routes based on the corresponding modifiers
@@ -490,8 +490,7 @@ void update_trade_routes_volume(
 		auto transport_cost = distance * ve::select(is_sea_route, state.world.market_get_naval_transportation_price(owner), state.world.market_get_land_transportation_price(owner));
 
 		auto reset_route =
-			trade_closed
-			|| trade_banned
+			trade_closed || blockaded || trade_banned
 			|| !ve::apply([&](auto r) { return state.world.trade_route_is_valid(r); }, trade_route);
 
 		for(auto c : state.world.in_commodity) {
