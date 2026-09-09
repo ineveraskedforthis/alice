@@ -730,6 +730,12 @@ void schedule_immediate_supply_path_update(sys::state& state, dcon::supply_route
 	state.world.supply_route_path_set_path_out_of_date(path, true);
 }
 
+void schedule_immediate_supply_path_update_on_origin_market(sys::state& state, dcon::market_id path_origin) {
+	for(auto path : state.world.market_get_supply_route_path(path_origin)) {
+		path.set_path_out_of_date(true);
+	}
+}
+
 void schedule_prov_specific_nation_supply_paths_update(sys::state& state, dcon::province_id to_update, dcon::nation_id nation) {
 	auto nations_to_update = state.world.province_get_nation_routes_to_be_updated(to_update);
 	auto found = std::find(nations_to_update.begin(), nations_to_update.end(), nation);
@@ -901,14 +907,27 @@ float calculate_supply_throughput_in_adjacency(const sys::state& state, dcon::pr
 }
 
 float calculate_effective_supply_throughput_in_adjacency(const sys::state& state, dcon::province_adjacency_id adj, dcon::nation_id nation) {
-	float sup_throughput = calculate_supply_throughput_in_adjacency(state, adj, nation);
 	auto prov_1 = state.world.province_adjacency_get_connected_provinces(adj, 0);
 	auto prov_2 = state.world.province_adjacency_get_connected_provinces(adj, 1);
-	if(state.world.province_get_port_to(prov_1) == prov_2) {
-		sup_throughput = std::min(sup_throughput, port_supply_capacity_in_province(state, prov_1, nation));
+	auto port_1_port_to = state.world.province_get_port_to(prov_1);
+	auto port_2_port_to = state.world.province_get_port_to(prov_2);
+	bool port_1_is_port = (port_1_port_to == prov_2);
+	bool port_2_is_port = (port_2_port_to == prov_1);
+	bool is_port = (port_1_is_port || port_2_is_port);
+	float sup_throughput;
+	// Is not a port (land -> land or sea -> sea). Use regular supply throughput compuation
+	if(!is_port) {
+		sup_throughput = calculate_supply_throughput_in_adjacency(state, adj, nation);
 	}
-	else if(state.world.province_get_port_to(prov_2) == prov_1) {
-		sup_throughput = std::min(sup_throughput, port_supply_capacity_in_province(state, prov_2, nation));
+	else {
+		if(port_1_is_port) {
+			// If its sea -> land, use port supply capacity computation
+			sup_throughput = port_supply_capacity_in_province(state, prov_1, nation);
+		}
+		else {
+			// If its land -> sea use port supply capacity computation
+			sup_throughput = port_supply_capacity_in_province(state, prov_2, nation);
+		}
 	}
 	return sup_throughput;
 }
@@ -1585,9 +1604,8 @@ bool should_delete_route(const sys::state& state, route_type route) {
 }
 bool should_delete_path(const sys::state& state, dcon::supply_route_path_id path) {
 	uint8_t inactive_days = state.world.supply_route_path_get_inactive_days(path);
-	uint32_t num_connected_routes = supply_route_path_get_connected_routes(state, path);
-	// A supply route shall be deleted if it has been inactive for some days or more, and if there are no connected routes (even inactive ones)
-	return inactive_days >= supply_path_inactive_days_before_deletion && num_connected_routes != 0;
+	// A supply route shall be deleted if it has been inactive for some days or more
+	return inactive_days >= supply_path_inactive_days_before_deletion;
 }
 
 

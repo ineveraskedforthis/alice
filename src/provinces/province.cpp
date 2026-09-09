@@ -3019,10 +3019,16 @@ std::vector<dcon::province_id> make_unowned_path_to_nearest_coast(sys::state& st
 constexpr float supply_loss_path_factor = 10000.0f;
 constexpr float excess_supply_throughput_path_factor = 0.1f;
 constexpr float lacking_supply_throughput_path_factor = 100.0f;
+constexpr float lacking_navalbase_path_factor = 5.0f; // penalty to pathfind weight if the adjacency is sea->land or vice verca, and the land province does not have atleast a lvl 1 naval base
 
 // Creates a military supply path, but will actively try to find the path with good supply thoughput and supply attrition. Path is inserted into the passed-in buffer. Buffer must be cleared first
 bool make_military_supply_path(const sys::state& state, dcon::province_id origin_prov, dcon::province_id destination, dcon::nation_id nation_as, float expected_volume, std::vector<dcon::province_id>& path_result, std::vector<dcon::province_adjacency_id>& adjacency_path_result) {
+	// Will store data relavent to each pathfind iteration, and initalized when a new iteration begins. Saves some duplicate computations
 	struct iteration_data {
+		bool is_land_to_sea;
+		bool to_prov_is_port;
+		bool from_prov_is_port;
+		bool lacking_navalbase_penalty;
 		float prov_supply_throughput{ };
 		float adj_total_supply_throughput{};
 		float free_supply_throughput{};
@@ -3031,9 +3037,8 @@ bool make_military_supply_path(const sys::state& state, dcon::province_id origin
 	};
 	auto adjacency_func = [&](dcon::province_id to, dcon::province_id from, dcon::province_adjacency_id adj, iteration_data data) {
 		// Most of the checks were done in the province func already. We do have to check supply throughput again, since it may change in the adjacency init func if its a port
-		bool land_to_sea = (state.world.province_adjacency_get_type(adj) & province::border::coastal_bit) != 0;
-		// If the adjacency is coastal (ie land-to-sea or sea-to-land connection), then the sea province must be connected to the port
-		if(land_to_sea && !is_port_connected_to(state, from, to) && !is_port_connected_to(state, to, from)) {
+		
+		if(data.is_land_to_sea && !data.from_prov_is_port && !data.to_prov_is_port) {
 			return false;
 		}
 		return data.adj_total_supply_throughput > 0.0 && !is_adjacency_impassable(state, nation_as, adj);
@@ -3054,9 +3059,10 @@ bool make_military_supply_path(const sys::state& state, dcon::province_id origin
 		assert(data.supply_loss > 0.0f);
 
 		float supply_loss_factor = (1.0f - data.supply_loss) * supply_loss_path_factor + 1.0f;
+		float lacking_navalbase_factor = lacking_navalbase_path_factor * data.lacking_navalbase_penalty + 1.0f; // Apply lacking naval base weight
 		// if there is free supply throughput, the percived distance will be reduced. If there is no free throughput, then the percieved distance will be increased the lower the supply efficiency is (0.0-1.0)
 		float supply_throughput_factor = (data.free_supply_throughput > 0.0f ? data.free_supply_throughput * excess_supply_throughput_path_factor + 1.0f : data.supply_efficiency / lacking_supply_throughput_path_factor);
-		return distance * supply_loss_factor / supply_throughput_factor;
+		return distance * supply_loss_factor * lacking_navalbase_factor / supply_throughput_factor;
 
 	};
 	auto province_init_func = [&](dcon::province_id to, iteration_data& data) {
@@ -3070,6 +3076,24 @@ bool make_military_supply_path(const sys::state& state, dcon::province_id origin
 		data.adj_total_supply_throughput = adj_throughput;
 		data.free_supply_throughput = data.adj_total_supply_throughput - used_throughput;
 		data.supply_efficiency = supply_routes::compute_efficiency(used_throughput, data.adj_total_supply_throughput);
+
+		dcon::province_id from_port_to = state.world.province_get_port_to(from);
+		dcon::province_id to_port_to = state.world.province_get_port_to(to);
+
+		data.from_prov_is_port = (from_port_to == to);
+		data.to_prov_is_port = (to_port_to == from);
+		data.is_land_to_sea = (data.to_prov_is_port || data.from_prov_is_port);
+		if(data.is_land_to_sea) {
+			if(data.from_prov_is_port) {
+				data.lacking_navalbase_penalty = (state.world.province_get_building_level(from, uint8_t(economy::province_building_type::naval_base)) == 0);
+			}
+			else {
+				data.lacking_navalbase_penalty = (state.world.province_get_building_level(to, uint8_t(economy::province_building_type::naval_base)) == 0);
+			}
+		}
+		else {
+			data.lacking_navalbase_penalty = false;
+		}
 
 	};
 	// We are passing "origin" province as end, and "destination" as start. This is because creating the path in reverse has some desired effects. For example it means the province the army is on will not be path of the path (so that you wont lose supply instantly when adjacen to a friendly province)
@@ -3155,6 +3179,9 @@ void move_state_capital(sys::state& state, dcon::nation_id source, dcon::provinc
 	auto state_inst = state.world.province_get_state_membership(move_to);
 	state_inst.set_capital(move_to);
 	state_inst.set_last_state_capital_change(state.current_date);
+	auto market = state_inst.get_market_from_local_market();
+	// Schedules update on all paths which have this market as their origin, so they wont be out of date
+	supply_routes::schedule_immediate_supply_path_update_on_origin_market(state, market);
 }
 template void move_state_capital<command::actor::ai>(sys::state& state, dcon::nation_id source, dcon::province_id move_to);
 template void move_state_capital<command::actor::player>(sys::state& state, dcon::nation_id source, dcon::province_id move_to);

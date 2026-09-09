@@ -58,6 +58,8 @@ int8_t building_construction_setting_max(const sys::state& state, dcon::nation_i
 
 // Schedules a path update on the specific supply path as soon as possible
 void schedule_immediate_supply_path_update(sys::state& state, dcon::supply_route_path_id path);
+// Schedules a path updatr on all paths which have this market as their origin as soon as possible
+void schedule_immediate_supply_path_update_on_origin_market(sys::state& state, dcon::market_id path_origin);
 // Schedules a path update on all supply paths passing through the given province on next weekly tick
 void schedule_prov_all_supply_paths_update(sys::state& state, dcon::province_id to_update);
 // Schedules a path update on all supply paths passing through the given province controlled by enemy nations on next weekly tick
