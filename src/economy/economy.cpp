@@ -1728,7 +1728,7 @@ void populate_army_consumption(sys::state& state) {
 			demand_buffer_set(ids, com_id, ve::fp_vector{ 0.0f });
 		});
 	});
-	// Add up total commodity demand from regiments per nation
+	// Add up total commodity demand from regiments per nation. We always want to populate demand as if we are trying to buy as many goods as it would take to fully supply all units, clamped by the budget allocated
 	state.world.for_each_regiment([&](dcon::regiment_id regiment) {
 		auto army = state.world.regiment_get_army_from_army_membership(regiment);
 		auto nation = state.world.army_get_controller_from_army_control(army);
@@ -1810,7 +1810,7 @@ void populate_navy_consumption(sys::state& state) {
 			demand_buffer_set(ids, com_id, ve::fp_vector{ 0.0f });
 		});
 	});
-	// Add up total commodity demand from ships per nation
+	// Add up total commodity demand from ships per nation. We always want to populate demand as if we are trying to buy as many goods as it would take to fully supply all units, clamped by the budget allocated
 	state.world.for_each_ship([&](dcon::ship_id ship) {
 		auto navy = state.world.ship_get_navy_from_navy_membership(ship);
 		auto nation = state.world.navy_get_controller_from_navy_control(navy);

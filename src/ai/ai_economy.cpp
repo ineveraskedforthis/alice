@@ -714,9 +714,10 @@ void update_ai_econ_construction(sys::state& state) {
 	}
 }
 
+// Will try to stockpile up to thsis amount of days of the daily army/navy consumption
+constexpr uint32_t days_of_reserve_military_goods = 365 * 3;
+
 void update_stockpile_targets(sys::state& state) {
-	// Will try to stockpile up to 3 years of the daily army/navy consumption
-	constexpr uint32_t days_of_reserve_goods = 365 * 3;
 	concurrency::parallel_for(uint32_t(0), state.world.nation_size(), [&](uint32_t i) {
 		dcon::nation_id nid{ dcon::nation_id::value_base_t(i) };
 		if(state.world.nation_get_is_player_controlled(nid) || !nations::exists(state, nid)) {
@@ -726,7 +727,7 @@ void update_stockpile_targets(sys::state& state) {
 		state.world.for_each_unit_supply_and_build_commodity([&](dcon::unit_supply_and_build_commodity_id com_id) {
 			auto base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
 			float expected_consume = army_navy_consumption[com_id];
-			state.world.nation_set_stockpile_targets(nid, base_com_id, expected_consume * days_of_reserve_goods);
+			state.world.nation_set_stockpile_targets(nid, base_com_id, expected_consume * days_of_reserve_military_goods);
 
 		});
 	});

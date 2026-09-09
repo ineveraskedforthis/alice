@@ -1739,55 +1739,67 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 				return r.get_ship();
 			}
 		}();
-		
+		// Compute supply satisfaction
 		dcon::unit_type_id type = subunit.get_type();
 		{
 			// Compute supply satisfaction
 			float supply_goods_cost_mod = military::get_supply_cost_modifiers(state, subunit);
+			float supply_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(u), military::unit_consumption_type::supply>(state, nation)) / 100.0f;
+			float desired_supply_mult = supply_goods_cost_mod * supply_consumption_setting;
+
 			const economy::commodity_set& supply_goods_cost = military::unit_type_get_commodity_costs<military::unit_consumption_type::supply>(state, type);
-			float total_supply_goods_desired = 0.0f;
+			float total_supply_goods_required = 0.0f;
 			float total_supply_goods_consumed = 0.0f;
-			supply_goods_cost.for_each_commodity([&](dcon::commodity_id com_id, float desired_amount) {
+			// required_amount is what we need to get 100% supply satisfaction, desired amount is what we actually wish to consume decided by national consumption setting
+			supply_goods_cost.for_each_commodity([&](dcon::commodity_id com_id, float base_amount) {
 				auto sup_com_id = state.world.commodity_get_unit_supply_commodity(com_id);
 				assert(sup_com_id);
-				desired_amount *= supply_goods_cost_mod;
+				float required_amount = base_amount * supply_goods_cost_mod;
+				float desired_amount = base_amount * desired_supply_mult;
 				float max_available = available_supply_goods_buffer.get(sup_com_id);
 				float to_consume = std::min(max_available, desired_amount);
 				assert(max_available - to_consume >= 0.0f);
 				available_supply_goods_buffer.set(sup_com_id, max_available - to_consume);
-				total_supply_goods_desired += desired_amount;
+				total_supply_goods_required += required_amount;
 				total_supply_goods_consumed += to_consume;
 			});
-			float supply_satisfaction = (total_supply_goods_desired == 0.0f ? 1.0f : total_supply_goods_consumed / total_supply_goods_desired);
+			float supply_satisfaction = (total_supply_goods_required == 0.0f ? 1.0f : total_supply_goods_consumed / total_supply_goods_required);
 			subunit.set_supply_satisfaction(supply_satisfaction);
 			subunit.set_last_supply_cost_modifier(supply_goods_cost_mod);
 		}
+		// Compute reinforcement satisfaction
 		{
 			// And then compute reinforcement satisfaction
 			const economy::commodity_set& reinf_goods_cost = military::unit_type_get_commodity_costs<military::unit_consumption_type::reinforcement>(state, type);
+			// The reinforcement amount (ranges from 0.0-1.0) is also the cost modifier, as the faster it can reinforce, the more goods we need to fufill it at optimal speed. Here we get the reinforcement amount under perfect conditions (100% fufillment)
+			// It will get clamped if the unit is too close to max strength so to not allow overflow above max str
 			float reinf_goods_cost_mod = military::estimate_reinforcement<military::interval_estimation::daily, military::supply_estimation::full_supply_always, false>(state, subunit.id);
-			float total_reinf_goods_desired = 0.0f;
+			float reinf_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(u), military::unit_consumption_type::reinforcement>(state, nation)) / 100.0f;
+			float desired_reinf_mult = reinf_goods_cost_mod * reinf_consumption_setting;
+
+			float total_reinf_goods_required = 0.0f;
 			float total_reinf_goods_consumed = 0.0f;
-			reinf_goods_cost.for_each_commodity([&](dcon::commodity_id com_id, float desired_amount) {
+			reinf_goods_cost.for_each_commodity([&](dcon::commodity_id com_id, float base_amount) {
 				auto build_com_id = state.world.commodity_get_unit_build_commodity(com_id);
 				assert(build_com_id);
-				desired_amount *= reinf_goods_cost_mod;
+				float required_amount = base_amount * reinf_goods_cost_mod;
+				float desired_amount = base_amount * desired_reinf_mult;
 				float max_available = available_reinforcement_goods_buffer.get(build_com_id);
 				float to_consume = std::min(max_available, desired_amount);
 				assert(max_available - to_consume >= 0.0f);
 				available_reinforcement_goods_buffer.set(build_com_id, max_available - to_consume);
-				total_reinf_goods_desired += desired_amount;
+				total_reinf_goods_required += required_amount;
 				total_reinf_goods_consumed += to_consume;
 			});
-			float reinf_satisfaction = (total_reinf_goods_desired == 0.0f ? 1.0f : total_reinf_goods_consumed / total_reinf_goods_desired);
+			float reinf_satisfaction = (total_reinf_goods_required == 0.0f ? 1.0f : total_reinf_goods_consumed / total_reinf_goods_required);
 			subunit.set_reinforcement_satisfaction(reinf_satisfaction);
 			if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-				// For armies, we accumulate the reinforcement first and then apply it monthly (for balance reasons), whereas navies repair once a day
+				// For armies, we accumulate the reinforcement first and then apply it monthly (for balance reasons), whereas navies repair once a day, so navies can skip this section
 				float added_pending_reinforcement = reinf_satisfaction * reinf_goods_cost_mod;
 				subunit.set_total_pending_reinforcement(subunit.get_total_pending_reinforcement() + added_pending_reinforcement);
 				assert(std::isfinite(subunit.get_total_pending_reinforcement()));
 			}
-			subunit.set_last_potential_reinforcement(reinf_goods_cost_mod);
+			subunit.set_last_potential_reinforcement(reinf_goods_cost_mod); // The reinf cost mod is also the total possible reinforcement, if all goods are fufilled.
 		}
 	}
 }
@@ -2177,18 +2189,22 @@ void update_supply_routes_daily(sys::state& state) {
 
 		auto stockpile_buffer = unit_best_stockpiles_get(state, unit);
 
+		float supply_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(unit), military::unit_consumption_type::supply>(state, nation)) / 100.0f;
+		float reinf_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(unit), military::unit_consumption_type::reinforcement>(state, nation)) / 100.0f;
+
 		economy::get_closest_available_market_states(state, stockpile_buffer, nation, location);
 
+		// Multiply the supply we want to dispatch to each unit by the consumption setting. We only want to fufill that percentage
 		auto accumulate_supply = [&](dcon::commodity_id com_id, float amount) {
 			dcon::unit_supply_commodity_id supply_id = state.world.commodity_get_unit_supply_commodity(com_id);
-			unit_supply_need_set(state, unit, supply_id, unit_supply_need_get(state, unit, supply_id) + amount);
+			unit_supply_need_set(state, unit, supply_id, unit_supply_need_get(state, unit, supply_id) + (amount * supply_consumption_setting));
 			assert(supply_id);
 			unit_set_needs_supply_goods(state, unit, unit_needs_supply_goods(state, unit) || amount > 0.0f); // set bool flag if this unit now needs more than 0 supply goods
 		};
 		auto accumulate_reinf = [&](dcon::commodity_id com_id, float amount) {
 			dcon::unit_build_commodity_id build_id = state.world.commodity_get_unit_build_commodity(com_id);
 			assert(build_id);
-			unit_reinforcement_need_set(state, unit, build_id, unit_reinforcement_need_get(state, unit, build_id) + amount);
+			unit_reinforcement_need_set(state, unit, build_id, unit_reinforcement_need_get(state, unit, build_id) + (amount * reinf_consumption_setting));
 			unit_set_needs_reinforcement_goods(state, unit, unit_needs_reinforcement_goods(state, unit) || amount > 0.0f); // set bool flag if this unit now needs more than 0 reinforcement goods
 		};
 		military::accumulate_unit_consumption(state, unit, accumulate_supply, accumulate_reinf);
@@ -2213,8 +2229,8 @@ void update_supply_routes_daily(sys::state& state) {
 		float construction_days = static_cast<float>(economy::construction_get_actual_construction_time(state, construction));
 
 		auto accumulate_func = [&](uint32_t set_indx, float required, float total_cost) {
-			// Cap the amount we want to accumulate (and eventually route from stockpiles to constructions) depending on the consumption rate.
-			float actual_demanded = std::min(required, total_cost / construction_days * consumption_rate);
+			// Tie the demand amount to add to the construction consumption setting of the nation. Low consumption setting -> we won't try to dispatch as much goods
+			float actual_demanded = std::min(required, total_cost / construction_days * consumption_rate); 
 			required_buffer[set_indx] += actual_demanded;
 			construction_set_needs_construction_goods(state, construction, construction_needs_construction_goods(state, construction) || actual_demanded > 0.0f ); // set bool flag if this construction now needs more than 0 goods
 		};

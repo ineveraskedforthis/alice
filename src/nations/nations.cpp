@@ -865,6 +865,34 @@ int8_t get_nation_construction_consumption_setting_by_type(const sys::state& sta
 	}
 }
 
+template<typename unit_type, military::unit_consumption_type consumption_type>
+requires(concepts::military_unit<unit_type> || concepts::military_subunit<unit_type>)
+int8_t get_nation_military_consumption_setting_by_type(const sys::state& state, dcon::nation_id nation) {
+	if constexpr(std::is_same_v<unit_type, dcon::army_id> || std::is_same_v<unit_type, dcon::regiment_id>) {
+		if constexpr(consumption_type == military::unit_consumption_type::supply) {
+			return state.world.nation_get_land_supply_consumption(nation);
+		}
+		else if constexpr(consumption_type == military::unit_consumption_type::reinforcement) {
+			return state.world.nation_get_land_reinforcement_consumption(nation);
+		}
+	} else if constexpr(std::is_same_v<unit_type, dcon::navy_id> || std::is_same_v<unit_type, dcon::ship_id>) {
+		if constexpr(consumption_type == military::unit_consumption_type::supply) {
+			return state.world.nation_get_naval_supply_consumption(nation);
+		} else if constexpr(consumption_type == military::unit_consumption_type::reinforcement) {
+			return state.world.nation_get_naval_reinforcement_consumption(nation);
+		}
+	}
+}
+template int8_t get_nation_military_consumption_setting_by_type<dcon::army_id, military::unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::army_id, military::unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::navy_id, military::unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::navy_id, military::unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::regiment_id, military::unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::regiment_id, military::unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::ship_id, military::unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_military_consumption_setting_by_type<dcon::ship_id, military::unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
+
+
 // updates ONLY national admin
 void update_national_administrative_efficiency(sys::state& state) {
 	/*

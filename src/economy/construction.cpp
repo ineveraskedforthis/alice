@@ -74,8 +74,8 @@ void build_land_unit_construction_tooltip(
 ) {
 	auto details = explain_land_unit_construction(state, conid);
 	auto unit = state.world.province_land_construction_get_type(conid);
-	auto& goods = state.military_definitions.unit_base_definitions[unit].build_cost;
-	auto& cgoods = state.world.province_land_construction_get_purchased_goods(conid);
+	const auto& goods = construction_get_actual_build_cost(state, conid);
+	const auto& cgoods = get_purchased_goods(state, conid);
 
 	{
 		auto name = state.military_definitions.unit_base_definitions[unit].name;
@@ -97,7 +97,7 @@ void build_land_unit_construction_tooltip(
 			text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
 			text::add_to_layout_box(state, contents, box, text::fp_one_place{ cgoods.commodity_amounts[i] });
 			text::add_to_layout_box(state, contents, box, std::string_view{ " / " });
-			text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * details.cost_multiplier });
+			text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] });
 			text::close_layout_box(contents, box);
 		}
 	}
@@ -110,8 +110,8 @@ void build_naval_unit_construction_tooltip(
 ) {
 	auto details = explain_naval_unit_construction(state, conid);
 	auto unit = state.world.province_naval_construction_get_type(conid);
-	auto& goods = state.military_definitions.unit_base_definitions[unit].build_cost;
-	auto& cgoods = state.world.province_naval_construction_get_purchased_goods(conid);
+	const auto& goods = construction_get_actual_build_cost(state, conid);
+	const auto& cgoods = get_purchased_goods(state, conid);
 
 	{
 		auto name = state.military_definitions.unit_base_definitions[unit].name;
@@ -133,7 +133,7 @@ void build_naval_unit_construction_tooltip(
 			text::add_to_layout_box(state, contents, box, std::string_view{ ": " });
 			text::add_to_layout_box(state, contents, box, text::fp_one_place{ cgoods.commodity_amounts[i] });
 			text::add_to_layout_box(state, contents, box, std::string_view{ " / " });
-			text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] * details.cost_multiplier });
+			text::add_to_layout_box(state, contents, box, text::fp_one_place{ goods.commodity_amounts[i] });
 			text::close_layout_box(contents, box);
 		}
 	}
@@ -837,7 +837,7 @@ tagged_vector<float, dcon::commodity_id> estimate_nation_construction_consumptio
 		float construction_days = static_cast<float>(construction_get_actual_construction_time(state, construction));
 
 		auto accumulate_func = [&](dcon::commodity_id com_id, float required_amount, float total_required) {
-			float demand_amount = std::min(total_required / construction_days * construction_consumption, required_amount); // Tie the demand amount to add to the construction consumption setting of the nation. Low consumption -> we won't try to purchase as much
+			float demand_amount = std::min(total_required / construction_days * construction_consumption, required_amount); // Tie the demand amount to add to the construction consumption setting of the nation. Low consumption setting -> we won't try to purchase as much
 			consumption[com_id] += demand_amount;
 		};
 
@@ -918,7 +918,7 @@ void populate_government_construction_consumption(sys::state& state) {
 
 
 		auto accumulate_func = [&](dcon::commodity_id com_id, float required_amount, float total_required) {
-			float demand_amount = std::min(total_required / construction_days * construction_consumption, required_amount); // Tie the demand amount to add to the construction consumption setting of the nation. Low consumption -> we won't try to purchase as much
+			float demand_amount = std::min(total_required / construction_days * construction_consumption, required_amount); // Tie the demand amount to add to the construction consumption setting of the nation. Low consumption setting -> we won't try to purchase as much
 			demand_buffer_set(conc_owner, com_id, demand_buffer_get(conc_owner, com_id) + demand_amount);
 		};
 		accumulate_construction_good_requirements(state, con, accumulate_func);
