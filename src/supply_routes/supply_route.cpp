@@ -1506,6 +1506,7 @@ float fixed_point_to_float(uint64_t val) {
 
 // Updates the supply route buffered goods, volume and subtracts the goods consumed from the stockpile buffers of all potential supply routes connected to the military unit.
 // Supply type decides whether to update supply, or reinforcement goods
+// It is assumed that the unit requires atleast some amount of this commodity before calling
 template<concepts::military_unit unit_type, concepts::unit_supply_or_build_commodity_type unit_commodity_type>
 void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,  dcon::nation_id nation, unit_commodity_type unit_com_id, dcon::commodity_id commodity) {
 
@@ -1527,10 +1528,11 @@ void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,
 
 		float available_stockpile_amount = local_stockpile_available_goods_get(state, market, commodity);
 
-		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
-		if(to_consume == 0.f) {
+		if(available_stockpile_amount == 0.f) {
 			continue;
 		}
+
+		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
 		auto route = get_supply_route_by_origin_dest_pair(state, unit, market);
 
 		if(!route) {
@@ -1577,6 +1579,9 @@ void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,
 		state.world.supply_route_path_set_volume(path, state.world.supply_route_path_get_volume(path) + (to_consume * com_supply_weight));
 		supply_route_set_is_active(state, route, true);
 		state.world.supply_route_path_set_is_active(path, true);
+		if(get_remaining_goods_required() == 0.0f) {
+			break; // Check remaining goods required now after subtraction. If its zero then we can move on
+		}
 	}
 
 }
@@ -1613,6 +1618,7 @@ bool should_delete_path(const sys::state& state, dcon::supply_route_path_id path
 
 // Updates the supply route buffered goods, volume and subtracts the goods consumed from the stockpile buffers of all potential supply routes connected to the military unit.
 // Supply type decides whether to update supply, or reinforcement goods
+// It is assumed that the construction requires atleast some amount of this commodity before calling
 template<concepts::construction_type construction_type>
 void update_construction_routes_satisfaction(sys::state& state, construction_type conc, dcon::nation_id nation, uint32_t set_index, dcon::commodity_id commodity) {
 
@@ -1628,11 +1634,11 @@ void update_construction_routes_satisfaction(sys::state& state, construction_typ
 		dcon::province_id origin_prov = state.world.state_instance_get_capital(stockpile_state);
 
 		float available_stockpile_amount = local_stockpile_available_goods_get(state, market, commodity);
-		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
 		// Is there anything to consume here?
-		if(to_consume == 0.0f) {
+		if(available_stockpile_amount == 0.0f) {
 			continue;
 		}
+		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
 
 		auto route = get_supply_route_by_origin_dest_pair(state, conc, market);
 
@@ -1677,6 +1683,11 @@ void update_construction_routes_satisfaction(sys::state& state, construction_typ
 		state.world.supply_route_path_set_volume(path, state.world.supply_route_path_get_volume(path) + (to_consume * com_supply_weight));
 		supply_route_set_is_active(state, route, true);
 		state.world.supply_route_path_set_is_active(path, true);
+
+		if(construction_need[set_index] == 0.0f) {
+			break; // Dont need any more of this commodity
+		}
+
 	}
 }
 
@@ -2248,7 +2259,9 @@ void update_supply_routes_daily(sys::state& state) {
 
 		auto accumulate_func = [&](uint32_t set_indx, float required, float total_cost) {
 			// Tie the demand amount to add to the construction consumption setting of the nation. Low consumption setting -> we won't try to dispatch as much goods
-			float actual_demanded = std::min(required, total_cost / construction_days * consumption_rate); 
+			float actual_demanded = std::min(required, total_cost / construction_days * consumption_rate);
+			float minimum_demand = std::max(actual_demanded, total_cost * construction_route_transport_leeway);
+			actual_demanded = (actual_demanded == 0.0f ? actual_demanded : minimum_demand); // If some amount of goods are still required, then at minimum attempt to consume some percent of the total cost (default: 0.1%) to avoid slowdowns due to potential loss
 			required_buffer[set_indx] += actual_demanded;
 			construction_set_needs_construction_goods(state, construction, construction_needs_construction_goods(state, construction) || actual_demanded > 0.0f ); // set bool flag if this construction now needs more than 0 goods
 		};

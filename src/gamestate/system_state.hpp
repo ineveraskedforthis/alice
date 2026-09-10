@@ -54,12 +54,13 @@ constexpr float militancy_supply_loss = 2.0f; // the supply loss  when the provi
 constexpr float hostile_army_supply_loss = 0.0f; // the supply loss  per POP_SIZE_PER_REGIMENT enemy strength present in the land province
 constexpr float convoy_raiding_supply_loss = 0.0f; // the supply loss per effective convoy_raiding stats present in the sea province
 
-constexpr float max_supply_route_loss = 0.75f; // the maximum total supply loss % a route may incur.
+constexpr float max_supply_route_loss = 0.50f; // the minimum supply loss % a route may incur. 0.0 means a route may lose 100%, while 1.0f means no loss
 
-constexpr float base_port_supply_capacity = 0.0f;
-constexpr float naval_base_port_supply_capacity = 6.0f;
+constexpr float base_port_supply_capacity = 0.2f; // Base supply capacity for all coastal provinces
+constexpr float naval_base_port_supply_capacity = 6.0f; // supply capacity per port level
 
 constexpr float civilian_port_throughput_capacity = 0.2f; // the port supply capacity gained for each 1000 level of civilian port.
+constexpr float construction_route_transport_leeway = 0.001f; // The minimum % of the total cost a route will attempt to consume and transport per day as extra leeway. This makes it so that constructions arent "stuck" for abit due to supply loss. Should be low enough that it isn't noticable.
 
 }
 
