@@ -408,43 +408,6 @@ void update_trade_routes_volume(
 	ve::vectorizable_buffer<dcon::province_id, dcon::state_instance_id>& coastal_capital_buffer,
 	ve::vectorizable_buffer<float, dcon::state_instance_id>& state_port_is_occupied
 ) {
-	// calculate optimism about the ability to buy or sell goods
-
-	auto optimism_buy = state.world.commodity_make_vectorizable_float_buffer();
-	auto optimism_sell = state.world.commodity_make_vectorizable_float_buffer();
-	auto optimism_confidence = state.world.commodity_make_vectorizable_float_buffer();
-
-	state.world.for_each_commodity([&](auto cid){
-		if (ignore_reality) {			
-			optimism_buy.set(cid, 1.f);
-			optimism_sell.set(cid, 1.f);
-			optimism_confidence.set(cid, 1000.f);
-		} else {
-			ve::fp_vector total_count = 0.f;
-			ve::fp_vector total_reality_buy = 0.f;
-			ve::fp_vector total_reality_sell = 0.f;
-			ve::fp_vector total_confidence = 0.f;
-
-			state.world.execute_serial_over_market([&](auto market) {
-				auto valid = ve::apply([&](auto m) {
-					return state.world.market_is_valid(m);
-				}, market);
-				total_count = total_count + ve::select(valid, ve::fp_vector{1.f}, ve::fp_vector{0.f});
-				total_reality_buy = total_reality_buy + ve::select(valid, state.world.market_get_expected_probability_to_buy(market, cid), 0.f);
-				total_reality_sell = total_reality_sell + ve::select(valid, state.world.market_get_expected_probability_to_sell(market, cid), 0.f);
-				total_confidence = total_confidence + ve::select(valid,
-					state.world.market_get_aggregated_supply_history(market, cid)
-					+ state.world.market_get_aggregated_demand_history(market, cid)
-					, 0.f
-				);
-			});
-
-			optimism_buy.set(cid, 0.5f + 0.5f * total_reality_buy.reduce() / (total_count.reduce() + 1.f));
-			optimism_sell.set(cid, 0.5f + 0.5f * total_reality_sell.reduce() / (total_count.reduce() + 1.f));
-			optimism_confidence.set(cid, 2.f + 2.f * (total_confidence + 1.f) / (total_count.reduce() + 1.f));
-		}
-	});
-
 
 	state.world.execute_parallel_over_trade_route([&](auto trade_route) {
 		auto origin = state.world.trade_route_get_origin(trade_route);
@@ -519,19 +482,9 @@ void update_trade_routes_volume(
 			                continue;
 			}
 
-			// US3AC20.
-			//auto unlocked_A = state.world.nation_get_unlocked_commodities(controller_A, c);
-			//auto unlocked_B = state.world.nation_get_unlocked_commodities(controller_B, c);
-
 			auto reset_route_commodity = reset_route;
 
-			//if(!state.world.commodity_get_is_available_from_start(c)) {
-			//	reset_route_commodity = reset_route_commodity
-			//		|| (!unlocked_A && !unlocked_B);
-			//}
-
 			auto current_volume = state.world.trade_route_get_volume(trade_route, c);
-
 			auto confidence_export = ve::max(0.01f, state.world.market_get_price_confidence(origin, c));
 			auto confidence_import = ve::max(0.01f, state.world.market_get_price_confidence(target, c));
 
@@ -544,11 +497,6 @@ void update_trade_routes_volume(
 			// US3AC21 effect of scale
 			// volume reduces transport costs
 
-			auto sold_boundary = stockpile_to_supply / (stockpile_spoilage + stockpile_to_supply);
-
-			auto sell_optimism = optimism_sell.get(c);
-			auto buy_optimism = optimism_buy.get(c);
-
 			auto expected_to_buy = state.world.market_get_expected_probability_to_buy(origin, c);
 			auto expected_to_sell = state.world.market_get_expected_probability_to_sell(target, c);
 
@@ -556,9 +504,6 @@ void update_trade_routes_volume(
 			                expected_to_buy = ve::min(ve::fp_vector{ 1.f }, expected_to_buy + 0.5f);
 			                expected_to_sell = ve::min(ve::fp_vector{ 1.f }, expected_to_sell + 0.5f);
 			}
-
-			auto pessimism_confidence_origin = 0.5f * (state.world.market_get_aggregated_demand_history(origin, c) + state.world.market_get_aggregated_supply_history(origin, c));
-			auto pessimism_confidence_target = 0.5f * (state.world.market_get_aggregated_demand_history(target, c) + state.world.market_get_aggregated_supply_history(target, c));
 
 			/*
 
@@ -579,32 +524,14 @@ void update_trade_routes_volume(
 
 			*/
 
-
-			auto sell_rate_perception = (optimism_confidence.get(c) * ve::max(expected_to_sell, sell_optimism) + pessimism_confidence_target * expected_to_sell);
-			auto buy_rate_perception = (optimism_confidence.get(c) * ve::max(expected_to_buy, buy_optimism) + pessimism_confidence_origin * expected_to_buy);
-
 			// making it into a hard cap?
 			auto transport_availability = ve::select(is_sea_route, state.world.market_get_naval_transportation_demand_satisfaction(owner), state.world.market_get_land_transportation_demand_satisfaction(owner));
 			auto budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
 
-			auto perception_divisor_origin = (optimism_confidence.get(c) + pessimism_confidence_origin);
-			auto perception_divisor_target = (optimism_confidence.get(c) + pessimism_confidence_target);
-			auto perception_divisor = perception_divisor_origin * perception_divisor_target;
-
-			auto earn_expectation = earn_per_unit * sold_boundary * sell_rate_perception * buy_rate_perception / perception_divisor;
-
-			//auto risk = ve::min(1.f, ve::select(budget * expected_to_sell == 0.f, 1.f, (economy::price_properties::commodity::min + price_export) / (budget * 0.01f)));
 			auto risk = ve::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
 
 			auto hard_limit = transport_availability;
 			auto soft_limit = expected_to_sell * expected_to_buy;
-
-			if(ignore_reality) {
-				//budget_scale = ve::fp_vector{1.f};
-				//hard_limit = ve::fp_vector{ 1.f };
-				//soft_limit = ve::fp_vector{ 1.f };
-				//risk = ve::fp_vector{ 1.f };
-			}
 
 			auto change_multiplier =
 				ve::max(ve::fp_vector{ 0.f }, (budget_scale - 0.5f) * 2.f)
@@ -616,26 +543,10 @@ void update_trade_routes_volume(
 			auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
 			auto change = (current_volume * 0.001f + 0.001f) * diff;
 
-			/*
-			ve::apply([&](float current_vol, float score, float dvol, float mult, float earn, float spend) {
-				if(earn > 1'000'000.f) {
-					state.console_log(
-						"trade. current : " + std::to_string(current_vol)
-						+ " diff : " + std::to_string(score)
-						+ " change : " + std::to_string(dvol)
-						+ " mult : " + std::to_string(mult)
-						+ " earn : " + std::to_string(earn)
-						+ " spend : " + std::to_string(spend)
-					);
-				}
-			}, current_volume, diff, change, change_multiplier, earn_per_unit, pay_per_unit);
-			*/
-
 			change = ve::select(change <= 0.f, change, change * change_multiplier);
 			if(ignore_reality) {
 				change = change * 10.f;
 			}
-			//* ve::max(0.f, (buy_rate_perception / perception_divisor_origin - 0.2f) / 0.8f));
 			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change));
 			state.world.trade_route_set_volume(trade_route, c, next);
 		}

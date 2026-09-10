@@ -2122,19 +2122,6 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 				new_employment
 			);
 
-			ve::apply([&](dcon::province_id p, float price, float next, float max, float gradient, float change, float wage){
-				if(price > 1'000'000.f && max > 1000.f) {
-					state.console_log(
-						"Next employment: "
-						+ std::to_string(next)
-						+ "/" + std::to_string(max)
-						+ " (" + std::to_string(change) + ") grad: " + std::to_string(gradient)
-						+ " wage: " + std::to_string(wage)
-						+ " mult: " + std::to_string(presim_employment_mult)
-					);
-				}
-			}, pids, current_price, new_employment, current_size, gradient, employment_change, spending_per_worker_perception);
-
 			new_employment = ve::max(ve::fp_vector{0.f}, ve::min(new_employment, current_size));
 			state.world.province_set_rgo_target_employment(pids, c, new_employment);
 			state.world.province_set_rgo_output(pids, c, output_per_worker * current_employment);
