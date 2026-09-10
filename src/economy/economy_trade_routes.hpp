@@ -44,6 +44,8 @@ struct trade_route_volume_change_reasons {
 	float decay = 0.f;
 	float final_change = 0.f;
 
+	float transport_cost_per_unit = 0.f;
+
 	bool trade_blocked = 0.f;
 	bool commodity_is_not_tradable = 0.f;
 	bool commodity_is_not_discovered = 0.f;
@@ -94,9 +96,9 @@ trade_and_tariff<ve::partial_contiguous_tags<dcon::trade_route_id>> explain_trad
 
 void fill_trade_buffers(
 	sys::state& state,
-
 	const ve::vectorizable_buffer<float, dcon::market_id>& export_tariff_buffer,
-	const ve::vectorizable_buffer<float, dcon::market_id>& import_tariff_buffer
+	const ve::vectorizable_buffer<float, dcon::market_id>& import_tariff_buffer,
+	bool presimulation
 );
 
 }

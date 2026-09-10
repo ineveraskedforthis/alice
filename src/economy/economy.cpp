@@ -33,7 +33,7 @@ constexpr float vic2_knots_to_km_per_day = 24.f * 2.f;
 constexpr float vic2_hull_to_tonn = 20.f;
 // measured and provided via port capacity
 constexpr float vic2_ship_crew_size = 150.f;
-constexpr float cargo_ship_maintenance_reduction = 0.1f;
+constexpr float cargo_ship_maintenance_reduction = 0.01f;
 
 float pop_min_wage_factor(sys::state& state, dcon::nation_id n) {
 	return state.world.nation_get_modifier_values(n, sys::national_mod_offsets::minimum_wage);
@@ -419,7 +419,7 @@ void presimulate(sys::state& state) {
 #endif
 	for(uint32_t i = 0; i < steps; i++) {
 		float presim_completion = float(i) / float(steps);
-		float employment_gradient_mult = 1000.0f / std::max(presim_completion * 1000.0f, 1.0f);
+		float employment_gradient_mult = 500.0f - 499.f * presim_completion;
 		update_employment(state, true, employment_gradient_mult);
 		daily_update(state, true, (float)i / (float)steps);
 		ai::update_budget(state, true);
@@ -528,6 +528,7 @@ void initialize(sys::state& state) {
 	state.world.for_each_commodity([&](dcon::commodity_id c) {
 		state.world.execute_serial_over_market([&](auto markets) {
 			state.world.market_set_price(markets, c, state.world.commodity_get_cost(c));
+			state.world.market_set_price_confidence(markets, c, 1.f);
 
 			state.world.market_set_aggregated_demand_history(markets, c, ve::fp_vector{});
 			state.world.market_set_aggregated_supply_history(markets, c, ve::fp_vector{});
@@ -3520,8 +3521,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			auto aggregated_demand = state.world.market_get_aggregated_demand_history(ids, c);
 			auto aggregated_supply = state.world.market_get_aggregated_supply_history(ids, c);
 
-			auto new_expected_probability_to_buy = ve::min(1.f, ve::select(aggregated_demand == 0.f, 1.f, aggregated_supply / aggregated_demand));
-			auto new_expected_probability_to_sell = ve::min(1.f, ve::select(aggregated_supply == 0.f, 1.f, aggregated_demand / aggregated_supply));
+			auto new_expected_probability_to_buy = ve::min(1.f, (aggregated_supply + 0.25f) / (aggregated_demand + 0.25f));
+			auto new_expected_probability_to_sell = ve::min(1.f, (aggregated_demand + 0.25f) / (aggregated_supply + 0.25f));
 
 			auto old_expected_probability_to_buy = state.world.market_get_expected_probability_to_buy(ids, c);
 			auto old_expected_probability_to_sell = state.world.market_get_expected_probability_to_sell(ids, c);
@@ -3566,6 +3567,10 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			);
 
 			state.world.market_set_stockpile(ids, c, state.world.market_get_stockpile(ids, c) *(1.f - stockpile_spoilage));
+
+			//if(presimulation) {
+				//state.world.market_set_stockpile(ids, c, state.world.market_get_stockpile(ids, c) + 5.f * production_and_merchants_supply);
+			//}
 
 			auto sales = state.world.market_get_sales(ids);
 			state.world.market_set_sales(ids, sales + merchants_supply * new_actual_probability_to_sell * ve_price(state, ids, c));
@@ -3884,6 +3889,12 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				shipbuilding_refund = shipbuilding_refund + refunded;
 				min_satisfied_maintenance = ve::min(min_satisfied_maintenance, actually_bought);
 			}
+
+			if(presimulation) {
+				min_satisfied = 1.f;
+				ship_building_speed = ship_building_speed * 10.f;
+			}
+
 			auto advance = min_satisfied * weight * ship_building_speed * ships_ratio;
 			auto port_services = ready_ships * vic2_ship_crew_size;
 			total_port_services_demanded = total_port_services_demanded + port_services;
@@ -4327,7 +4338,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 	fill_trade_buffers(state,
 		export_tariff_buffer,
-		import_tariff_buffer
+		import_tariff_buffer,
+		presimulation
 	);
 
 	set_profile_point(state, "set and sum up trade buffers into per market data");
@@ -4342,6 +4354,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto states = state.world.market_get_zone_from_local_market(markets);
 				auto capitals = state.world.state_instance_get_capital(states);
 				auto price = ve_price(state, markets, c);
+				auto median_price = state.world.commodity_get_median_price(c);
+				auto confidence = state.world.market_get_price_confidence(markets, c);
 				auto current_merchants_supply = state.world.market_get_stockpile_sales(markets, c);
 
 				auto wealth = state.world.market_get_wealth(markets);
@@ -4349,21 +4363,62 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto wealth_ratio = (1.f + accumulated_commodity_wealth) / (1.f + wealth);
 
 				auto funds = state.world.market_get_stockpile(markets, economy::money);
-				auto desired_funds = wealth * 100.f;
+				auto desired_funds = wealth;
 				auto desired_sales_worth = ve::max(ve::fp_vector{ 0.f }, desired_funds - funds) * wealth_ratio;
-				auto desired_sales = ve::max(current_merchants_supply, desired_sales_worth / (price + price_properties::commodity::min));
+				auto desired_sales = desired_sales_worth / (price + price_properties::commodity::min);
 
 				auto historical_demand = state.world.market_get_aggregated_demand_history(markets, c);
 				auto historical_supply = state.world.market_get_aggregated_supply_history(markets, c);
-				auto historical_balance = historical_demand - historical_supply;
+				auto historical_chance_to_sell = state.world.market_get_expected_probability_to_sell(markets, c);
+				auto historical_chance_to_buy = state.world.market_get_expected_probability_to_buy(markets, c);
 
-				auto next_merchants_supply = current_merchants_supply + (desired_sales - current_merchants_supply + historical_balance) * 0.01f;
+				auto stockpile_safety = ve::select(
+					current_merchants_supply == 0.f,
+					ve::fp_vector{ 1.f },
+					ve::min(ve::fp_vector{ 1.f }, stockpiles * stockpile_to_supply / current_merchants_supply)
+				);
+				auto stockpile_filled = ve::select(
+					current_merchants_supply == 0.f,
+					ve::fp_vector{ 1.f },
+					ve::max(ve::fp_vector{ 1.f }, stockpiles * stockpile_to_supply / current_merchants_supply) - 1.f
+				);
 
-				auto bounded_next_merchants_supply = ve::min(stockpiles * stockpile_to_supply, ve::max(stockpiles * stockpile_spoilage, next_merchants_supply));
+				stockpile_safety = ve::min(ve::fp_vector{ 1.f }, stockpile_safety * stockpile_safety + (1.f - confidence));
 
+				auto historical_balance =
+					historical_demand * (2.f - historical_chance_to_buy)
+					- (historical_supply - current_merchants_supply) * (2.f - historical_chance_to_sell);
+				auto get_rid_of_stockpiles = 10.f * (1.f + wealth_ratio) * (historical_chance_to_sell + 0.01f) * stockpiles * stockpile_to_supply;
+				auto preserve_stockpiles_for_future = - 10.f * current_merchants_supply;
+
+				auto market_is_unbalanced = (1.1f - confidence) * 10.f;
+				auto stockpile_is_running_out = ve::max(ve::fp_vector{ 0.f }, current_merchants_supply / (0.01f + stockpiles * stockpile_to_supply) - 1.f);
+				auto stockpile_is_too_big = ve::max(ve::fp_vector{ 0.f }, stockpiles * stockpile_to_supply / (0.01f + current_merchants_supply) - 1.f);
+
+				auto total_score = market_is_unbalanced + stockpile_is_running_out + stockpile_is_too_big;
+
+				auto target = (
+					get_rid_of_stockpiles * stockpile_is_too_big
+					+ preserve_stockpiles_for_future * stockpile_is_running_out
+				) / total_score;
+
+				auto next_merchants_supply = current_merchants_supply * 0.5f + historical_balance * 0.4f + target * 0.10f; //+ desired_sales * 0.000002f ;
+
+				auto bounded_next_merchants_supply = ve::min(stockpiles, ve::max(0.f, next_merchants_supply));
 				state.world.market_set_stockpile_sales(markets, c, bounded_next_merchants_supply);
-
 				state.world.market_set_supply(markets, c, state.world.market_get_supply(markets, c) + bounded_next_merchants_supply);
+
+				if(
+					presimulation
+					&& state.world.commodity_get_actually_exists_in_nature(c)
+					&& state.world.commodity_get_rgo_amount(c) > 0.f
+				) {
+					state.world.market_set_stockpile(markets, c, ve::max(
+						state.world.market_get_stockpile(markets, c),
+						0.1f * (1.1f - confidence) * (1.1f - presimulation_stage) * historical_balance / stockpile_to_supply
+						+ 0.5f * historical_demand * (ve::max(1000.f, price) / 1000.f - 1.f) / stockpile_to_supply
+					));
+				}
 			}
 		});
 	});
@@ -4897,7 +4952,11 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			auto current_price = state.world.province_get_labor_price(ids, i);
 			auto old_price = current_price;
 
-			current_price = current_price + price_properties::labor::change<ve::fp_vector>(current_price, supply, demand);
+			if(presimulation) {
+				current_price = current_price + price_properties::labor::change_fast<ve::fp_vector>(current_price, supply, demand);
+			} else {
+				current_price = current_price + price_properties::labor::change<ve::fp_vector>(current_price, supply, demand);
+			}
 
 			auto nids = state.world.province_get_nation_from_province_ownership(ids);
 			auto sids = state.world.province_get_state_membership(ids);
@@ -4950,7 +5009,12 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			ve::fp_vector supply = state.world.market_get_aggregated_supply_history(ids, cid);
 			ve::fp_vector demand = state.world.market_get_aggregated_demand_history(ids, cid);
 			auto current_price = ve_price(state, ids, cid);
-			auto next_price = current_price + price_properties::commodity::change<ve::fp_vector>(current_price, supply, demand);
+			auto next_price = current_price;
+			if(presimulation) {
+				next_price = current_price + price_properties::commodity::change_fast<ve::fp_vector>(current_price, supply, demand);
+			} else {
+				next_price = current_price + price_properties::commodity::change<ve::fp_vector>(current_price, supply, demand);
+			}
 #ifndef NDEBUG
 			ve::apply([&](auto value) { assert(std::isfinite(value)); }, next_price);
 #endif
@@ -4958,7 +5022,11 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 			auto current_confidence = state.world.market_get_price_confidence(ids, cid);
 			auto price_ratio = current_price / next_price_clamped;
-			auto next_confidence = ve::min(0.99f * current_confidence * ve::min(price_ratio, 1.f / price_ratio) + 0.01f, 1.f);
+			auto base_confidence_increase = 1.f / 365.f / 3.f;
+			if(presimulation) {
+				base_confidence_increase = 1.f / 365.f * 3.f;
+			}
+			auto next_confidence = ve::max(ve::fp_vector{0.0001f}, ve::min(ve::fp_vector{ 1.f }, current_confidence * ve::min(price_ratio, 1.f / price_ratio) + base_confidence_increase));
 #ifndef NDEBUG
 			ve::apply([&](auto value) { assert(std::isfinite(value)); }, next_confidence);
 #endif

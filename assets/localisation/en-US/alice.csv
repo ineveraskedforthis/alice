@@ -1583,6 +1583,9 @@ merchants_received_per_unit;Seller merchants profit per unit: ?Y$val$
 trade_route_volume_profit_score;Profit score: ?Y$val$?W (decides base rate of change). It is calculated as a sum of the following values:
 trade_route_volume_profit_score_export;Export score: ?Y$val$?W. Export profit ?Y$x$?W divided by our export price ?Y$y$?W
 trade_route_volume_profit_score_import;Import score: ?Y$val$?W. Minus import profit ?Y$x$?W divided by their export price ?Y$y$?W
+trade_route_volume_transport_cost;Cost of transportation: ?Y$val$?W
+trade_route_volume_import_price;Import price (tariff adjusted): ?Y$val$?W
+trade_route_volume_export_price;Export price (tariff adjusted): ?Y$val$?W
 trade_route_volume_base_change;Base expected change: ?Y$val$?W (Profit score times expansion multiplier)
 trade_route_volume_expansion_multiplier;Expansion multiplier: ?Y$val$?W (Depends on actual access to commodity in exporting market)
 trade_route_volume_transport_availability;Transport availability: ?Y$val$?W
