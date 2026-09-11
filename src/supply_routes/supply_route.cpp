@@ -12,6 +12,7 @@
 
 namespace supply_routes {
 
+constexpr uint32_t supply_route_pathfinding_batches = 30; // The desired amount of batches for processing pathfinding in parallel. Less batches = better performance when under heavy load, but the pathfinding is not able to take other potentially overlapping paths into account in the pathfinding logic.
 
 // union of either a army or navy. Used for type erasure when prioritizing supplies between military units
 struct unit {
@@ -775,7 +776,7 @@ void schedule_nation_supply_paths_update(sys::state& state, dcon::nation_id nati
 	state.world.nation_set_supply_routes_requires_path_update(nation, true);
 }
 
-constexpr float ineffective_supply_path_throughput_cutoff = 1.0f;
+constexpr float ineffective_supply_path_throughput_cutoff = 0.9f;
 constexpr float ineffective_supply_path_loss_cutoff = 0.65f;
 
 void schedule_active_ineffective_supply_paths_update(sys::state& state) {
@@ -783,7 +784,7 @@ void schedule_active_ineffective_supply_paths_update(sys::state& state) {
 		float throughput = state.world.supply_route_path_get_throughput(path_id);
 		float loss = state.world.supply_route_path_get_supply_loss(path_id);
 		bool active = state.world.supply_route_path_get_is_active(path_id);
-		// update it if throughput is less than 100%, and if loss is greater than 35%
+		// update it if throughput is less than 90%, or if loss is greater than 35%
 		if(active && (throughput < ineffective_supply_path_throughput_cutoff || loss < ineffective_supply_path_loss_cutoff)) {
 			schedule_immediate_supply_path_update(state, path_id);
 		}
@@ -957,7 +958,7 @@ float calculate_supply_loss_in_province(const sys::state& state, dcon::province_
 	float national_percent_mod = (province_is_sea ? state.world.nation_get_modifier_values(nation_as, sys::national_mod_offsets::national_naval_supply_loss_percent) : state.world.nation_get_modifier_values(nation_as, sys::national_mod_offsets::national_land_supply_loss_percent));
 	float national_mul_mod = (province_is_sea ? state.world.nation_get_modifier_values(nation_as, sys::national_mod_offsets::national_naval_supply_loss_mul) : state.world.nation_get_modifier_values(nation_as, sys::national_mod_offsets::national_land_supply_loss_mul));
 
-	float hostile_units_add = (province_is_sea ? 1.0f : supply_loss_add_hostile_armies(state, province, nation_as));
+	float hostile_units_add = (province_is_sea ? 0.0f : supply_loss_add_hostile_armies(state, province, nation_as));
 	float add_mods = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_loss_add) + national_add_mod + hostile_units_add;
 	float percent_mods = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_loss_percent) + national_percent_mod + 1.0f;
 	float mul_mods = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_loss_mul) * national_mul_mod;
@@ -1019,9 +1020,11 @@ void update_supply_path_throughput_attrition(sys::state& state, dcon::supply_rou
 	auto origin_prov = supply_route_path_get_origin_prov(state, path_handle);
 	dcon::province_id dest = state.world.supply_route_path_get_destination(path_handle);
 	auto adj_path = state.world.supply_route_path_get_adjacency_path(path_handle);
-	auto supply_loss = calculate_supply_route_supply_loss(state, adj_path, origin_prov, dest, controller);
-	auto throughput = calculate_supply_route_throughput(state, adj_path, origin_prov, dest, controller);
-	state.world.supply_route_path_set_throughput(path_handle, throughput);
+	float supply_loss = calculate_supply_route_supply_loss(state, adj_path, origin_prov, dest, controller);
+	float new_throughput = calculate_supply_route_throughput(state, adj_path, origin_prov, dest, controller);
+	float old_throughput = state.world.supply_route_path_get_throughput(path_handle);
+	state.world.supply_route_path_set_expected_throughput(path_handle, (new_throughput + old_throughput) / 2.0f);
+	state.world.supply_route_path_set_throughput(path_handle, new_throughput);
 	state.world.supply_route_path_set_supply_loss(path_handle, supply_loss);
 }
 
@@ -1517,11 +1520,11 @@ void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,
 			return unit_reinforcement_need_get(state, unit, unit_com_id);
 		}
 	};
+	float com_supply_weight = state.world.commodity_get_supply_weight(commodity);
 	dcon::province_id unit_location = military::unit_get_location(state, unit);
 
 	auto stockpiles_buffer = unit_best_stockpiles_get(state, unit);
 	for(auto stockpile_state : stockpiles_buffer) {
-		float remaining_goods_required = get_remaining_goods_required();
 
 		dcon::market_id market = state.world.state_instance_get_market_from_local_market(stockpile_state);
 		auto origin_prov = state.world.state_instance_get_capital(stockpile_state);
@@ -1532,7 +1535,6 @@ void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,
 			continue;
 		}
 
-		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
 		auto route = get_supply_route_by_origin_dest_pair(state, unit, market);
 
 		if(!route) {
@@ -1552,12 +1554,13 @@ void update_military_unit_routes_satisfaction(sys::state& state, unit_type unit,
 		}
 		state.world.supply_route_path_set_attempting_to_route(path, true);  // We are attempting to move goods through this path, whether its valid or not
 		bool path_is_valid = state.world.supply_route_path_get_valid_path(path);
-		// We do want to reserve goods for invalid paths ONLY if it is a new path (as it may very well be valid later). If its an old path which is invalid, don't bother
+		// We do want to reserve goods for invalid paths ONLY if it is a new path (as it may very well be valid later). If its an old path which is invalid, don't bother and wait till if becomes valid
 		if(!new_path && !path_is_valid) {
 			continue;
 		}
+		float remaining_goods_required = get_remaining_goods_required();
+		float to_consume = std::min(remaining_goods_required, available_stockpile_amount) * state.world.supply_route_path_get_expected_throughput(path); // Consume less if the expected throughput of this route is lower than 100%
 
-		float com_supply_weight = state.world.commodity_get_supply_weight(commodity);
 		// The amount to consume is the minimum of the desired amount or the amount available in stockpile
 		// Compute how much to consume to compensate for the expected loss on the route.
 		assert(available_stockpile_amount - to_consume >= 0.0f);
@@ -1626,9 +1629,10 @@ void update_construction_routes_satisfaction(sys::state& state, construction_typ
 
 	dcon::province_id con_location = economy::construction_get_location(state, conc);
 
+	float com_supply_weight = state.world.commodity_get_supply_weight(commodity);
+
 	auto stockpiles_buffer = construction_best_stockpiles_get(state, conc);
 	for(auto stockpile_state : stockpiles_buffer) {
-		float remaining_goods_required = construction_need[set_index];
 
 		dcon::market_id market = state.world.state_instance_get_market_from_local_market(stockpile_state);
 		dcon::province_id origin_prov = state.world.state_instance_get_capital(stockpile_state);
@@ -1638,7 +1642,6 @@ void update_construction_routes_satisfaction(sys::state& state, construction_typ
 		if(available_stockpile_amount == 0.0f) {
 			continue;
 		}
-		float to_consume = std::min(remaining_goods_required, available_stockpile_amount);
 
 		auto route = get_supply_route_by_origin_dest_pair(state, conc, market);
 
@@ -1663,8 +1666,9 @@ void update_construction_routes_satisfaction(sys::state& state, construction_typ
 		if(!new_path && !path_is_valid) {
 			continue;
 		}
+		float remaining_goods_required = construction_need[set_index];
+		float to_consume = std::min(remaining_goods_required, available_stockpile_amount) * state.world.supply_route_path_get_expected_throughput(path); // Consume less if the expected throughput of this route is lower than 100%
 
-		float com_supply_weight = state.world.commodity_get_supply_weight(commodity);
 		// The amount to consume is the minimum of the desired amount or the amount available in stockpile
 		// Compute how much to consume to compensate for the expected loss on the route.
 		assert(available_stockpile_amount - to_consume >= 0.0f);
@@ -2653,7 +2657,7 @@ void update_supply_routes_daily(sys::state& state) {
 	// 
 	// Setup the batch container
 	static std::vector<std::vector<dcon::supply_route_path_id>> path_batches;
-	setup_spread_supply_path_batches(state, 50, path_batches);
+	setup_spread_supply_path_batches(state, supply_route_pathfinding_batches, path_batches);
 
 
 	// Process the batches. The application of used supply throughput is done once per batch, and has to be done serially as it modifies arbitrary province adjacency data

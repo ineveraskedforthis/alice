@@ -5148,6 +5148,10 @@ relationship{
 		type{float}
 		tag{ save }
 	}
+	property{
+		name{ expected_throughput }
+		type{float}
+	}
 }
 
 relationship{

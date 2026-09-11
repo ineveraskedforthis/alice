@@ -864,6 +864,10 @@ int8_t get_nation_construction_consumption_setting_by_type(const sys::state& sta
 		return state.world.nation_get_building_construction_consumption(nation);
 	}
 }
+template int8_t get_nation_construction_consumption_setting_by_type<dcon::province_land_construction_id>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_construction_consumption_setting_by_type<dcon::province_naval_construction_id>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_construction_consumption_setting_by_type<dcon::factory_construction_id>(const sys::state& state, dcon::nation_id nation);
+template int8_t get_nation_construction_consumption_setting_by_type<dcon::province_building_construction_id>(const sys::state& state, dcon::nation_id nation);
 
 template<typename unit_type, military::unit_consumption_type consumption_type>
 requires(concepts::military_unit<unit_type> || concepts::military_subunit<unit_type>)
