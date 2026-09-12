@@ -5645,7 +5645,7 @@ void add_factory_level_to_province(sys::state& state, dcon::province_id p, dcon:
 	auto output =  state.world.factory_type_get_output(t);
 	auto national_t = state.world.nation_get_factory_goods_throughput(n, output);
 	auto nationnal_fac_t = state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_throughput);
-	new_fac.set_technology_scale(0.05f + std::max(0.f, national_t) * 0.1f + std::max(0.f, nationnal_fac_t) * 0.1f);
+	new_fac.set_technology_scale(0.05f + std::max(0.f, national_t) + std::max(0.f, nationnal_fac_t));
 	state.world.try_create_factory_location(new_fac, p);
 	set_initial_factory_values(state, new_fac);
 }
