@@ -557,8 +557,12 @@ void generate_sea_trade_routes(sys::state& state) {
 			bool target_is_major_node = target_connected_region_population > 0.7f * nation_to_max_population[target_owner.index()];
 
 			if(origin_is_major_node && target_is_major_node) {
-				auto new_route = state.world.force_create_trade_route(origin_market, target_market);
-				state.world.trade_route_set_is_sea_route(new_route, true);
+				auto new_route_to = state.world.force_create_trade_route(origin_market, target_market);
+				auto new_route_from = state.world.force_create_trade_route(target_market, origin_market);
+				state.world.trade_route_set_is_sea_route(new_route_to, true);
+				state.world.trade_route_set_is_sea_route(new_route_from, true);
+				state.world.trade_route_set_owner(new_route_to, origin_market);
+				state.world.trade_route_set_owner(new_route_from, origin_market);
 				return;
 			}
 
@@ -600,8 +604,12 @@ void generate_sea_trade_routes(sys::state& state) {
 
 		parent_found[best_parent[i].leaf.index()] = true;
 
-		auto new_route = state.world.force_create_trade_route(best_parent[i].leaf, best_parent[i].parent);
-		state.world.trade_route_set_is_sea_route(new_route, true);
+		auto new_route_to = state.world.force_create_trade_route(best_parent[i].leaf, best_parent[i].parent);
+		auto new_route_from = state.world.force_create_trade_route(best_parent[i].parent, best_parent[i].leaf);
+		state.world.trade_route_set_is_sea_route(new_route_to, true);
+		state.world.trade_route_set_is_sea_route(new_route_from, true);
+		state.world.trade_route_set_owner(new_route_to, best_parent[i].parent);
+		state.world.trade_route_set_owner(new_route_from, best_parent[i].parent);
 	}
 }
 

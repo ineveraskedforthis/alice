@@ -3235,7 +3235,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 		auto import_spent = state.world.market_get_import_spending(market);
 
 		auto reinvestment = ve::max(0.f, budget * 0.05f);
-		auto debt_payment = ve::max(0.f, -budget * 0.05f);
+		auto debt_payment = ve::max(0.f, -budget * 0.5f);
 		budget = budget - reinvestment + debt_payment;
 
 
@@ -3346,7 +3346,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 		auto spending_ability_ratio = ve::min(1.f, ve::max(0.f, ve::select(spend == 0.f, 1.f, earn / spend)));
 		// We don't want to spend a lot more than we earn on imports
-		auto import_ratio = ve::min(1.f, ve::max(0.f, ve::select(import_spent == 0.f, 1.f, 0.8f * earn / import_spent)));
+		auto import_ratio = ve::min(1.f, ve::max(0.f, ve::select(earn == 0.f, 1.f, import_spent / earn)));
 
 		state.world.market_set_trade_house_budget_scale(market, spending_ability_ratio);
 		state.world.market_set_trade_house_budget_import_scale(market, import_ratio);
@@ -3597,8 +3597,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 		}
 
 		state.world.market_set_stockpile(
-				ids, economy::money,
-				state.world.market_get_stockpile(ids, economy::money) * state.inflation
+			ids, economy::money,
+			state.world.market_get_stockpile(ids, economy::money) * state.inflation
 		);
 	});
 
@@ -4391,7 +4391,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 				auto get_rid_of_stockpiles = 10.f * (1.f + wealth_ratio) * (historical_chance_to_sell + 0.01f) * stockpiles * stockpile_to_supply;
 				auto preserve_stockpiles_for_future = - 10.f * current_merchants_supply;
 
-				auto market_is_unbalanced = (1.1f - confidence) * 10.f;
+				auto market_is_unbalanced = (1.1f - confidence * historical_chance_to_buy * historical_chance_to_sell) * 10.f;
 				auto stockpile_is_running_out = ve::max(ve::fp_vector{ 0.f }, current_merchants_supply / (0.01f + stockpiles * stockpile_to_supply) - 1.f);
 				auto stockpile_is_too_big = ve::max(ve::fp_vector{ 0.f }, stockpiles * stockpile_to_supply / (0.01f + current_merchants_supply) - 1.f);
 
@@ -4414,9 +4414,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 					&& state.world.commodity_get_rgo_amount(c) > 0.f
 				) {
 					state.world.market_set_stockpile(markets, c, ve::max(
-						state.world.market_get_stockpile(markets, c),
-						0.1f * (1.1f - confidence) * (1.1f - presimulation_stage) * historical_balance / stockpile_to_supply
-						+ 0.5f * historical_demand * (ve::max(1000.f, price) / 1000.f - 1.f) / stockpile_to_supply
+						ve::min(ve::fp_vector{3650.f}, (2.f - confidence) * presimulation_stage * historical_demand / stockpile_to_supply),
+						state.world.market_get_stockpile(markets, c)
 					));
 				}
 			}
@@ -5022,7 +5021,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 			auto current_confidence = state.world.market_get_price_confidence(ids, cid);
 			auto price_ratio = current_price / next_price_clamped;
-			auto base_confidence_increase = 1.f / 365.f / 3.f;
+			auto base_confidence_increase = 1.f / 365.f;
 			if(presimulation) {
 				base_confidence_increase = 1.f / 365.f * 3.f;
 			}
@@ -5642,7 +5641,11 @@ void add_factory_level_to_province(sys::state& state, dcon::province_id p, dcon:
 	new_fac.set_unqualified_employment(base_size * 0.1f);
 	new_fac.set_primary_employment(0.f);
 	new_fac.set_secondary_employment(0.f);
-	new_fac.set_technology_scale(1.f);
+	auto n = state.world.province_get_nation_from_province_ownership(p);
+	auto output =  state.world.factory_type_get_output(t);
+	auto national_t = state.world.nation_get_factory_goods_throughput(n, output);
+	auto nationnal_fac_t = state.world.nation_get_modifier_values(n, sys::national_mod_offsets::factory_throughput);
+	new_fac.set_technology_scale(0.05f + std::max(0.f, national_t) * 0.1f + std::max(0.f, nationnal_fac_t) * 0.1f);
 	state.world.try_create_factory_location(new_fac, p);
 	set_initial_factory_values(state, new_fac);
 }

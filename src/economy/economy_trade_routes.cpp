@@ -326,8 +326,8 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 
 	auto sold_boundary = stockpile_to_supply / (stockpile_spoilage + stockpile_to_supply);
 
-	auto confidence_export = std::max(0.01f, state.world.market_get_price_confidence(A, c));
-	auto confidence_import = std::max(0.01f, state.world.market_get_price_confidence(B, c));
+	auto confidence_export = std::max(0.5f, state.world.market_get_price_confidence(A, c));
+	auto confidence_import = std::max(0.5f, state.world.market_get_price_confidence(B, c));
 
 	result.export_price_confidence = confidence_export;
 	result.import_price_confidence = confidence_import;
@@ -355,7 +355,7 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	auto pay_per_unit = price_export * (1.f + export_tariff + merchant_cut) + price_import * import_tariff + transport_cost_per_weight;
 
 
-	auto budget_scale = state.world.market_get_trade_house_budget_import_scale(B);
+	auto import_budget_scale = state.world.market_get_trade_house_budget_import_scale(B);
 
 	//auto perception_divisor_origin = (optimism_confidence.get(c) + pessimism_confidence_origin);
 	//auto perception_divisor_target = (optimism_confidence.get(c) + pessimism_confidence_target);
@@ -363,22 +363,27 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 
 	//auto earn_expectation = earn_per_unit * sold_boundary * sell_rate_perception * buy_rate_perception / perception_divisor;
 
-	auto budget = 1.f + state.world.market_get_total_earn(owner);
+	auto budget = 1.f + state.world.market_get_total_earn(B);
 	//auto risk = std::min(1.f, budget * expected_to_sell == 0.f ? 1.f : (economy::price_properties::commodity::min + price_export) / (budget * 0.01f));
-	auto risk = std::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+	//auto risk = std::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+
+	auto price_sold = owner == A ? price_import : price_export;
+
+	auto budget_factor = std::min(1.f, std::max(0.f, budget / 1000.f * (0.8f - import_budget_scale) / (economy::price_properties::commodity::min + price_sold)));
+	auto budget_scale = 1.f - import_budget_scale;
 
 	auto hard_limit = transport_availability;
 	auto soft_limit = expected_to_sell * expected_to_buy;
 	auto change_multiplier =
-		std::max(0.f, (budget_scale - 0.5f) * 2.f)
+		std::max(0.f, (budget_scale - 0.1f) / 0.9f)
 		* std::max(0.f, (hard_limit - 0.9f) / 0.1f)
-		* std::max(0.f, (soft_limit - 0.9f) / 0.1f)
-		* risk;
-	auto decay = std::max(0.999f, std::min(1.f, 0.1f + budget_scale * hard_limit));
+		* std::max(0.f, (soft_limit - 0.8f) / 0.2f)
+		* budget_factor;
+	auto decay = std::max(0.999f, std::min(1.f, 0.5f + budget_scale * soft_limit * hard_limit));
 
 
 	auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
-	auto base_change = (current_volume * 0.0005f + 0.001f) * diff;
+	auto base_change = (current_volume * 0.001f + 0.1f) * diff;
 	auto change = base_change <= 0.f ? base_change : base_change * change_multiplier;
 	auto next = std::max(0.f, current_volume * decay + change);
 
@@ -389,7 +394,7 @@ trade_route_volume_change_reasons predict_trade_route_volume_change(
 	result.expansion_multiplier = change_multiplier;
 	result.import_ratio = budget_scale;
 	result.transport_availability = transport_availability;
-	result.risk = risk;
+	result.risk = budget_factor;
 
 	result.profit = earn - spend;
 
@@ -414,7 +419,7 @@ void update_trade_routes_volume(
 		auto target = state.world.trade_route_get_target(trade_route);
 
 		auto owner = state.world.trade_route_get_owner(trade_route);
-		auto budget = 1.f + state.world.market_get_total_earn(owner);
+		auto budget = 1.f + state.world.market_get_total_earn(target);
 
 		auto s_origin = state.world.market_get_zone_from_local_market(origin);
 		auto s_target = state.world.market_get_zone_from_local_market(target);
@@ -485,8 +490,8 @@ void update_trade_routes_volume(
 			auto reset_route_commodity = reset_route;
 
 			auto current_volume = state.world.trade_route_get_volume(trade_route, c);
-			auto confidence_export = ve::max(0.01f, state.world.market_get_price_confidence(origin, c));
-			auto confidence_import = ve::max(0.01f, state.world.market_get_price_confidence(target, c));
+			auto confidence_export = ve::max(0.5f, state.world.market_get_price_confidence(origin, c));
+			auto confidence_import = ve::max(0.5f, state.world.market_get_price_confidence(target, c));
 
 			auto price_export = ve_price(state, origin, c) / confidence_export;
 			auto price_import = ve_price(state, target, c) * confidence_import;
@@ -500,10 +505,10 @@ void update_trade_routes_volume(
 			auto expected_to_buy = state.world.market_get_expected_probability_to_buy(origin, c);
 			auto expected_to_sell = state.world.market_get_expected_probability_to_sell(target, c);
 
-			if(ignore_reality) {
-			                expected_to_buy = ve::min(ve::fp_vector{ 1.f }, expected_to_buy + 0.5f);
-			                expected_to_sell = ve::min(ve::fp_vector{ 1.f }, expected_to_sell + 0.5f);
-			}
+			//if(ignore_reality) {
+			                //expected_to_buy = ve::min(ve::fp_vector{ 1.f }, expected_to_buy + 0.5f);
+			                //expected_to_sell = ve::min(ve::fp_vector{ 1.f }, expected_to_sell + 0.5f);
+			//}
 
 			/*
 
@@ -526,27 +531,30 @@ void update_trade_routes_volume(
 
 			// making it into a hard cap?
 			auto transport_availability = ve::select(is_sea_route, state.world.market_get_naval_transportation_demand_satisfaction(owner), state.world.market_get_land_transportation_demand_satisfaction(owner));
-			auto budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
+			auto import_budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
 
-			auto risk = ve::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+			auto price_sold = ve::select(owner == origin, price_import, price_export);
+			//auto risk = ve::min(1.f, budget * 0.01f / (economy::price_properties::commodity::min + price_export));
+			auto budget_factor = ve::min(ve::fp_vector{ 1.f }, ve::max(ve::fp_vector{ 0.f }, budget / 1000.f * (0.8f - import_budget_scale) / (economy::price_properties::commodity::min + price_sold)));
+			auto budget_scale = 1.f - import_budget_scale;
 
 			auto hard_limit = transport_availability;
 			auto soft_limit = expected_to_sell * expected_to_buy;
 
 			auto change_multiplier =
-				ve::max(ve::fp_vector{ 0.f }, (budget_scale - 0.5f) * 2.f)
+				ve::max(ve::fp_vector{ 0.f }, (budget_scale - 0.1f) / 0.9f)
 				* ve::max(ve::fp_vector{ 0.f }, (hard_limit - 0.9f) / 0.1f)
-				* ve::max(ve::fp_vector{ 0.f }, (soft_limit - 0.80f) / 0.2f)
-				* risk;
-			auto decay = ve::max(0.999f, ve::min(1.f, 0.1f + budget_scale * hard_limit));
+				* ve::max(ve::fp_vector{ 0.f }, (soft_limit - 0.8f) / 0.2f)
+				* budget_factor;
+			auto decay = ve::max(0.999f, ve::min(1.f, 0.5f + hard_limit * soft_limit * budget_scale));
 
 			auto diff = 2.f * (earn_per_unit - pay_per_unit) / (earn_per_unit + economy::price_properties::commodity::min);
-			auto change = (current_volume * 0.001f + 0.001f) * diff;
+			auto change = (current_volume * 0.001f + 0.1f) * diff;
 
 			change = ve::select(change <= 0.f, change, change * change_multiplier);
-			if(ignore_reality) {
-				change = change * 10.f;
-			}
+			//if(ignore_reality) {
+				//change = change * 10.f;
+			//}
 			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change));
 			state.world.trade_route_set_volume(trade_route, c, next);
 		}
@@ -924,7 +932,7 @@ void fill_trade_buffers(
 			state.world.market_set_import(target, cid, state.world.market_get_export(target, cid) + sat * volume * lost_modifier);
 			state.world.market_set_stockpile(target, cid, state.world.market_get_stockpile(target, cid) + sat * volume * lost_modifier);
 			if(presimulation && state.world.commodity_get_actually_exists_in_nature(cid)) {
-				state.world.market_set_stockpile(target, cid, state.world.market_get_stockpile(target, cid) + volume * 10.f);
+				state.world.market_set_stockpile(target, cid, state.world.market_get_stockpile(target, cid) + volume);
 			}
 		});
 	});
@@ -942,8 +950,8 @@ void fill_trade_buffers(
 		auto total_arbitrage = 0.f;
 		state.world.for_each_commodity([&](auto cid) {
 			auto sat = state.world.market_get_actual_probability_to_buy(origin, cid);
-			auto budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
-			auto volume = state.world.trade_route_get_volume(route, cid) * sat * budget_scale;
+			//auto budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
+			auto volume = state.world.trade_route_get_volume(route, cid) * sat;
 
 			auto price_origin = state.world.market_get_price(origin, cid);
 			auto price_target = state.world.market_get_price(target, cid);
