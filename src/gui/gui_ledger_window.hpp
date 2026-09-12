@@ -2196,10 +2196,12 @@ public:
 		state.world.for_each_nation([&](dcon::nation_id nation) {
 			auto newest_index = economy::most_recent_gdp_record_index(state);
 			if((*ptr).data[nation.index()]) {
+				// exp smoothing
+				auto acc = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + 1) % economy::gdp_history_length);
 				for(uint32_t i = 0; i < graph_length; ++i) {
-					auto record = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
-					if(record > max) {
-						max = record;
+					acc = acc * 0.99f + 0.01f * state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
+					if(acc > max) {
+						max = acc;
 					}
 				}
 			}
@@ -2213,10 +2215,14 @@ public:
 				std::vector<float> datapoints(graph_length);
 				auto newest_index = economy::most_recent_gdp_record_index(state);
 
+				// exp smoothing
+				auto acc = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + 1) % economy::gdp_history_length);
 				for(uint32_t i = 0; i < graph_length; ++i) {
-					datapoints[i] = state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
+					acc = acc * 0.99f + 0.01f * state.world.nation_get_gdp_record(nation, (newest_index + economy::gdp_history_length - graph_length + i + 1) % economy::gdp_history_length);
+					datapoints[i] = acc;
 				}
-				graph_per_nation[nation.index()]->set_data_points(state, datapoints, min, max);
+
+				graph_per_nation[nation.index()]->set_data_points(state, datapoints, 0.f, max);
 			}
 		});
 	}

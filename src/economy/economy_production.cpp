@@ -3201,15 +3201,17 @@ namespace gdp {
 float ideal_pound_to_real_pound(sys::state& state) {
 	auto cost_of_needs = 0.f;
 	uint32_t total_commodities = state.world.commodity_size();
-	auto worker = state.culture_definitions.primary_factory_worker;
-	for(uint32_t i = 1; i < total_commodities; ++i) {
-		dcon::commodity_id c{ dcon::commodity_id::value_base_t(i) };
-		auto price = state.world.commodity_get_median_price(c);
-		auto life_base = state.world.pop_type_get_life_needs(worker, c);
-		auto everyday_base = state.world.pop_type_get_everyday_needs(worker, c);
-		cost_of_needs += price * (life_base + 0.1f * everyday_base);
-	}
-	return cost_of_needs;
+	state.world.for_each_pop_type([&] (auto pt) {
+		for(uint32_t i = 1; i < total_commodities; ++i) {
+			dcon::commodity_id c{ dcon::commodity_id::value_base_t(i) };
+			auto price = state.world.commodity_get_median_price(c);
+			auto life_base = state.world.pop_type_get_life_needs(pt, c);
+			auto everyday_base = state.world.pop_type_get_everyday_needs(pt, c);
+			auto luxury_base = state.world.pop_type_get_luxury_needs(pt, c);
+			cost_of_needs += price * (life_base + 0.1f * everyday_base + 0.01f * luxury_base);
+		}
+	});
+	return cost_of_needs * 0.001f;
 }
 
 float value_market(sys::state& state, dcon::market_id n) {

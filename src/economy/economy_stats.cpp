@@ -9,6 +9,7 @@
 #include "economy_pops.hpp"
 #include "province_templates.hpp"
 #include "economy_production.hpp"
+#include "price.hpp"
 
 namespace economy {
 
@@ -284,21 +285,42 @@ float price(sys::state const& state, dcon::commodity_id c) {
 	return total_cost / total_supply;
 }
 
+struct price_with_weight {
+	float value = 0.f;
+	float weight = 0.f;
+
+	auto operator<=>(const price_with_weight& other) const {
+		return value <=> other.value;
+	}
+};
+
 float median_price(sys::state const& state, dcon::commodity_id c) {
-	std::vector<float> prices{};
+	std::vector<price_with_weight> prices{};
+	auto total_supplied = 0.f;
 	state.world.for_each_market([&](auto m) {
 		auto local_price = price(state, m, c);
-		prices.push_back(local_price);
+		auto supplied = state.world.market_get_supply(m, c);
+		prices.push_back({local_price, supplied });
+		total_supplied = total_supplied + supplied;
 	});
+	if(total_supplied == 0.f) {
+		return price_properties::commodity::min;
+	}
 	std::sort(prices.begin(), prices.end());
 	if(prices.size() == 0) {
 		return 0;
 	}
-	if(prices.size() % 2 == 0) {
-		return (prices[prices.size() / 2] + prices[prices.size() / 2 - 1]) / 2.f;
+	auto acc = 0.f;
+	size_t idx;
+	for (idx = 0; idx < prices.size() && acc * 2.f < total_supplied; idx++) {
+		acc += prices[idx].weight;
 	}
-	return (prices[prices.size() / 2]);
+	if (idx >= prices.size()) {
+		return prices.back().value;
+	}
+	return prices[idx].value;
 }
+
 float median_price(sys::state const& state, dcon::nation_id s, dcon::commodity_id c) {
 	std::vector<float> prices{};
 	state.world.nation_for_each_state_ownership(s, [&](auto soid) {

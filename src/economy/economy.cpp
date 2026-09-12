@@ -5044,7 +5044,8 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 	concurrency::parallel_for(uint32_t(1), total_commodities, [&](uint32_t k) {
 		dcon::commodity_id cid{ dcon::commodity_id::value_base_t(k) };
-		state.world.commodity_set_median_price(cid, median_price(state, cid));
+		auto old_median = state.world.commodity_get_median_price(cid);
+		state.world.commodity_set_median_price(cid, old_median * 0.99f + median_price(state, cid) * 0.01f);
 	});
 
 	set_profile_point(state, "update median prices");
