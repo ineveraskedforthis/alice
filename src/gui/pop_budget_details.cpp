@@ -1,8 +1,7 @@
+// BEGIN prelude
+// END
+
 namespace alice_ui {
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wswitch"
-#endif
 struct pop_budget_details_main_unemployment_value_t;
 struct pop_budget_details_main_pension_value_t;
 struct pop_budget_details_main_rgo_value_t;
@@ -26,6 +25,8 @@ struct pop_budget_details_consumption_name_t;
 struct pop_budget_details_consumption_satisfaction_t;
 struct pop_budget_details_consumption_cost_t;
 struct pop_budget_details_consumption_t;
+struct pop_budget_details_consumption_category_name_t;
+struct pop_budget_details_consumption_category_t;
 struct pop_budget_details_main_unemployment_value_t : public alice_ui::template_label {
 // BEGIN main::unemployment_value::variables
 // END
@@ -102,7 +103,11 @@ struct pop_budget_details_main_needs_t : public layout_generator {
 	std::vector<std::unique_ptr<ui::element_base>> consumption_pool;
 	int32_t consumption_pool_used = 0;
 	void add_consumption( dcon::commodity_id cid,  uint8_t category,  float cost_val,  float satisfaction_val);
-	std::vector<std::variant<std::monostate, consumption_option>> values;
+	struct consumption_category_option { dcon::consumption_category_id cat; };
+	std::vector<std::unique_ptr<ui::element_base>> consumption_category_pool;
+	int32_t consumption_category_pool_used = 0;
+	void add_consumption_category( dcon::consumption_category_id cat);
+	std::vector<std::variant<std::monostate, consumption_option, consumption_category_option>> values;
 	void on_create(sys::state& state, layout_window_element* container);
 	void update(sys::state& state, layout_window_element* container);
 	measure_result place_item(sys::state& state, ui::non_owning_container_base* destination, size_t index, int32_t x, int32_t y, bool first_in_section, bool& alternate) override;
@@ -149,6 +154,11 @@ struct pop_budget_details_consumption_cost_t : public alice_ui::template_label {
 // END
 	void on_update(sys::state& state) noexcept override;
 };
+struct pop_budget_details_consumption_category_name_t : public alice_ui::template_label {
+// BEGIN consumption_category::name::variables
+// END
+	void on_update(sys::state& state) noexcept override;
+};
 struct pop_budget_details_main_t : public layout_window_element {
 // BEGIN main::variables
 // END
@@ -159,11 +169,6 @@ struct pop_budget_details_main_t : public layout_window_element {
 	std::unique_ptr<template_label> header_spending;
 	std::unique_ptr<template_bg_graphic> fancy_bar_1;
 	std::unique_ptr<template_bg_graphic> fancy_bar_2;
-	std::unique_ptr<template_bg_graphic> fancy_bar_3;
-	std::unique_ptr<template_bg_graphic> fancy_bar_4;
-	std::unique_ptr<template_bg_graphic> fancy_bar_5;
-	std::unique_ptr<template_bg_graphic> fancy_bar_6;
-	std::unique_ptr<template_bg_graphic> fancy_bar_7;
 	std::unique_ptr<template_bg_graphic> fancy_bar_8;
 	std::unique_ptr<template_label> unemployment_label;
 	std::unique_ptr<template_label> pension_label;
@@ -308,6 +313,27 @@ struct pop_budget_details_consumption_t : public layout_window_element {
 	}
 };
 std::unique_ptr<ui::element_base> make_pop_budget_details_consumption(sys::state& state);
+struct pop_budget_details_consumption_category_t : public layout_window_element {
+// BEGIN consumption_category::variables
+// END
+	dcon::consumption_category_id cat;
+	ankerl::unordered_dense::map<std::string, std::unique_ptr<ui::lua_scripted_element>> scripted_elements;
+	std::unique_ptr<template_bg_graphic> fancy_block;
+	std::unique_ptr<pop_budget_details_consumption_category_name_t> name;
+	std::vector<std::unique_ptr<ui::element_base>> gui_inserts;
+	void create_layout_level(sys::state& state, layout_level& lvl, char const* ldata, size_t sz);
+	void on_create(sys::state& state) noexcept override;
+	ui::message_result on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept override;
+	ui::message_result on_rbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept override;
+	void on_update(sys::state& state) noexcept override;
+	void* get_by_name(sys::state& state, std::string_view name_parameter) noexcept override {
+		if(name_parameter == "cat") {
+			return (void*)(&cat);
+		}
+		return nullptr;
+	}
+};
+std::unique_ptr<ui::element_base> make_pop_budget_details_consumption_category(sys::state& state);
 void pop_budget_details_main_wage_per_labor_t::add_wage_income(int32_t labor_type_index, float ratio, float wage) {
 	values.emplace_back(wage_income_option{labor_type_index, ratio, wage});
 }
@@ -344,7 +370,8 @@ measure_result  pop_budget_details_main_wage_per_labor_t::place_item(sys::state&
 			wage_income_pool_used++;
 		}
 		alternate = !alternate;
-		return measure_result{ wage_income_pool[0]->base_data.size.x, wage_income_pool[0]->base_data.size.y + 0, measure_result::special::none};
+	 	 	bool stick_to_next = false;
+		return measure_result{ wage_income_pool[0]->base_data.size.x, wage_income_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
 	}
 	return measure_result{0,0,measure_result::special::none};
 }
@@ -353,6 +380,9 @@ void  pop_budget_details_main_wage_per_labor_t::reset_pools() {
 }
 void pop_budget_details_main_needs_t::add_consumption(dcon::commodity_id cid, uint8_t category, float cost_val, float satisfaction_val) {
 	values.emplace_back(consumption_option{cid, category, cost_val, satisfaction_val});
+}
+void pop_budget_details_main_needs_t::add_consumption_category(dcon::consumption_category_id cat) {
+	values.emplace_back(consumption_category_option{cat});
 }
 void  pop_budget_details_main_needs_t::on_create(sys::state& state, layout_window_element* parent) {
 	pop_budget_details_main_t& main = *((pop_budget_details_main_t*)(parent)); 
@@ -392,6 +422,16 @@ void  pop_budget_details_main_needs_t::update(sys::state& state, layout_window_e
 			add_consumption(cid, 2, cost, state.world.market_get_actual_probability_to_buy(market, cid));
 		}
 	});
+
+	state.world.for_each_consumption_category([&](auto cat) {
+		add_consumption_category(cat);
+		state.world.for_each_commodity([&](dcon::commodity_id cid) {
+			auto cost = economy::pops::estimate_pop_spending_category(state, cat, main.for_pop, cid);
+			if(cost > 0.001f) {
+				add_consumption(cid, (uint8_t)(cat.index()) + 3, cost, state.world.market_get_actual_probability_to_buy(market, cid));
+			}
+		});
+	});
 // END
 }
 measure_result  pop_budget_details_main_needs_t::place_item(sys::state& state, ui::non_owning_container_base* destination, size_t index, int32_t x, int32_t y, bool first_in_section, bool& alternate) {
@@ -413,12 +453,30 @@ measure_result  pop_budget_details_main_needs_t::place_item(sys::state& state, u
 			consumption_pool_used++;
 		}
 		alternate = !alternate;
-		return measure_result{ consumption_pool[0]->base_data.size.x, consumption_pool[0]->base_data.size.y + 0, measure_result::special::none};
+	 	 	bool stick_to_next = false;
+		return measure_result{ consumption_pool[0]->base_data.size.x, consumption_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
+	}
+	if(std::holds_alternative<consumption_category_option>(values[index])) {
+		if(consumption_category_pool.empty()) consumption_category_pool.emplace_back(make_pop_budget_details_consumption_category(state));
+		if(destination) {
+			if(consumption_category_pool.size() <= size_t(consumption_category_pool_used)) consumption_category_pool.emplace_back(make_pop_budget_details_consumption_category(state));
+			consumption_category_pool[consumption_category_pool_used]->base_data.position.x = int16_t(x);
+			consumption_category_pool[consumption_category_pool_used]->base_data.position.y = int16_t(y);
+			consumption_category_pool[consumption_category_pool_used]->parent = destination;
+			destination->children.push_back(consumption_category_pool[consumption_category_pool_used].get());
+			((pop_budget_details_consumption_category_t*)(consumption_category_pool[consumption_category_pool_used].get()))->cat = std::get<consumption_category_option>(values[index]).cat;
+			consumption_category_pool[consumption_category_pool_used]->impl_on_update(state);
+			consumption_category_pool_used++;
+		}
+		alternate = true;
+	 	 	bool stick_to_next = false;
+		return measure_result{ consumption_category_pool[0]->base_data.size.x, consumption_category_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
 	}
 	return measure_result{0,0,measure_result::special::none};
 }
 void  pop_budget_details_main_needs_t::reset_pools() {
 	consumption_pool_used = 0;
+	consumption_category_pool_used = 0;
 }
 void pop_budget_details_main_unemployment_value_t::on_update(sys::state& state) noexcept {
 	pop_budget_details_main_t& main = *((pop_budget_details_main_t*)(parent)); 
@@ -526,6 +584,14 @@ void pop_budget_details_main_needs_s_value_t::on_update(sys::state& state) noexc
 		total += cost;
 	});
 
+	// categories
+	state.world.for_each_consumption_category([&](dcon::consumption_category_id cat){
+		state.world.for_each_commodity([&](dcon::commodity_id cid){
+			auto cost = economy::pops::estimate_pop_spending_category(state, cat, main.for_pop, cid);
+			total += cost;
+		});
+	});
+
 	set_text(state, text::format_money(total));
 // END
 }
@@ -580,13 +646,15 @@ void pop_budget_details_main_t::create_layout_level(sys::state& state, layout_le
 				buffer.read(temp.texture);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::control:
+			case layout_item_types::control2:
 			{
 				layout_control temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				temp.ptr = nullptr;
 				if(cname == "header") {
 					temp.ptr = header.get();
@@ -602,21 +670,6 @@ void pop_budget_details_main_t::create_layout_level(sys::state& state, layout_le
 				} else
 				if(cname == "fancy_bar_2") {
 					temp.ptr = fancy_bar_2.get();
-				} else
-				if(cname == "fancy_bar_3") {
-					temp.ptr = fancy_bar_3.get();
-				} else
-				if(cname == "fancy_bar_4") {
-					temp.ptr = fancy_bar_4.get();
-				} else
-				if(cname == "fancy_bar_5") {
-					temp.ptr = fancy_bar_5.get();
-				} else
-				if(cname == "fancy_bar_6") {
-					temp.ptr = fancy_bar_6.get();
-				} else
-				if(cname == "fancy_bar_7") {
-					temp.ptr = fancy_bar_7.get();
 				} else
 				if(cname == "fancy_bar_8") {
 					temp.ptr = fancy_bar_8.get();
@@ -705,13 +758,15 @@ void pop_budget_details_main_t::create_layout_level(sys::state& state, layout_le
 				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::window:
+			case layout_item_types::window2:
 			{
 				layout_window temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				if(cname == "main") {
 					temp.ptr = make_pop_budget_details_main(state);
 				}
@@ -724,6 +779,9 @@ void pop_budget_details_main_t::create_layout_level(sys::state& state, layout_le
 				if(cname == "consumption") {
 					temp.ptr = make_pop_budget_details_consumption(state);
 				}
+				if(cname == "consumption_category") {
+					temp.ptr = make_pop_budget_details_consumption_category(state);
+				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
 			case layout_item_types::glue:
@@ -733,7 +791,7 @@ void pop_budget_details_main_t::create_layout_level(sys::state& state, layout_le
 				buffer.read(temp.amount);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::generator:
+			case layout_item_types::generator2:
 			{
 				generator_instance temp;
 				std::string_view cname = buffer.read<std::string_view>();
@@ -844,86 +902,6 @@ void pop_budget_details_main_t::on_create(sys::state& state) noexcept {
 			fancy_bar_2 = std::make_unique<template_bg_graphic>();
 			fancy_bar_2->parent = this;
 			auto cptr = fancy_bar_2.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "fancy_bar_3") {
-			fancy_bar_3 = std::make_unique<template_bg_graphic>();
-			fancy_bar_3->parent = this;
-			auto cptr = fancy_bar_3.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "fancy_bar_4") {
-			fancy_bar_4 = std::make_unique<template_bg_graphic>();
-			fancy_bar_4->parent = this;
-			auto cptr = fancy_bar_4.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "fancy_bar_5") {
-			fancy_bar_5 = std::make_unique<template_bg_graphic>();
-			fancy_bar_5->parent = this;
-			auto cptr = fancy_bar_5.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "fancy_bar_6") {
-			fancy_bar_6 = std::make_unique<template_bg_graphic>();
-			fancy_bar_6->parent = this;
-			auto cptr = fancy_bar_6.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "fancy_bar_7") {
-			fancy_bar_7 = std::make_unique<template_bg_graphic>();
-			fancy_bar_7->parent = this;
-			auto cptr = fancy_bar_7.get();
 			cptr->base_data.position.x = child_data.x_pos;
 			cptr->base_data.position.y = child_data.y_pos;
 			cptr->base_data.size.x = child_data.x_size;
@@ -1511,13 +1489,15 @@ void pop_budget_details_wage_income_t::create_layout_level(sys::state& state, la
 				buffer.read(temp.texture);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::control:
+			case layout_item_types::control2:
 			{
 				layout_control temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				temp.ptr = nullptr;
 				if(cname == "labor_type") {
 					temp.ptr = labor_type.get();
@@ -1537,13 +1517,15 @@ void pop_budget_details_wage_income_t::create_layout_level(sys::state& state, la
 				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::window:
+			case layout_item_types::window2:
 			{
 				layout_window temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				if(cname == "main") {
 					temp.ptr = make_pop_budget_details_main(state);
 				}
@@ -1556,6 +1538,9 @@ void pop_budget_details_wage_income_t::create_layout_level(sys::state& state, la
 				if(cname == "consumption") {
 					temp.ptr = make_pop_budget_details_consumption(state);
 				}
+				if(cname == "consumption_category") {
+					temp.ptr = make_pop_budget_details_consumption_category(state);
+				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
 			case layout_item_types::glue:
@@ -1565,7 +1550,7 @@ void pop_budget_details_wage_income_t::create_layout_level(sys::state& state, la
 				buffer.read(temp.amount);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::generator:
+			case layout_item_types::generator2:
 			{
 				generator_instance temp;
 				std::string_view cname = buffer.read<std::string_view>();
@@ -1750,13 +1735,15 @@ void pop_budget_details_production_income_t::create_layout_level(sys::state& sta
 				buffer.read(temp.texture);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::control:
+			case layout_item_types::control2:
 			{
 				layout_control temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				temp.ptr = nullptr;
 				if(cname == "commodity") {
 					temp.ptr = commodity.get();
@@ -1773,13 +1760,15 @@ void pop_budget_details_production_income_t::create_layout_level(sys::state& sta
 				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::window:
+			case layout_item_types::window2:
 			{
 				layout_window temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				if(cname == "main") {
 					temp.ptr = make_pop_budget_details_main(state);
 				}
@@ -1792,6 +1781,9 @@ void pop_budget_details_production_income_t::create_layout_level(sys::state& sta
 				if(cname == "consumption") {
 					temp.ptr = make_pop_budget_details_consumption(state);
 				}
+				if(cname == "consumption_category") {
+					temp.ptr = make_pop_budget_details_consumption_category(state);
+				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
 			case layout_item_types::glue:
@@ -1801,7 +1793,7 @@ void pop_budget_details_production_income_t::create_layout_level(sys::state& sta
 				buffer.read(temp.amount);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::generator:
+			case layout_item_types::generator2:
 			{
 				generator_instance temp;
 				std::string_view cname = buffer.read<std::string_view>();
@@ -1915,9 +1907,15 @@ void pop_budget_details_consumption_name_t::on_update(sys::state& state) noexcep
 		modifier = text::produce_simple_string(state, "alice_pop_details_en_short");
 	} else if(consumption.category == 2) {
 		modifier = text::produce_simple_string(state, "alice_pop_details_lx_short");
+	} else {
+		modifier = "";
 	}
-	auto commodity_name = text::produce_simple_string(state, state.world.commodity_get_name(consumption.cid));		
-	set_text(state, "(" + modifier + ")" + commodity_name);
+	auto commodity_name = text::produce_simple_string(state, state.world.commodity_get_name(consumption.cid));
+	if(modifier.size() > 0) {
+		set_text(state, "(" + modifier + ")" + commodity_name);
+	} else {
+		set_text(state, commodity_name);
+	}
 // END
 }
 void pop_budget_details_consumption_satisfaction_t::on_update(sys::state& state) noexcept {
@@ -1986,13 +1984,15 @@ void pop_budget_details_consumption_t::create_layout_level(sys::state& state, la
 				buffer.read(temp.texture);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::control:
+			case layout_item_types::control2:
 			{
 				layout_control temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				temp.ptr = nullptr;
 				if(cname == "name") {
 					temp.ptr = name.get();
@@ -2012,13 +2012,15 @@ void pop_budget_details_consumption_t::create_layout_level(sys::state& state, la
 				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::window:
+			case layout_item_types::window2:
 			{
 				layout_window temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				buffer.read(temp.abs_x);
 				buffer.read(temp.abs_y);
 				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
 				if(cname == "main") {
 					temp.ptr = make_pop_budget_details_main(state);
 				}
@@ -2031,6 +2033,9 @@ void pop_budget_details_consumption_t::create_layout_level(sys::state& state, la
 				if(cname == "consumption") {
 					temp.ptr = make_pop_budget_details_consumption(state);
 				}
+				if(cname == "consumption_category") {
+					temp.ptr = make_pop_budget_details_consumption_category(state);
+				}
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
 			case layout_item_types::glue:
@@ -2040,7 +2045,7 @@ void pop_budget_details_consumption_t::create_layout_level(sys::state& state, la
 				buffer.read(temp.amount);
 				lvl.contents.emplace_back(std::move(temp));
 			} break;
-			case layout_item_types::generator:
+			case layout_item_types::generator2:
 			{
 				generator_instance temp;
 				std::string_view cname = buffer.read<std::string_view>();
@@ -2161,9 +2166,225 @@ std::unique_ptr<ui::element_base> make_pop_budget_details_consumption(sys::state
 	ptr->on_create(state);
 	return ptr;
 }
-
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+void pop_budget_details_consumption_category_name_t::on_update(sys::state& state) noexcept {
+	pop_budget_details_consumption_category_t& consumption_category = *((pop_budget_details_consumption_category_t*)(parent)); 
+	pop_budget_details_main_t& main = *((pop_budget_details_main_t*)(parent->parent)); 
+// BEGIN consumption_category::name::update
+	auto name = state.world.consumption_category_get_name(consumption_category.cat);
+	if(name) {
+		set_text(state, text::produce_simple_string(state, name));
+	} else {
+		set_text(state, std::to_string(name.value));
+	}
+// END
+}
+ui::message_result pop_budget_details_consumption_category_t::on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
+	return ui::message_result::consumed;
+}
+ui::message_result pop_budget_details_consumption_category_t::on_rbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
+	return ui::message_result::consumed;
+}
+void pop_budget_details_consumption_category_t::on_update(sys::state& state) noexcept {
+	pop_budget_details_main_t& main = *((pop_budget_details_main_t*)(parent->parent)); 
+// BEGIN consumption_category::update
+// END
+	remake_layout(state, true);
+}
+void pop_budget_details_consumption_category_t::create_layout_level(sys::state& state, layout_level& lvl, char const* ldata, size_t sz) {
+	serialization::in_buffer buffer(ldata, sz);
+	buffer.read(lvl.size_x); 
+	buffer.read(lvl.size_y); 
+	buffer.read(lvl.margin_top); 
+	buffer.read(lvl.margin_bottom); 
+	buffer.read(lvl.margin_left); 
+	buffer.read(lvl.margin_right); 
+	buffer.read(lvl.line_alignment); 
+	buffer.read(lvl.line_internal_alignment); 
+	buffer.read(lvl.type); 
+	buffer.read(lvl.page_animation); 
+	buffer.read(lvl.interline_spacing); 
+	buffer.read(lvl.paged); 
+	if(lvl.paged) {
+		lvl.page_controls = std::make_unique<page_buttons>();
+		lvl.page_controls->for_layout = &lvl;
+		lvl.page_controls->parent = this;
+		lvl.page_controls->base_data.size.x = int16_t(grid_size * 10);
+		lvl.page_controls->base_data.size.y = int16_t(grid_size * 2);
+	}
+	auto expansion_section = buffer.read_section();
+	if(expansion_section)
+		expansion_section.read(lvl.template_id);
+	if(lvl.template_id == -1 && window_template != -1)
+		lvl.template_id = int16_t(state.ui_templates.window_t[window_template].layout_region_definition);
+	while(buffer) {
+		layout_item_types t;
+		buffer.read(t);
+		switch(t) {
+			case layout_item_types::texture_layer:
+			{
+				texture_layer temp;
+				buffer.read(temp.texture_type);
+				buffer.read(temp.texture);
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+			case layout_item_types::control2:
+			{
+				layout_control temp;
+				std::string_view cname = buffer.read<std::string_view>();
+				buffer.read(temp.abs_x);
+				buffer.read(temp.abs_y);
+				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
+				temp.ptr = nullptr;
+				if(cname == "fancy_block") {
+					temp.ptr = fancy_block.get();
+				} else
+				if(cname == "name") {
+					temp.ptr = name.get();
+				} else
+				{
+					std::string str_cname {cname};
+					auto found = scripted_elements.find(str_cname);
+					if (found != scripted_elements.end()) {
+						temp.ptr = found->second.get();
+					}
+				}
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+			case layout_item_types::window2:
+			{
+				layout_window temp;
+				std::string_view cname = buffer.read<std::string_view>();
+				buffer.read(temp.abs_x);
+				buffer.read(temp.abs_y);
+				buffer.read(temp.absolute_position);
+				buffer.read(temp.fill_x);
+				buffer.read(temp.fill_y);
+				if(cname == "main") {
+					temp.ptr = make_pop_budget_details_main(state);
+				}
+				if(cname == "wage_income") {
+					temp.ptr = make_pop_budget_details_wage_income(state);
+				}
+				if(cname == "production_income") {
+					temp.ptr = make_pop_budget_details_production_income(state);
+				}
+				if(cname == "consumption") {
+					temp.ptr = make_pop_budget_details_consumption(state);
+				}
+				if(cname == "consumption_category") {
+					temp.ptr = make_pop_budget_details_consumption_category(state);
+				}
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+			case layout_item_types::glue:
+			{
+				layout_glue temp;
+				buffer.read(temp.type);
+				buffer.read(temp.amount);
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+			case layout_item_types::generator2:
+			{
+				generator_instance temp;
+				std::string_view cname = buffer.read<std::string_view>();
+				auto gen_details = buffer.read_section(); // ignored
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+			case layout_item_types::layout:
+			{
+				sub_layout temp;
+				temp.layout = std::make_unique<layout_level>();
+				auto layout_section = buffer.read_section();
+				create_layout_level(state, *temp.layout, layout_section.view_data() + layout_section.view_read_position(), layout_section.view_size() - layout_section.view_read_position());
+				lvl.contents.emplace_back(std::move(temp));
+			} break;
+		}
+	}
+}
+void pop_budget_details_consumption_category_t::on_create(sys::state& state) noexcept {
+	auto window_bytes = state.ui_state.new_ui_windows.find(std::string("pop_budget_details::consumption_category"));
+	if(window_bytes == state.ui_state.new_ui_windows.end()) std::abort();
+	std::vector<sys::aui_pending_bytes> pending_children;
+	auto win_data = read_window_bytes(window_bytes->second.data, window_bytes->second.size, pending_children);
+	base_data.position.x = win_data.x_pos;
+	base_data.position.y = win_data.y_pos;
+	base_data.size.x = win_data.x_size;
+	base_data.size.y = win_data.y_size;
+	base_data.flags = uint8_t(win_data.orientation);
+	layout_window_element::initialize_template(state, win_data.template_id, win_data.grid_size, win_data.auto_close_button);
+	while(!pending_children.empty()) {
+		auto child_data = read_child_bytes(pending_children.back().data, pending_children.back().size);
+		if(child_data.name == "fancy_block") {
+			fancy_block = std::make_unique<template_bg_graphic>();
+			fancy_block->parent = this;
+			auto cptr = fancy_block.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "name") {
+			name = std::make_unique<pop_budget_details_consumption_category_name_t>();
+			name->parent = this;
+			auto cptr = name.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if (child_data.is_lua) { 
+			std::string str_name {child_data.name};
+			scripted_elements[str_name] = std::make_unique<ui::lua_scripted_element>();
+			auto cptr = scripted_elements[str_name].get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->texture_key = child_data.texture;
+			cptr->text_scale = child_data.text_scale;
+			cptr->text_is_header = (child_data.text_type == aui_text_type::header);
+			cptr->text_alignment = child_data.text_alignment;
+			cptr->text_color = child_data.text_color;
+			cptr->on_update_lname = child_data.text_key;
+			if(child_data.tooltip_text_key.length() > 0) {
+				cptr->tooltip_key = state.lookup_key(child_data.tooltip_text_key);
+			}
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		}
+		pending_children.pop_back();
+	}
+	page_left_texture_key = win_data.page_left_texture;
+	page_right_texture_key = win_data.page_right_texture;
+	page_text_color = win_data.page_text_color;
+	create_layout_level(state, layout, win_data.layout_data, win_data.layout_data_size);
+// BEGIN consumption_category::create
+// END
+}
+std::unique_ptr<ui::element_base> make_pop_budget_details_consumption_category(sys::state& state) {
+	auto ptr = std::make_unique<pop_budget_details_consumption_category_t>();
+	ptr->on_create(state);
+	return ptr;
+}
 // LOST-CODE
 }
