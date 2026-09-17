@@ -103,6 +103,9 @@ economy::commodity_set construction_get_actual_build_cost(const sys::state& stat
 template<concepts::construction_type con_type>
 float construction_progress(const sys::state& state, con_type c);
 
+template<concepts::construction_type con_type>
+float average_construction_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
+
 float location_build_cost_multiplier(const sys::state& state, dcon::province_id location, bool is_pop_project);
 float global_factory_construction_time_modifier(const sys::state& state);
 uint32_t factory_building_construction_time(const sys::state& state, dcon::factory_type_id ftid, bool is_upgrade);

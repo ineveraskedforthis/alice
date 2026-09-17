@@ -4707,6 +4707,16 @@ object {
 		tag{ save }
 	}
 	property {
+		name{ armies_have_supply_prio_in_battle }
+		type{ bitfield }
+		tag{ save }
+	}
+	property {
+		name{ navies_have_supply_prio_in_battle }
+		type{ bitfield }
+		tag{ save }
+	}
+	property {
 		name{ commodity_float_buffer_1 } 
 		type{ array{commodity_id}{float} }
 		tag { mp_checksum_excluded }
@@ -5151,6 +5161,7 @@ relationship{
 	property{
 		name{ expected_throughput }
 		type{float}
+		tag{ save }
 	}
 }
 

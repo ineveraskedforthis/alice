@@ -1804,7 +1804,7 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 			});
 			float supply_satisfaction = (total_supply_goods_required == 0.0f ? 1.0f : total_supply_goods_consumed / total_supply_goods_required);
 			subunit.set_supply_satisfaction(supply_satisfaction);
-			subunit.set_last_supply_cost_modifier(supply_goods_cost_mod);
+			subunit.set_last_supply_cost_modifier(supply_goods_cost_mod); // need this to accurately estimate the required commodities later and then calculate satisfaction rate on individual commodities.
 		}
 		// Compute reinforcement satisfaction
 		{
@@ -1838,7 +1838,7 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 				subunit.set_total_pending_reinforcement(subunit.get_total_pending_reinforcement() + added_pending_reinforcement);
 				assert(std::isfinite(subunit.get_total_pending_reinforcement()));
 			}
-			subunit.set_last_potential_reinforcement(reinf_goods_cost_mod); // The reinf cost mod is also the total possible reinforcement, if all goods are fufilled.
+			subunit.set_last_potential_reinforcement(reinf_goods_cost_mod); // The reinf cost mod is also the total possible reinforcement, if all goods are fufilled. Need it to accurately estimate the required commodities later and then calculate satisfaction rate on individual commodities.
 		}
 	}
 }
@@ -2333,7 +2333,8 @@ void update_supply_routes_daily(sys::state& state) {
 						return;
 					}
 				}
-				switch(fat_unit.get_supply_priority()) {
+				military::unit_priority supply_prio = military::get_effective_unit_supply_priority(state, fat_unit.id, controller);
+				switch(supply_prio) {
 				case military::unit_priority::low_priority:
 					accumulate_prioritized_unit_supply.template operator() < military::unit_priority::low_priority > (mil_unit, controller);
 					low_prio_units.emplace_back(unit{ mil_unit });

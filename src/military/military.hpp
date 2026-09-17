@@ -468,6 +468,10 @@ void set_siege_progress(sys::state& state, dcon::province_id prov, float new_val
 void update_siege_progress(sys::state& state);
 void single_ship_start_retreat(sys::state& state, ship_in_battle& ship, dcon::naval_battle_id battle);
 
+unit_priority get_effective_unit_supply_priority(const sys::state& state, dcon::army_id army, dcon::nation_id owner);
+unit_priority get_effective_unit_supply_priority(const sys::state& state, dcon::navy_id navy, dcon::nation_id owner);
+
+
 // stackwipes the given navy, sinks all of the ships currently in a battle, and removes all ships from the navy. The empty navy will still exist in a retreating state, but will be cleaned up by GC later
 void stackwipe_navy(sys::state& state, dcon::navy_id navy);
 float required_avg_dist_to_center_for_retreat(sys::state& state);
@@ -500,17 +504,36 @@ battle_regiment get_land_combat_target(const sys::state& state, dcon::regiment_i
 void apply_attrition_to_army(sys::state& state, dcon::army_id army);
 void apply_attrition(sys::state& state);
 void increase_dig_in(sys::state& state);
+// Get the fufilled reinforcement goods from last day for a unit
 template<concepts::military_unit unit_type>
 tagged_vector<float, dcon::unit_build_commodity_id> get_last_fufilled_reinforcement(const sys::state& state, unit_type unit);
+// Get the fufilled reinforcement goods from last day for all armies a nation owns 
+tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_army_reinforcement(const sys::state& state, dcon::nation_id nation);
+// Get the fufilled reinforcement goods from last day for all navies a nation owns 
+tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_navy_reinforcement(const sys::state& state, dcon::nation_id nation);
 
+// Get the fufilled supply goods from last day for a unit
 template<concepts::military_unit unit_type>
 tagged_vector<float, dcon::unit_supply_commodity_id> get_last_fufilled_supply(const sys::state& state, unit_type unit);
+// Get the fufilled supply goods from last day for all armies a nation owns 
+tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_army_supply(const sys::state& state, dcon::nation_id nation);
+// Get the fufilled reinforcement goods from last day for all navies a nation owns 
+tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_navy_supply(const sys::state& state, dcon::nation_id nation);
 
+// Get the required reinforcement goods from last day for a unit
 template<concepts::military_unit unit_type>
 tagged_vector<float, dcon::unit_build_commodity_id> get_last_required_reinforcement(const sys::state& state, unit_type unit);
-
+// Get the required reinforcement goods from last day for all armies a nation owns
+tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_army_reinforcement(const sys::state& state, dcon::nation_id nation);
+// Get the required reinforcement goods from last day for all navies a nation owns
+tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_navy_reinforcement(const sys::state& state, dcon::nation_id nation);
+// Get the required supply goods from last day for a unit
 template<concepts::military_unit unit_type>
 tagged_vector<float, dcon::unit_supply_commodity_id> get_last_required_supply(const sys::state& state, unit_type unit);
+// Get the required supply goods from last day for all armies a nation owns
+tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_army_supply(const sys::state& state, dcon::nation_id nation);
+// Get the required supply goods from last day for all navies a nation owns
+tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_navy_supply(const sys::state& state, dcon::nation_id nation);
 
 
 
@@ -627,7 +650,6 @@ bool can_attack(sys::state& state, dcon::nation_id source, dcon::nation_id targe
 template<command::actor Actor>
 bool can_change_land_unit_type(const sys::state& state, dcon::nation_id source, dcon::regiment_id regiment, dcon::unit_type_id new_type);
 
-
 template<command::actor Actor>
 bool can_change_naval_unit_type(const sys::state& state, dcon::nation_id source, dcon::ship_id ship, dcon::unit_type_id new_type);
 
@@ -640,6 +662,11 @@ template<command::actor Actor>
 bool can_split_navy(const sys::state& state, dcon::nation_id source, dcon::navy_id navy, std::span<const dcon::ship_id> ships_to_split);
 template<command::actor Actor>
 void split_navy(sys::state& state, dcon::nation_id source, dcon::navy_id navy, std::span<const dcon::ship_id> ships_to_split, fixed_bool_t select_both_navies = false);
+
+template<command::actor Actor>
+void set_supply_priority_for_armies_in_battle(sys::state& state, dcon::nation_id nation, fixed_bool_t setting);
+template<command::actor Actor>
+void set_supply_priority_for_navies_in_battle(sys::state& state, dcon::nation_id nation, fixed_bool_t setting);
 
 
 } // namespace military

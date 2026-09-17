@@ -565,6 +565,16 @@ struct commodity_set_base {
 			}
 		}
 	}
+	template<typename F>
+	void for_each_valid_index(F&& function) {
+		for(uint32_t i = 0; i < set_size; ++i) {
+			if(commodity_type[i]) {
+				function(i);
+			} else {
+				break;
+			}
+		}
+	}
 	// Tries to add a commodity to the first free slot. Returns the index it was added to if sucessful, or -1 if no slot available or if the commodity is already added
 	int16_t try_add(dcon::commodity_id cid, float amount) {
 		assert(cid);

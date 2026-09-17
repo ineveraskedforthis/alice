@@ -2652,13 +2652,16 @@ private:
 	}
 	virtual void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		military::unit_priority priority;
+		military::unit_priority effective_prio;
 		auto unit = retrieve<unit_var>(state, parent);
 		if(std::holds_alternative<dcon::army_id>(unit)) {
 			auto army = std::get<dcon::army_id>(unit);
 			priority = state.world.army_get_supply_priority(army);
+			effective_prio = military::get_effective_unit_supply_priority(state, army, military::unit_get_controller(state, army));
 		} else {
 			auto navy = std::get<dcon::navy_id>(unit);
 			priority = state.world.navy_get_supply_priority(navy);
+			effective_prio = military::get_effective_unit_supply_priority(state, navy, military::unit_get_controller(state, navy));
 		}
 		switch(priority) {
 		case military::unit_priority::high_priority:
@@ -2672,6 +2675,10 @@ private:
 			break;
 		}
 		text::add_line(state, contents, "unit_priority_tooltip_2");
+		text::add_line(state, contents, "unit_priority_tooltip_2");
+		if(effective_prio == military::unit_priority::high_priority && priority != military::unit_priority::high_priority) {
+			text::add_line(state, contents, "unit_priority_tooltip_3");
+		}
 
 	}
 
@@ -2732,12 +2739,15 @@ private:
 	}
 	virtual void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override {
 		military::unit_priority priority;
+		military::unit_priority effective_prio;
 		if constexpr(std::is_same_v<T, dcon::army_id>) {
 			auto army = retrieve<dcon::army_id>(state, parent);
 			priority = state.world.army_get_supply_priority(army);
+			effective_prio = military::get_effective_unit_supply_priority(state, army, military::unit_get_controller(state, army) );
 		} else {
 			auto navy = retrieve<dcon::navy_id>(state, parent);
 			priority = state.world.navy_get_supply_priority(navy);
+			effective_prio = military::get_effective_unit_supply_priority(state, navy, military::unit_get_controller(state, navy));
 		}
 		switch(priority) {
 		case military::unit_priority::high_priority:
@@ -2751,6 +2761,9 @@ private:
 			break;
 		}
 		text::add_line(state, contents, "unit_priority_tooltip_2");
+		if(effective_prio == military::unit_priority::high_priority && priority != military::unit_priority::high_priority) {
+			text::add_line(state, contents, "unit_priority_tooltip_3");
+		}
 
 	}
 };

@@ -137,6 +137,8 @@ enum class command_type : uint8_t {
 		change_navy_construction_consumption_setting = 126,
 		change_factory_construction_consumption_setting = 127,
 		change_building_construction_consumption_setting = 128,
+		set_supply_priority_for_armies_in_battle = 129,
+		set_supply_priority_for_navies_in_battle = 130,
 		// network
 		notify_player_timeout = 233,// Sent to every client in the lobby to notify a client has timed out. Is also sent to the timed-out client socket, incase they get can receive it.
 		notify_oos_gamestate = 234, // sent from Client to Host, with the clients OOS gamestate for the host to compare, and generate report from. NOT SAFE for use to untrusted clients as there is no safety in seralizing the binary blob which the client sends.
@@ -612,7 +614,10 @@ struct set_navy_priority_data {
 };
 static_assert(sizeof(set_navy_priority_data) == sizeof(set_navy_priority_data::priority) + sizeof(set_navy_priority_data::padding) + sizeof(set_navy_priority_data::navy));
 
-
+struct set_supply_priority_for_units_in_battle_data {
+	fixed_bool_t setting;
+};
+static_assert(sizeof(set_supply_priority_for_units_in_battle_data) == sizeof(set_supply_priority_for_units_in_battle_data::setting));
 
 
 
@@ -777,6 +782,8 @@ constexpr enum_array<command_type, command_handler> command_type_handlers = {
 	{ command_type::change_navy_construction_consumption_setting ,command_handler{ sizeof(command::change_logistics_setting_data), sizeof(command::change_logistics_setting_data), &command_handler::true_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
 	{ command_type::change_factory_construction_consumption_setting ,command_handler{ sizeof(command::change_logistics_setting_data), sizeof(command::change_logistics_setting_data), &command_handler::true_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
 	{ command_type::change_building_construction_consumption_setting ,command_handler{ sizeof(command::change_logistics_setting_data), sizeof(command::change_logistics_setting_data), &command_handler::true_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
+	{ command_type::set_supply_priority_for_armies_in_battle ,command_handler{ sizeof(command::set_supply_priority_for_units_in_battle_data), sizeof(command::set_supply_priority_for_units_in_battle_data), &command_handler::true_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
+	{ command_type::set_supply_priority_for_navies_in_battle ,command_handler{ sizeof(command::set_supply_priority_for_units_in_battle_data), sizeof(command::set_supply_priority_for_units_in_battle_data), &command_handler::true_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
 	// network
 	{ command_type::notify_oos_gamestate, command_handler{ sizeof(command::notify_oos_gamestate_data), sizeof(command::notify_oos_gamestate_data) + max_mp_state_size, &notify_oos_gamestate_is_host_receive_command, &command_handler::false_is_host_broadcast_command   } },
 	{ command_type::notify_player_ban, command_handler{ sizeof(command::notify_player_ban_data), sizeof(command::notify_player_ban_data), &command_handler::false_is_host_receive_command, &command_handler::true_is_host_broadcast_command } },
@@ -1067,13 +1074,11 @@ bool can_stop_navy_movement(sys::state& state, dcon::nation_id source, dcon::nav
 //     first stop its current movement and then send the new destination as a second command
 // ALSO: can returns an empty vector if no path could be made
 void move_army(sys::state& state, dcon::nation_id source, dcon::army_id a, dcon::province_id dest, bool reset, military::special_army_order order = military::special_army_order::none);
-std::vector<dcon::province_id> calculate_army_path(sys::state& state, dcon::nation_id source, dcon::army_id a, dcon::province_id last_province, dcon::province_id dest);
 
 std::vector<dcon::province_id> can_move_army(sys::state& state, dcon::nation_id source, dcon::army_id a, dcon::province_id dest, bool reset = true);
 void execute_move_army(sys::state& state, dcon::nation_id source, dcon::army_id a, dcon::province_id dest, bool reset, military::special_army_order special_order);
 
 void move_navy(sys::state& state, dcon::nation_id source, dcon::navy_id n, dcon::province_id dest, bool reset);
-std::vector<dcon::province_id> calculate_navy_path(sys::state & state, dcon::nation_id source, dcon::navy_id n, dcon::province_id last_province, dcon::province_id dest);
 std::vector<dcon::province_id> can_move_navy(sys::state& state, dcon::nation_id source, dcon::navy_id n, dcon::province_id dest, bool reset = true);
 
 
@@ -1129,6 +1134,10 @@ void change_naval_unit_type(sys::state& state, dcon::nation_id source, std::span
 void toggle_rebel_hunting(sys::state& state, dcon::nation_id source, dcon::army_id a);
 void toggle_unit_ai_control(sys::state& state, dcon::nation_id source, dcon::army_id a);
 void toggle_mobilized_is_ai_controlled(sys::state& state, dcon::nation_id source);
+
+void set_supply_priority_for_armies_in_battle(sys::state& state, fixed_bool_t setting);
+
+void set_supply_priority_for_navies_in_battle(sys::state& state, fixed_bool_t setting);
 
 void delete_army(sys::state& state, dcon::nation_id source, dcon::army_id a);
 bool can_delete_army(sys::state& state, dcon::nation_id source, dcon::army_id a);

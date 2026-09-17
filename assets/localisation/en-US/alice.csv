@@ -2026,6 +2026,7 @@ unit_supply_priority_low_tooltip_1;This unit currently has ?Rlow?W priority on r
 unit_supply_priority_normal_tooltip_1;This unit currently has ?Ymedium?W priority on receiving supplies
 unit_supply_priority_high_tooltip_1;This unit currently has ?Ghigh?W priority on receiving supplies
 unit_priority_tooltip_2;Increase priority with ?Yleft-click?W, and decrement with ?Yright-click?W
+unit_priority_tooltip_3;(This unit has ?Ghigh?W priority due being in a battle)
 selected_units_supply_priority_low_tooltip_1;All selected units currently has ?Rlow?W priority on receiving supplies
 selected_units_supply_priority_normal_tooltip_1;All selected units currently has ?Ymedium?W priority on receiving supplies
 selected_units_supply_priority_high_tooltip_1;All selected units currently has ?Ghigh?W priority on receiving supplies
@@ -2033,10 +2034,10 @@ selected_units_supply_priority_unknown_tooltip_1;All selected units currently ha
 selected_units_priority_tooltip_2;Increase priority for all units with ?Yleft-click?W, and decrement with ?Yright-click?W
 military_title;Military
 budget_military_satisfaction_label;Military satisfaction:
-land_reinforcement_consumption;Army reinforcements
-land_supply_consumption;Army supply
-naval_reinforcement_consumption;Navy reinforcements
-naval_supply_consumption;Navy supply
+land_reinforcement_consumption;Army Reinforcement
+land_supply_consumption;Army Supply
+naval_reinforcement_consumption;Navy Reinforcement
+naval_supply_consumption;Navy Supply
 budget_military_settings;Satisfaction
 government_stockpiles_target;Current target: $val$
 subsidies_label;Subsidies
@@ -2093,7 +2094,25 @@ confirm_stockpile_target_tooltip;Confirm the stockpile target
 stockpile_target_set_label;Set stockpile target:
 military_stockpile_info_tooltip;Each commodity icon and the numbers under it displays diffrent values about the state of all summed-up government stockpiles. It shows:\n    -The current amount present in stockpiles\n    -The current stockpile target for the stockpile spending setting\n    -The daily amount change (positive or negative)\n    -The estimated amount of days left until stockpile exhaustion.\nSelect a commodity by ?Gright-clicking?W the icon to set a stockpile target in the right window.
 military_stockpile_targets_info_tooltip;Once a commodity is selected, its stockpile target can be set here by typing in a new target (number with or without decimals allowed), and clicking on the confirmation button below.
-army_construction_consumption;Army Constructions
-navy_construction_consumption;Navy Constructions
-factory_construction_consumption;Factory Constructions
-building_construction_consumption;Building Constructions
+army_construction_consumption;Army Construction
+navy_construction_consumption;Navy Construction
+factory_construction_consumption;Factory Construction
+building_construction_consumption;Building Construction
+military_consumption_title;Military
+construction_consumption_title;Construction
+consumption_item;Item
+consumption_amount;Amount
+consumption_amount_tooltip;Shows the fufilled amount to the left, and the required amount to the right of the divider
+consumption_fufillment_percent;Satisfied
+government_stockpiles_title;Government Stockpiles
+only_military_goods_label;Show military goods only
+prio_armies_in_battle_label;Prioritize supply for armies in battle
+prio_navies_in_battle_label;Prioritize supply for navies in battle
+consumption_section_army_supply_info_tooltip;Decides how big a percentage of army ?Gsupply?W requirements will be routed from national stockpiles to them.\nA value of 100 means armies will attempt to draw 100% of their ?Gsupply?W need from stockpiles, and a value of 0 means armies will not draw any goods.\n?GSupply?W satisfaction dictates organization regain.
+consumption_section_army_reinforcement_info_tooltip;Decides how big a percentage of army ?Oreinforcement?W requirements will be routed from national stockpiles to them.\nA value of 100 means armies will attempt to draw 100% of their ?Oreinforcement?W need from stockpiles, and a value of 0 means armies will not draw any goods.\n?Oreinforcement?W satisfaction dictates how fast a unit can reinforce if below 100% strength.
+consumption_section_navy_supply_info_tooltip;Decides how big a percentage of navy ?Gsupply?W requirements will be routed from national stockpiles to them.\nA value of 100 means navies will attempt to draw 100% of their ?Gsupply?W need from stockpiles, and a value of 0 means armies will not draw any goods.\n?GSupply?W satisfaction dictates organization regain.
+consumption_section_navy_reinforcement_info_tooltip;Decides how big a percentage of navy ?Oreinforcement?W requirements will be routed from national stockpiles to them.\nA value of 100 means navies will attempt to draw 100% of their ?Oreinforcement?W need from stockpiles, and a value of 0 means armies will not draw any goods.\n?Oreinforcement?W satisfaction dictates how fast a unit can repair if below 100% strength and is in a naval base province.
+consumption_section_army_construction_info_tooltip;Decides how big a percentage of daily army construction requirements will be routed from national stockpiles to them.\nA value of 100 means army constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for army constructions from the construction budget in the budget window.
+consumption_section_navy_construction_info_tooltip;Decides how big a percentage of daily navy construction requirements will be routed from national stockpiles to them.\nA value of 100 means navy constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for navy constructions from the construction budget in the budget window.
+consumption_section_factory_construction_info_tooltip;Decides how big a percentage of daily government factory construction requirements will be routed from national stockpiles to them.\nA value of 100 means government factory constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for government factory constructions from the construction budget in the budget window.
+consumption_section_building_construction_info_tooltip;Decides how big a percentage of daily government province building construction requirements will be routed from national stockpiles to them.\nA value of 100 means government province building constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for government province building constructions from the construction budget in the budget window.

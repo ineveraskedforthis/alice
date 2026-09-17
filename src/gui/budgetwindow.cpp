@@ -1,5 +1,4 @@
 // BEGIN prelude
-#include "supply_route.hpp"
 // END
 
 namespace alice_ui {
@@ -2190,7 +2189,7 @@ void budgetwindow_main_miltary_stockpile_button_t::on_update(sys::state& state) 
 bool budgetwindow_main_miltary_stockpile_button_t::button_action(sys::state& state) noexcept {
 	budgetwindow_main_t& main = *((budgetwindow_main_t*)(parent)); 
 // BEGIN main::miltary_stockpile_button::lbutton_action
-	if(!state.ui_state.military_stockpiles_window) {
+	/*if(!state.ui_state.military_stockpiles_window) {
 		auto window = alice_ui::make_military_stockpile_main(state);
 		window->impl_on_update(state);
 		state.ui_state.military_stockpiles_window = window.get();
@@ -2200,6 +2199,18 @@ bool budgetwindow_main_miltary_stockpile_button_t::button_action(sys::state& sta
 	} else {
 		state.ui_state.military_stockpiles_window->set_visible(state, true);
 		state.ui_state.root->move_child_to_front(state.ui_state.military_stockpiles_window);
+	}*/
+
+	if(!state.ui_state.logistics_window) {
+		auto window = alice_ui::make_logisticswindow_main(state);
+		window->impl_on_update(state);
+		state.ui_state.logistics_window = window.get();
+		state.ui_state.root->add_child_to_front(std::move(window));
+	} else if(state.ui_state.logistics_window->is_visible()) {
+		state.ui_state.logistics_window->set_visible(state, false);
+	} else {
+		state.ui_state.logistics_window->set_visible(state, true);
+		state.ui_state.root->move_child_to_front(state.ui_state.logistics_window);
 	}
 // END
 	return true;

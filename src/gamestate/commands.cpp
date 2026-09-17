@@ -4573,6 +4573,36 @@ void execute_toggle_rebel_hunting(sys::state& state, dcon::nation_id source, dco
 	}
 }
 
+
+void set_supply_priority_for_armies_in_battle(sys::state& state, fixed_bool_t setting) {
+	command_data p{ command_type::set_supply_priority_for_armies_in_battle, state.local_player_id };
+	auto data = set_supply_priority_for_units_in_battle_data{ setting };
+	p << data;
+	add_to_command_queue(state, p);
+}
+bool can_set_supply_priority_for_armies_in_battle(const sys::state& state, const command_data& cmd) {
+	return true;
+}
+void execute_set_supply_priority_for_armies_in_battle(sys::state& state, dcon::nation_id source, const command_data& cmd) {
+	const auto& data = cmd.get_payload<set_supply_priority_for_units_in_battle_data>();
+	military::set_supply_priority_for_armies_in_battle<actor::player>(state, source, data.setting);
+}
+
+
+void set_supply_priority_for_navies_in_battle(sys::state& state, fixed_bool_t setting) {
+	command_data p{ command_type::set_supply_priority_for_navies_in_battle, state.local_player_id };
+	auto data = set_supply_priority_for_units_in_battle_data{ setting };
+	p << data;
+	add_to_command_queue(state, p);
+}
+bool can_set_supply_priority_for_navies_in_battle(const sys::state& state, const command_data& cmd) {
+	return true;
+}
+void execute_set_supply_priority_for_navies_in_battle(sys::state& state, dcon::nation_id source, const command_data& cmd) {
+	const auto& data = cmd.get_payload<set_supply_priority_for_units_in_battle_data>();
+	military::set_supply_priority_for_navies_in_battle<actor::player>(state, source, data.setting);
+}
+
 void toggle_unit_ai_control(sys::state& state, dcon::nation_id source, dcon::army_id a) {
 
 	command_data p{ command_type::toggle_unit_ai_control, state.local_player_id };
@@ -7224,6 +7254,14 @@ bool can_perform_command(sys::state& state, command_data& c) {
 	{
 		return can_change_building_construction_consumption_setting(state, source, c);
 	}
+	case command_type::set_supply_priority_for_armies_in_battle:
+	{
+		return can_set_supply_priority_for_armies_in_battle(state, c);
+	}
+	case command_type::set_supply_priority_for_navies_in_battle:
+	{
+		return can_set_supply_priority_for_navies_in_battle(state, c);
+	}
 
 		// common mp commands
 	case command_type::chat_message:
@@ -8236,6 +8274,16 @@ void execute_command(sys::state& state, command_data& c) {
 	case command_type::set_navy_supply_priority:
 	{
 		execute_set_navy_supply_priority(state, source_nation, c);
+		break;
+	}
+	case command_type::set_supply_priority_for_armies_in_battle:
+	{
+		execute_set_supply_priority_for_armies_in_battle(state, source_nation, c);
+		break;
+	}
+	case command_type::set_supply_priority_for_navies_in_battle:
+	{
+		execute_set_supply_priority_for_navies_in_battle(state, source_nation, c);
 		break;
 	}
 	}

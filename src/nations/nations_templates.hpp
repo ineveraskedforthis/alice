@@ -84,4 +84,16 @@ ve::mask_vector exists_or_is_utility_tag(sys::state& state, ve_id_type nations) 
 	return exists(state, nations) || state.world.nation_get_utility_tag(nations);
 }
 
+template<typename F>
+void nation_for_each_unit(const sys::state& state, dcon::nation_id nation, F&& func) {
+	auto army_it = state.world.nation_get_army_control(nation);
+	auto navy_it = state.world.nation_get_navy_control(nation);
+	for(auto a : army_it) {
+		func(a.get_army());
+	}
+	for(auto n : navy_it) {
+		func(n.get_navy());
+	}
+}
+
 } // namespace nations

@@ -7,6 +7,7 @@
 #include "economy.hpp"
 #include "economy_templates.hpp"
 #include "advanced_province_buildings.hpp"
+#include "supply_route.hpp"
 
 namespace economy {
 
@@ -679,6 +680,48 @@ void advance_private_province_building_construction(
 //	}
 //}
 
+template<concepts::construction_type con_type>
+float average_construction_satisfaction_by_type(const sys::state& state, dcon::nation_id nation) {
+	float total_goods_required = 0.0f;
+	float total_goods_fufilled = 0.0f;
+	auto constructions_iterator = [&]() {
+		if constexpr(std::is_same_v<con_type, dcon::province_land_construction_id>) {
+			return state.world.nation_get_province_land_construction(nation);
+		}
+		else if constexpr(std::is_same_v<con_type, dcon::province_naval_construction_id>) {
+			return state.world.nation_get_province_naval_construction(nation);
+		}
+		else if constexpr(std::is_same_v<con_type, dcon::factory_construction_id>) {
+			return state.world.nation_get_factory_construction(nation);
+		}
+		else if constexpr(std::is_same_v<con_type, dcon::province_building_construction_id>) {
+			return state.world.nation_get_province_building_construction(nation);
+		}
+	}();
+	for(auto construction : constructions_iterator) {
+		if(construction_is_privately_owned(state, construction.id)) {
+			continue;
+		}
+		commodity_set goods_required = construction_get_actual_build_cost(state, construction.id);
+		float construction_days = static_cast<float>(construction_get_actual_construction_time(state, construction.id));
+		goods_required.for_each_commodity([&](dcon::commodity_id, float amount) {
+			total_goods_required += (amount / construction_days);
+		});
+		for(auto route : construction_get_supply_routes(state, construction.id)) {
+			if(supply_routes::supply_route_is_active(state, route.id)) {
+				const commodity_amounts& goods_fufilled = route.get_buffered_goods();
+				goods_required.for_each_valid_index([&](uint32_t idx) {
+					total_goods_fufilled += goods_fufilled[idx];
+				});
+			}
+		}
+	}
+	return (total_goods_required == 0.0f ? 1.0f : total_goods_fufilled / total_goods_required);
+}
+template float average_construction_satisfaction_by_type<dcon::province_land_construction_id>(const sys::state& state, dcon::nation_id nation);
+template float average_construction_satisfaction_by_type<dcon::province_naval_construction_id>(const sys::state& state, dcon::nation_id nation);
+template float average_construction_satisfaction_by_type<dcon::factory_construction_id>(const sys::state& state, dcon::nation_id nation);
+template float average_construction_satisfaction_by_type<dcon::province_building_construction_id>(const sys::state& state, dcon::nation_id nation);
 
 template<concepts::construction_type con_type>
 float construction_progress(const sys::state& state, con_type c) {
