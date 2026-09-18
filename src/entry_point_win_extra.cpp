@@ -125,6 +125,7 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWSTR
 				mode = run_mode::battles_data;
 			}
 		}
+		native_string scenario = parsed_cmd[1];
 		LocalFree(parsed_cmd);
 
 
@@ -133,7 +134,7 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWSTR
 
 		if (mode == run_mode::economy_tick) {
 			// scenario loading functions (would have to run these even when scenario is pre-built)
-			if(sys::try_read_scenario_and_save_file(game_state, parsed_cmd[1])) {
+			if(sys::try_read_scenario_and_save_file(game_state, scenario)) {
 				game_state.fill_unsaved_data();
 			} else {
 				return 0;
