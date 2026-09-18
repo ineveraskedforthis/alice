@@ -4440,6 +4440,12 @@ object{
 	tag{ scenario }
 
 	property {
+		name{ name }
+		type{text_key}
+		tag{ scenario }
+	}
+
+	property {
 		name{ satisfaction_score }
 		type{float}
 		tag{scenario}
