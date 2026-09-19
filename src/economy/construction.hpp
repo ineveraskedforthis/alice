@@ -104,7 +104,7 @@ template<concepts::construction_type con_type>
 float construction_progress(const sys::state& state, con_type c);
 
 template<concepts::construction_type con_type>
-float average_construction_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
+float nation_average_construction_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
 
 float location_build_cost_multiplier(const sys::state& state, dcon::province_id location, bool is_pop_project);
 float global_factory_construction_time_modifier(const sys::state& state);
@@ -136,7 +136,24 @@ dcon::internal::iterator_factory_construction_foreach_factory_construction_suppl
 dcon::internal::const_iterator_province_building_construction_foreach_building_construction_supply_route_as_construction_generator construction_get_supply_routes(const sys::state& state, dcon::province_building_construction_id con);
 dcon::internal::iterator_province_building_construction_foreach_building_construction_supply_route_as_construction_generator construction_get_supply_routes(sys::state& state, dcon::province_building_construction_id con);
 
+template<concepts::construction_type con_type>
+void construction_set_required_construction_base_cost(sys::state& state, con_type con, float val);
 
+template<concepts::construction_type con_type>
+float construction_set_required_construction_base_cost(const sys::state& state, con_type con);
+
+// Gets last days' required goods need for a specific construction.
+template<concepts::construction_type con_type>
+tagged_vector<float, dcon::commodity_id> get_last_required_construction_need(const sys::state& state, con_type construction);
+// Gets last days' required construction goods need for an entire nation by a specific construction type
+template<concepts::construction_type con_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_required_construction_need(const sys::state& state, dcon::nation_id nation);
+// Gets last days' fufilled goods need for a specific construction.
+template<concepts::construction_type con_type>
+tagged_vector<float, dcon::commodity_id> get_last_fufilled_construction_need(const sys::state& state, con_type construction);
+// Gets last days' fufilled construction goods need for an entire nation by a specific construction type
+template<concepts::construction_type con_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_construction_need(const sys::state& state, dcon::nation_id nation);
 
 uint32_t land_unit_construction_time(const sys::state& state, dcon::unit_type_id utid, dcon::nation_id builder);
 uint32_t naval_unit_construction_time(const sys::state& state, dcon::unit_type_id utid, dcon::nation_id builder);

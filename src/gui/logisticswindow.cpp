@@ -7,8 +7,6 @@
 // END
 
 namespace alice_ui {
-struct logisticswindow_main_construction_satisfaction_percent_t;
-struct logisticswindow_main_military_satisfaction_percent_t;
 struct logisticswindow_main_selected_commodity_icon_t;
 struct logisticswindow_main_stockpile_target_input_t;
 struct logisticswindow_main_confirm_target_button_t;
@@ -42,16 +40,6 @@ struct logisticswindow_commodity_grid_item_daily_stockpile_change_t;
 struct logisticswindow_commodity_grid_item_days_left_t;
 struct logisticswindow_commodity_grid_item_t;
 struct logisticswindow_commodity_spacer_t;
-struct logisticswindow_main_construction_satisfaction_percent_t : public alice_ui::template_label {
-// BEGIN main::construction_satisfaction_percent::variables
-// END
-	void on_update(sys::state& state) noexcept override;
-};
-struct logisticswindow_main_military_satisfaction_percent_t : public alice_ui::template_label {
-// BEGIN main::military_satisfaction_percent::variables
-// END
-	void on_update(sys::state& state) noexcept override;
-};
 struct logisticswindow_main_selected_commodity_icon_t : public ui::element_base {
 // BEGIN main::selected_commodity_icon::variables
 // END
@@ -424,10 +412,6 @@ struct logisticswindow_main_t : public layout_window_element {
 	bool show_only_military_goods;
 	ankerl::unordered_dense::map<std::string, std::unique_ptr<ui::lua_scripted_element>> scripted_elements;
 	std::unique_ptr<template_label> military_consumption_title;
-	std::unique_ptr<template_label> construction_consumption_label;
-	std::unique_ptr<logisticswindow_main_construction_satisfaction_percent_t> construction_satisfaction_percent;
-	std::unique_ptr<template_label> military_consumption_label;
-	std::unique_ptr<logisticswindow_main_military_satisfaction_percent_t> military_satisfaction_percent;
 	std::unique_ptr<logisticswindow_main_selected_commodity_icon_t> selected_commodity_icon;
 	std::unique_ptr<logisticswindow_main_stockpile_target_input_t> stockpile_target_input;
 	std::unique_ptr<logisticswindow_main_confirm_target_button_t> confirm_target_button;
@@ -729,15 +713,14 @@ void  logisticswindow_main_military_table_t::update(sys::state& state, layout_wi
 	add_section_header(consumption_categories::land_supply);
 	if(consumption_categories::expanded[consumption_categories::land_supply]) {
 		add_bottom_spacer();
-		tagged_vector<float, dcon::unit_supply_commodity_id> fufilled_amounts = military::get_nation_last_fufilled_army_supply(state, state.local_player_nation);
-		tagged_vector<float, dcon::unit_supply_commodity_id> required_amounts = military::get_nation_last_required_army_supply(state, state.local_player_nation);
-		state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id com_id) {
-			dcon::commodity_id base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = military::nation_get_last_fufilled_goods_need<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = military::nation_get_last_required_goods_need<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
 			float required = required_amounts[com_id];
 			float fufilled = fufilled_amounts[com_id];
 			if(required > 0.0f) {
 				float sat = (required == 0.0f ? 1.0f : fufilled / required);
-				add_consumption_row(text::get_commodity_text_icon(state, base_com_id) + text::produce_simple_string(state, state.world.commodity_get_name(base_com_id)), fufilled, required, sat);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
 			}
 		});
 	}
@@ -745,15 +728,14 @@ void  logisticswindow_main_military_table_t::update(sys::state& state, layout_wi
 	add_section_header(consumption_categories::land_reinforcement);
 	if(consumption_categories::expanded[consumption_categories::land_reinforcement]) {
 		add_bottom_spacer();
-		tagged_vector<float, dcon::unit_build_commodity_id> fufilled_amounts = military::get_nation_last_fufilled_army_reinforcement(state, state.local_player_nation);
-		tagged_vector<float, dcon::unit_build_commodity_id> required_amounts = military::get_nation_last_required_army_reinforcement(state, state.local_player_nation);
-		state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id com_id) {
-			dcon::commodity_id base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = military::nation_get_last_fufilled_goods_need<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = military::nation_get_last_required_goods_need<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
 			float required = required_amounts[com_id];
 			float fufilled = fufilled_amounts[com_id];
 			if(required > 0.0f) {
 				float sat = (required == 0.0f ? 1.0f : fufilled / required);
-				add_consumption_row(text::get_commodity_text_icon(state, base_com_id) + text::produce_simple_string(state, state.world.commodity_get_name(base_com_id)), fufilled, required, sat);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
 			}
 		});
 	}
@@ -761,15 +743,14 @@ void  logisticswindow_main_military_table_t::update(sys::state& state, layout_wi
 	add_section_header(consumption_categories::naval_supply);
 	if(consumption_categories::expanded[consumption_categories::naval_supply]) {
 		add_bottom_spacer();
-		tagged_vector<float, dcon::unit_supply_commodity_id> fufilled_amounts = military::get_nation_last_fufilled_navy_supply(state, state.local_player_nation);
-		tagged_vector<float, dcon::unit_supply_commodity_id> required_amounts = military::get_nation_last_required_navy_supply(state, state.local_player_nation);
-		state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id com_id) {
-			dcon::commodity_id base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = military::nation_get_last_fufilled_goods_need<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = military::nation_get_last_required_goods_need<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
 			float required = required_amounts[com_id];
 			float fufilled = fufilled_amounts[com_id];
 			if(required > 0.0f) {
 				float sat = (required == 0.0f ? 1.0f : fufilled / required);
-				add_consumption_row(text::get_commodity_text_icon(state, base_com_id) + text::produce_simple_string(state, state.world.commodity_get_name(base_com_id)), fufilled, required, sat);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
 			}
 		});
 	}
@@ -777,15 +758,14 @@ void  logisticswindow_main_military_table_t::update(sys::state& state, layout_wi
 	add_section_header(consumption_categories::naval_reinforcement);
 	if(consumption_categories::expanded[consumption_categories::naval_reinforcement]) {
 		add_bottom_spacer();
-		tagged_vector<float, dcon::unit_build_commodity_id> fufilled_amounts = military::get_nation_last_fufilled_navy_reinforcement(state, state.local_player_nation);
-		tagged_vector<float, dcon::unit_build_commodity_id> required_amounts = military::get_nation_last_required_navy_reinforcement(state, state.local_player_nation);
-		state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id com_id) {
-			dcon::commodity_id base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = military::nation_get_last_fufilled_goods_need<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = military::nation_get_last_required_goods_need<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
 			float required = required_amounts[com_id];
 			float fufilled = fufilled_amounts[com_id];
 			if(required > 0.0f) {
 				float sat = (required == 0.0f ? 1.0f : fufilled / required);
-				add_consumption_row(text::get_commodity_text_icon(state, base_com_id) + text::produce_simple_string(state, state.world.commodity_get_name(base_com_id)), fufilled, required, sat);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
 			}
 		});
 	}
@@ -974,12 +954,64 @@ void  logisticswindow_main_consumption_table_t::update(sys::state& state, layout
 // BEGIN main::consumption_table::update
 	values.clear();
 	add_section_header(consumption_categories::army_construction);
+	if(consumption_categories::expanded[consumption_categories::army_construction]) {
+		add_bottom_spacer();
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = economy::nation_get_last_fufilled_construction_need<dcon::province_land_construction_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = economy::nation_get_last_required_construction_need<dcon::province_land_construction_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+			float required = required_amounts[com_id];
+			float fufilled = fufilled_amounts[com_id];
+			if(required > 0.0f) {
+				float sat = (required == 0.0f ? 1.0f : fufilled / required);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
+			}
+		});
+	}
 	add_neutral_spacer();
 	add_section_header(consumption_categories::naval_construction);
+	if(consumption_categories::expanded[consumption_categories::naval_construction]) {
+		add_bottom_spacer();
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = economy::nation_get_last_fufilled_construction_need<dcon::province_naval_construction_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = economy::nation_get_last_required_construction_need<dcon::province_naval_construction_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+			float required = required_amounts[com_id];
+			float fufilled = fufilled_amounts[com_id];
+			if(required > 0.0f) {
+				float sat = (required == 0.0f ? 1.0f : fufilled / required);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
+			}
+		});
+	}
 	add_neutral_spacer();
 	add_section_header(consumption_categories::factory_construction);
+	if(consumption_categories::expanded[consumption_categories::factory_construction]) {
+		add_bottom_spacer();
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = economy::nation_get_last_fufilled_construction_need<dcon::factory_construction_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = economy::nation_get_last_required_construction_need<dcon::factory_construction_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+			float required = required_amounts[com_id];
+			float fufilled = fufilled_amounts[com_id];
+			if(required > 0.0f) {
+				float sat = (required == 0.0f ? 1.0f : fufilled / required);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
+			}
+		});
+	}
 	add_neutral_spacer();
 	add_section_header(consumption_categories::building_construction);
+	if(consumption_categories::expanded[consumption_categories::building_construction]) {
+		add_bottom_spacer();
+		tagged_vector<float, dcon::commodity_id> fufilled_amounts = economy::nation_get_last_fufilled_construction_need<dcon::province_building_construction_id>(state, state.local_player_nation);
+		tagged_vector<float, dcon::commodity_id> required_amounts = economy::nation_get_last_required_construction_need<dcon::province_building_construction_id>(state, state.local_player_nation);
+		economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+			float required = required_amounts[com_id];
+			float fufilled = fufilled_amounts[com_id];
+			if(required > 0.0f) {
+				float sat = (required == 0.0f ? 1.0f : fufilled / required);
+				add_consumption_row(text::get_commodity_text_icon(state, com_id) + text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufilled, required, sat);
+			}
+		});
+	}
 // END
 	{
 	bool work_to_do = false;
@@ -1204,25 +1236,6 @@ void  logisticswindow_main_commodity_grid_g_t::reset_pools() {
 	commodity_grid_item_pool_used = 0;
 	commodity_spacer_pool_used = 0;
 }
-void logisticswindow_main_construction_satisfaction_percent_t::on_update(sys::state& state) noexcept {
-	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent)); 
-// BEGIN main::construction_satisfaction_percent::update
-// END
-}
-void logisticswindow_main_military_satisfaction_percent_t::on_update(sys::state& state) noexcept {
-	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent)); 
-// BEGIN main::military_satisfaction_percent::update
-	// Compute the average satisfaction percentage for all military consumption
-	// TODO FOR LATER: show which goods are lacking
-	float avg_naval_reinf_satisfaction = military::average_naval_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
-	float avg_land_reinf_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
-	float avg_naval_supply_satisfaction = military::average_naval_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
-	float avg_land_supply_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
-
-	float avg_satisfaction = (avg_naval_reinf_satisfaction + avg_naval_supply_satisfaction + avg_land_reinf_satisfaction + avg_land_supply_satisfaction) / 4.0f;
-	set_text(state, text::format_percentage(avg_satisfaction, 2));
-// END
-}
 ui::message_result logisticswindow_main_selected_commodity_icon_t::on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
 	return ui::message_result::unseen;
 }
@@ -1439,18 +1452,6 @@ void logisticswindow_main_t::create_layout_level(sys::state& state, layout_level
 				if(cname == "military_consumption_title") {
 					temp.ptr = military_consumption_title.get();
 				} else
-				if(cname == "construction_consumption_label") {
-					temp.ptr = construction_consumption_label.get();
-				} else
-				if(cname == "construction_satisfaction_percent") {
-					temp.ptr = construction_satisfaction_percent.get();
-				} else
-				if(cname == "military_consumption_label") {
-					temp.ptr = military_consumption_label.get();
-				} else
-				if(cname == "military_satisfaction_percent") {
-					temp.ptr = military_satisfaction_percent.get();
-				} else
 				if(cname == "selected_commodity_icon") {
 					temp.ptr = selected_commodity_icon.get();
 				} else
@@ -1582,78 +1583,6 @@ void logisticswindow_main_t::on_create(sys::state& state) noexcept {
 			military_consumption_title = std::make_unique<template_label>();
 			military_consumption_title->parent = this;
 			auto cptr = military_consumption_title.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "construction_consumption_label") {
-			construction_consumption_label = std::make_unique<template_label>();
-			construction_consumption_label->parent = this;
-			auto cptr = construction_consumption_label.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "construction_satisfaction_percent") {
-			construction_satisfaction_percent = std::make_unique<logisticswindow_main_construction_satisfaction_percent_t>();
-			construction_satisfaction_percent->parent = this;
-			auto cptr = construction_satisfaction_percent.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "military_consumption_label") {
-			military_consumption_label = std::make_unique<template_label>();
-			military_consumption_label->parent = this;
-			auto cptr = military_consumption_label.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "military_satisfaction_percent") {
-			military_satisfaction_percent = std::make_unique<logisticswindow_main_military_satisfaction_percent_t>();
-			military_satisfaction_percent->parent = this;
-			auto cptr = military_satisfaction_percent.get();
 			cptr->base_data.position.x = child_data.x_pos;
 			cptr->base_data.position.y = child_data.y_pos;
 			cptr->base_data.size.x = child_data.x_size;
@@ -2225,14 +2154,14 @@ void logisticswindow_section_header_total_amount_t::on_update(sys::state& state)
 
 
 	switch(section_header.section_type) {
-	case consumption_categories::land_reinforcement: set_text(state, adjust_percent_value(military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation))); break;
-	case consumption_categories::land_supply: set_text(state, adjust_percent_value(military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation))); break;
-	case consumption_categories::naval_reinforcement: set_text(state, adjust_percent_value(military::average_naval_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation))); break;
-	case consumption_categories::naval_supply: set_text(state, adjust_percent_value(military::average_naval_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation))); break;
-	case consumption_categories::army_construction:  set_text(state, adjust_percent_value(economy::average_construction_satisfaction_by_type<dcon::province_land_construction_id>(state, state.local_player_nation))); break;
-	case consumption_categories::naval_construction:  set_text(state, adjust_percent_value(economy::average_construction_satisfaction_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation))); break;
-	case consumption_categories::factory_construction:set_text(state, adjust_percent_value(economy::average_construction_satisfaction_by_type<dcon::factory_construction_id>(state, state.local_player_nation))); break;
-	case consumption_categories::building_construction: set_text(state, adjust_percent_value(economy::average_construction_satisfaction_by_type<dcon::province_building_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::land_reinforcement:  set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::land_supply:  set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_reinforcement:  set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_supply: set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::army_construction:  set_text(state, adjust_percent_value(economy::nation_average_construction_satisfaction_by_type<dcon::province_land_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_construction:  set_text(state, adjust_percent_value(economy::nation_average_construction_satisfaction_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::factory_construction:set_text(state, adjust_percent_value(economy::nation_average_construction_satisfaction_by_type<dcon::factory_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::building_construction: set_text(state, adjust_percent_value(economy::nation_average_construction_satisfaction_by_type<dcon::province_building_construction_id>(state, state.local_player_nation))); break;
 	default: set_text(state, ""); break;
 	}
 // END
@@ -4268,6 +4197,20 @@ std::unique_ptr<ui::element_base> make_logisticswindow_commodity_spacer(sys::sta
 	return ptr;
 }
 // LOST-CODE
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+// BEGIN main::military_satisfaction_percent::update
+//	// Compute the average satisfaction percentage for all military consumption
+//	// TODO FOR LATER: show which goods are lacking
+//	/*float avg_naval_reinf_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
+//	float avg_land_reinf_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
+//	float avg_naval_supply_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply>(state, state.local_player_nation);
+//	float avg_land_supply_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
+
+//	float avg_satisfaction = (avg_naval_reinf_satisfaction + avg_naval_supply_satisfaction + avg_land_reinf_satisfaction + avg_land_supply_satisfaction) / 4.0f;*/
+//	set_text(state, "");
+// END
 // BEGIN main::military_table::consumption_table::sort::amount_fufilled
 //						if(a.fufilled < b.fufilled) result = -1;
 //						if(a.fufilled > b.fufilled) result = 1;

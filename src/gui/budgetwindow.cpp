@@ -2170,13 +2170,13 @@ void budgetwindow_main_satisfaction_percent_t::on_update(sys::state& state) noex
 // BEGIN main::satisfaction_percent::update
 	// Compute the average satisfaction percentage for all military consumption
 	// TODO FOR LATER: show which goods are lacking
-	float avg_naval_reinf_satisfaction = military::average_naval_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
+	/*float avg_naval_reinf_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
 	float avg_land_reinf_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
-	float avg_naval_supply_satisfaction = military::average_naval_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
+	float avg_naval_supply_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply>(state, state.local_player_nation);
 	float avg_land_supply_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
 
-	float avg_satisfaction = (avg_naval_reinf_satisfaction + avg_naval_supply_satisfaction + avg_land_reinf_satisfaction + avg_land_supply_satisfaction ) / 4.0f;
-	set_text(state, text::format_percentage(avg_satisfaction, 2));
+	float avg_satisfaction = (avg_naval_reinf_satisfaction + avg_naval_supply_satisfaction + avg_land_reinf_satisfaction + avg_land_supply_satisfaction ) / 4.0f;*/
+	set_text(state, "");
 
 
 // END
@@ -3668,10 +3668,10 @@ void budgetwindow_section_header_total_amount_t::on_update(sys::state& state) no
 	case budget_categories::navy_upkeep: set_text(state, adjust_spending_value(spending_details.military_supplies_navy.actual_spending)); break;
 	case budget_categories::debt_payment: set_text(state, adjust_spending_value(spending_details.interest.actual_spending)); break;
 	case budget_categories::stockpile: set_text(state, adjust_spending_value(spending_details.stockpile.actual_spending)); break;
-	case budget_categories::land_reinforcement: set_text(state, adjust_military_value(military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation))); break;
-	case budget_categories::land_supply: set_text(state, adjust_military_value(military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation))); break;
-	case budget_categories::naval_reinforcement: set_text(state, adjust_military_value(military::average_naval_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation))); break;
-	case budget_categories::naval_supply: set_text(state, adjust_military_value(military::average_naval_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation))); break;
+	case budget_categories::land_reinforcement: set_text(state, ""); break;
+	case budget_categories::land_supply: set_text(state, ""); break;
+	case budget_categories::naval_reinforcement: set_text(state, ""); break;
+	case budget_categories::naval_supply: set_text(state, ""); break;
 	case budget_categories::army_construction: break;
 	case budget_categories::naval_construction:  break;
 	case budget_categories::factory_construction: break;

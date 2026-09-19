@@ -75,6 +75,114 @@ dcon::nation_id unit_get_controller(const sys::state& state, dcon::navy_id unit)
 	return state.world.navy_get_controller_from_navy_control(unit);
 }
 
+dcon::unit_type_id subunit_get_type(const sys::state& state, dcon::regiment_id subunit) {
+	return state.world.regiment_get_type(subunit);
+}
+dcon::unit_type_id subunit_get_type(const sys::state& state, dcon::ship_id subunit) {
+	return state.world.ship_get_type(subunit);
+}
+
+
+
+template<concepts::military_subunit subunit_type>
+void subunit_set_required_supply_base_cost(sys::state& state, subunit_type unit, float val) {
+	if constexpr(std::is_same_v<subunit_type, dcon::regiment_id>) {
+		state.world.regiment_set_required_supply_base_cost(unit, val);
+	}
+	else if constexpr(std::is_same_v<subunit_type, dcon::ship_id>) {
+		state.world.ship_set_required_supply_base_cost(unit, val);
+	}
+	else {
+		static_assert(false, "Unknown type");
+	}
+}
+template void subunit_set_required_supply_base_cost(sys::state& state, dcon::regiment_id unit, float val);
+template void subunit_set_required_supply_base_cost(sys::state& state, dcon::ship_id unit, float val);
+//template<concepts::ve_military_subunit_type subunit_type>
+//void subunit_set_supply_base_cost(sys::state& state, subunit_type unit, ve::value_to_vector_type<float> val) {
+//
+//	using ID = subunit_type::wrapped_type;
+//
+//	if constexpr(std::is_same_v<ID, dcon::regiment_id>) {
+//		state.world.regiment_set_supply_base_cost(unit, val);
+//	} else if constexpr(std::is_same_v<ID, dcon::ship_id>) {
+//		state.world.ship_set_supply_base_cost(unit, val);
+//	}
+//	else {
+//		static_assert(false, "Unknown type");
+//	}
+//}
+
+template<concepts::military_subunit subunit_type>
+float subunit_get_required_supply_base_cost(const sys::state& state, subunit_type unit) {
+	if constexpr(std::is_same_v<subunit_type, dcon::regiment_id>) {
+		return state.world.regiment_get_required_supply_base_cost(unit);
+	} else if constexpr(std::is_same_v<subunit_type, dcon::ship_id>) {
+		return state.world.ship_get_required_supply_base_cost(unit);
+	} 
+}
+template float subunit_get_required_supply_base_cost(const sys::state& state, dcon::regiment_id unit);
+template float subunit_get_required_supply_base_cost(const sys::state& state, dcon::ship_id unit);
+//template<concepts::ve_military_subunit_type subunit_type>
+//ve::value_to_vector_type<float> subunit_get_supply_base_cost(sys::state& state, subunit_type unit) {
+//
+//	using ID = subunit_type::wrapped_type;
+//	if constexpr(std::is_same_v<ID, dcon::regiment_id>) {
+//		return state.world.regiment_get_supply_base_cost(unit);
+//	} else if constexpr(std::is_same_v<ID, dcon::ship_id>) {
+//		return state.world.ship_get_supply_base_cost(unit);
+//	}
+//}
+
+
+template<concepts::military_subunit subunit_type>
+void subunit_set_required_reinforcement_base_cost(sys::state& state, subunit_type unit, float val) {
+	if constexpr(std::is_same_v<subunit_type, dcon::regiment_id>) {
+		state.world.regiment_set_required_reinforcement_base_cost(unit, val);
+	} else if constexpr(std::is_same_v<subunit_type, dcon::ship_id>) {
+		state.world.ship_set_required_reinforcement_base_cost(unit, val);
+	} else {
+		static_assert(false, "Unknown type");
+	}
+}
+template void subunit_set_required_reinforcement_base_cost(sys::state& state, dcon::regiment_id unit, float val);
+template void subunit_set_required_reinforcement_base_cost(sys::state& state, dcon::ship_id unit, float val);
+//template<concepts::ve_military_subunit_type subunit_type>
+//void subunit_set_reinforcement_base_cost(sys::state& state, subunit_type unit, ve::value_to_vector_type<float> val) {
+//
+//	using ID = subunit_type::wrapped_type;
+//
+//	if constexpr(std::is_same_v<ID, dcon::regiment_id>) {
+//		state.world.regiment_set_reinforcement_base_cost(unit, val);
+//	} else if constexpr(std::is_same_v<ID, dcon::ship_id>) {
+//		state.world.ship_set_reinforcement_base_cost(unit, val);
+//	} else {
+//		static_assert(false, "Unknown type");
+//	}
+//}
+
+template<concepts::military_subunit subunit_type>
+float subunit_get_required_reinforcement_base_cost(const sys::state& state, subunit_type unit) {
+	if constexpr(std::is_same_v<subunit_type, dcon::regiment_id>) {
+		return state.world.regiment_get_required_reinforcement_base_cost(unit);
+	} else if constexpr(std::is_same_v<subunit_type, dcon::ship_id>) {
+		return state.world.ship_get_required_reinforcement_base_cost(unit);
+	}
+}
+template float subunit_get_required_reinforcement_base_cost(const sys::state& state, dcon::regiment_id unit);
+template float subunit_get_required_reinforcement_base_cost(const sys::state& state, dcon::ship_id unit);
+//template<concepts::ve_military_subunit_type subunit_type>
+//ve::value_to_vector_type<float> subunit_get_reinforcement_base_cost(sys::state& state, subunit_type unit) {
+//
+//	using ID = subunit_type::wrapped_type;
+//	if constexpr(std::is_same_v<ID, dcon::regiment_id>) {
+//		return state.world.regiment_get_reinforcement_base_cost(unit);
+//	} else if constexpr(std::is_same_v<ID, dcon::ship_id>) {
+//		return state.world.ship_get_reinforcement_base_cost(unit);
+//	}
+//}
+
+
 template<unit_consumption_type consumption_type>
 const economy::commodity_set& unit_type_get_commodity_costs(const sys::state& state, dcon::unit_type_id type) {
 	if constexpr(consumption_type == unit_consumption_type::supply) {
@@ -9660,214 +9768,103 @@ void increase_dig_in(sys::state& state) {
 }
 
 // Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<concepts::military_unit unit_type>
-void get_last_required_supply(const sys::state& state, unit_type unit, tagged_vector<float, dcon::unit_supply_commodity_id>& vec_out) {
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+void unit_get_last_required_goods_need(const sys::state& state, unit_type unit, tagged_vector<float, dcon::commodity_id>& vec_out) {
+	unit_for_each_subunit(state, unit, [&](auto subunit) {
+		dcon::unit_type_id type = subunit_get_type(state, subunit);
+		const economy::commodity_set& base_cost = unit_type_get_commodity_costs<consume_type>(state, type);
 
-	const auto membership = unit_get_membership(state, unit);
-	dcon::nation_id controller = unit_get_controller(state, unit);
-	for(auto s : membership) {
-		auto subunit = [&]() {
-			if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-				return fatten(state.world, s.get_regiment());
+		float required_base_cost = [&]() -> float {
+			if constexpr(consume_type == unit_consumption_type::supply) {
+				return military::subunit_get_required_supply_base_cost(state, subunit);
 			}
-			if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
-				return fatten(state.world, s.get_ship());
+			else if constexpr(consume_type == unit_consumption_type::reinforcement) {
+				return military::subunit_get_required_reinforcement_base_cost(state, subunit);
 			}
-			}();
-		dcon::unit_type_id type = subunit.get_type();
-		const economy::commodity_set& supply_cost = state.military_definitions.unit_base_definitions[type].supply_cost;
+		}();
+		base_cost.for_each_valid_index([&](uint32_t idx) {
+			dcon::commodity_id com_id = base_cost.commodity_type[idx];
+			vec_out[com_id] += (base_cost.commodity_amounts[idx] * required_base_cost);
+		});
+	});
+}
 
-		float last_supply_cost_mod = subunit.get_last_supply_cost_modifier();
-		for(uint32_t i = 0; i < supply_cost.set_size; ++i) {
-			auto base_com_id = supply_cost.commodity_type[i];
-			if(base_com_id) {
-				auto supply_com_id = state.world.commodity_get_unit_supply_commodity(base_com_id);
-				assert(supply_com_id);
-				vec_out[supply_com_id] += supply_cost.commodity_amounts[i] * last_supply_cost_mod;
-			} else {
-				break;
-			}
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need(const sys::state& state, unit_type unit) {
+
+	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
+	unit_get_last_required_goods_need<consume_type>(state, unit, required_amounts);
+	return required_amounts;
+}
+
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need(const sys::state& state, dcon::nation_id nation) {
+
+	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
+
+	if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
+		for(auto ac : state.world.nation_get_army_control(nation)) {
+			unit_get_last_required_goods_need<consume_type>(state, ac.get_army().id, required_amounts);
+		}
+	}
+	else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
+		for(auto ac : state.world.nation_get_navy_control(nation)) {
+			unit_get_last_required_goods_need<consume_type>(state, ac.get_navy().id, required_amounts);
+		}
+	}
+	return required_amounts;
+}
+
+
+// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+void unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit, tagged_vector<float, dcon::commodity_id>& vec_out) {
+
+	auto routes = unit_get_supply_routes(state, unit);
+	for(auto route : routes) {
+		if constexpr(consume_type == unit_consumption_type::supply) {
+			state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
+				dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, supply_com_id);
+				float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
+				float buffered_goods = route.get_buffered_supply_goods(supply_com_id);
+				vec_out[base_commodity] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
+			});
+		}
+		else if constexpr(consume_type == unit_consumption_type::reinforcement) {
+			state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id reinf_com_id) {
+				dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, reinf_com_id);
+				float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
+				float buffered_goods = route.get_buffered_reinforcement_goods(reinf_com_id);
+				vec_out[base_commodity] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
+			});
 		}
 	};
 }
 
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_supply_commodity_id> get_last_required_supply(const sys::state& state, unit_type unit) {
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit) {
 
-	tagged_vector<float, dcon::unit_supply_commodity_id> required_supply(state.world.unit_supply_commodity_size());
-	get_last_required_supply(state, unit, required_supply);
-	return required_supply;
-}
-template tagged_vector<float, dcon::unit_supply_commodity_id> get_last_required_supply(const sys::state& state, dcon::army_id unit);
-template tagged_vector<float, dcon::unit_supply_commodity_id> get_last_required_supply(const sys::state& state, dcon::navy_id unit);
-
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_army_supply(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_supply_commodity_id> required_supply(state.world.unit_supply_commodity_size());
-	for(auto a : state.world.nation_get_army_control(nation)) {
-		get_last_required_supply(state, a.get_army().id, required_supply);
-	}
-	return required_supply;
+	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
+	unit_get_last_fufilled_goods_need<consume_type>(state, unit, required_amounts);
+	return required_amounts;
 }
 
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_navy_supply(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_supply_commodity_id> required_supply(state.world.unit_supply_commodity_size());
-	for(auto a : state.world.nation_get_navy_control(nation)) {
-		get_last_required_supply(state, a.get_navy().id, required_supply);
-	}
-	return required_supply;
-}
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need(const sys::state& state, dcon::nation_id nation) {
 
-// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<concepts::military_unit unit_type>
-void get_last_required_reinforcement(const sys::state& state, unit_type unit, tagged_vector<float, dcon::unit_build_commodity_id>& vec_out) {
+	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
 
-	const auto membership = unit_get_membership(state, unit);
-	dcon::nation_id controller = unit_get_controller(state, unit);
-
-	for(auto s : membership) {
-		auto subunit = [&]() {
-			if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-				return fatten(state.world, s.get_regiment());
-			} else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
-				return fatten(state.world, s.get_ship());
-			}
-			}();
-		dcon::unit_type_id type = subunit.get_type();
-		const economy::commodity_set& build_cost = state.military_definitions.unit_base_definitions[type].build_cost;
-		float last_reinf = subunit.get_last_potential_reinforcement();
-		for(uint32_t i = 0; i < build_cost.set_size; ++i) {
-			auto base_com_id = build_cost.commodity_type[i];
-			if(base_com_id) {
-				auto build_com_id = state.world.commodity_get_unit_build_commodity(base_com_id);
-				assert(build_com_id);
-				vec_out[build_com_id] += build_cost.commodity_amounts[i] * last_reinf;
-			} else {
-				break;
-			}
+	if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
+		for(auto ac : state.world.nation_get_army_control(nation)) {
+			unit_get_last_fufilled_goods_need<consume_type>(state, ac.get_army().id, required_amounts);
 		}
-	};
-}
-
-
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_build_commodity_id> get_last_required_reinforcement(const sys::state& state, unit_type unit) {
-	tagged_vector<float, dcon::unit_build_commodity_id> required_reinf(state.world.unit_build_commodity_size());
-	get_last_required_reinforcement(state, unit, required_reinf);
-	return required_reinf;
-}
-template tagged_vector<float, dcon::unit_build_commodity_id> get_last_required_reinforcement(const sys::state& state, dcon::army_id unit);
-template tagged_vector<float, dcon::unit_build_commodity_id> get_last_required_reinforcement(const sys::state& state, dcon::navy_id unit);
-
-
-
-
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_army_reinforcement(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_build_commodity_id> required_supply(state.world.unit_build_commodity_size());
-	for(auto a : state.world.nation_get_army_control(nation)) {
-		get_last_required_reinforcement(state, a.get_army().id, required_supply);
+	} else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
+		for(auto ac : state.world.nation_get_navy_control(nation)) {
+			unit_get_last_fufilled_goods_need<consume_type>(state, ac.get_navy().id, required_amounts);
+		}
 	}
-	return required_supply;
+	return required_amounts;
 }
-
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_navy_reinforcement(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_build_commodity_id> required_supply(state.world.unit_build_commodity_size());
-	for(auto a : state.world.nation_get_navy_control(nation)) {
-		get_last_required_reinforcement(state, a.get_navy().id, required_supply);
-	}
-	return required_supply;
-}
-
-
-// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<concepts::military_unit unit_type>
-void get_last_fufilled_supply(const sys::state& state, unit_type unit, tagged_vector<float, dcon::unit_supply_commodity_id>& vec_out) {
-
-	auto routes = unit_get_supply_routes(state, unit);
-	for(auto route : routes) {
-		state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
-			dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, supply_com_id);
-			float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
-			float buffered_goods = route.get_buffered_supply_goods(supply_com_id);
-			vec_out[supply_com_id] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
-		});
-	};
-}
-
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_supply_commodity_id> get_last_fufilled_supply(const sys::state& state, unit_type unit) {
-
-	tagged_vector<float, dcon::unit_supply_commodity_id> fufilled_supply(state.world.unit_supply_commodity_size());
-	get_last_fufilled_supply(state, unit, fufilled_supply);
-	return fufilled_supply;
-}
-template tagged_vector<float, dcon::unit_supply_commodity_id> get_last_fufilled_supply(const sys::state& state, dcon::army_id unit);
-template tagged_vector<float, dcon::unit_supply_commodity_id> get_last_fufilled_supply(const sys::state& state, dcon::navy_id unit);
-
-
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_army_supply(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_supply_commodity_id> fufilled_supply(state.world.unit_supply_commodity_size());
-	for(auto a : state.world.nation_get_army_control(nation)) {
-		get_last_fufilled_supply(state, a.get_army().id, fufilled_supply);
-	}
-	return fufilled_supply;
-}
-
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_navy_supply(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_supply_commodity_id> fufilled_supply(state.world.unit_supply_commodity_size());
-	for(auto a : state.world.nation_get_navy_control(nation)) {
-		get_last_fufilled_supply(state, a.get_navy().id, fufilled_supply);
-	}
-	return fufilled_supply;
-}
-
-
-// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<concepts::military_unit unit_type>
-void get_last_fufilled_reinforcement(const sys::state& state, unit_type unit, tagged_vector<float, dcon::unit_build_commodity_id>& vec_out) {
-
-	auto routes = unit_get_supply_routes(state, unit);
-	for(auto route : routes) {
-		state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id build_com_id) {
-			dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, build_com_id);
-			float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
-			float buffered_goods = route.get_buffered_reinforcement_goods(build_com_id);
-			vec_out[build_com_id] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
-		});
-	}
-}
-
-
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_build_commodity_id> get_last_fufilled_reinforcement(const sys::state& state, unit_type unit) {
-
-	tagged_vector<float, dcon::unit_build_commodity_id> fufilled_supply(state.world.unit_build_commodity_size());
-	get_last_fufilled_reinforcement(state, unit, fufilled_supply);
-	return fufilled_supply;
-}
-template tagged_vector<float, dcon::unit_build_commodity_id> get_last_fufilled_reinforcement(const sys::state& state, dcon::army_id unit);
-template tagged_vector<float, dcon::unit_build_commodity_id> get_last_fufilled_reinforcement(const sys::state& state, dcon::navy_id unit);
-
-
-
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_army_reinforcement(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_build_commodity_id> fufilled_reinf(state.world.unit_build_commodity_size());
-	for(auto a : state.world.nation_get_army_control(nation)) {
-		get_last_fufilled_reinforcement(state, a.get_army().id, fufilled_reinf);
-	}
-	return fufilled_reinf;
-}
-
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_navy_reinforcement(const sys::state& state, dcon::nation_id nation) {
-	tagged_vector<float, dcon::unit_build_commodity_id> fufilled_reinf(state.world.unit_build_commodity_size());
-	for(auto a : state.world.nation_get_navy_control(nation)) {
-		get_last_fufilled_reinforcement(state, a.get_navy().id, fufilled_reinf);
-	}
-	return fufilled_reinf;
-}
-
-
-
-
 
 
 float get_over_naval_cap_penalty_modifier(const sys::state& state, dcon::nation_id nation) {
@@ -10813,50 +10810,28 @@ void disband_regiment_w_pop_death(sys::state& state, dcon::regiment_id reg_id) {
 }
 
 
-template<unit_consumption_type consumption_type>
-float average_naval_consumption_satisfaction(const sys::state& state, dcon::nation_id nation) {
-	float total = 0;
-	uint32_t unit_count = 0;
-	for(auto a : state.world.nation_get_navy_control(nation)) {
-		auto navy = a.get_navy();
-		for(auto r : navy.get_navy_membership()) {
-			unit_count++;
-			auto ship = r.get_ship();
-			if constexpr(consumption_type == unit_consumption_type::reinforcement) {
-				total += ship.get_reinforcement_satisfaction();
-			}
-			else {
-				total += ship.get_supply_satisfaction();
-			}
-		}
-	}
-	unit_count = (unit_count != 0 ? unit_count : 1); // DBZ guard
-	return total / unit_count;
-}
-template float average_naval_consumption_satisfaction<unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
-template float average_naval_consumption_satisfaction<unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation) {
 
-template<unit_consumption_type consumption_type>
-float average_land_consumption_satisfaction(const sys::state& state, dcon::nation_id nation) {
-	float total = 0;
-	uint32_t unit_count = 0;
-	for(auto a : state.world.nation_get_army_control(nation)) {
-		auto army = a.get_army();
-		for(auto r : army.get_army_membership()) {
-			unit_count++;
-			auto regiment = r.get_regiment();
-			if constexpr(consumption_type == unit_consumption_type::reinforcement) {
-				total += regiment.get_reinforcement_satisfaction() ;
-			} else {
-				total += regiment.get_supply_satisfaction();
-			}
-		}
-	}
-	unit_count = (unit_count != 0 ? unit_count : 1); // DBZ guard
-	return total / unit_count;
+	float total_required = 0.0f;
+	float total_fufilled = 0.0f;
+
+	auto required_amounts = nation_get_last_required_goods_need<consumption_type, unit_type>(state, nation);
+	auto fufilled_amounts = nation_get_last_fufilled_goods_need<consumption_type, unit_type>(state, nation);
+
+	economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+		total_required += required_amounts[com_id];
+		total_fufilled += fufilled_amounts[com_id];
+	});
+
+	return(total_required == 0.0f ? 1.0f : total_fufilled / total_required);
+
 }
-template float average_land_consumption_satisfaction<unit_consumption_type::reinforcement>(const sys::state& state, dcon::nation_id nation);
-template float average_land_consumption_satisfaction<unit_consumption_type::supply>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+
 
 military::unit_priority increment_priority(military::unit_priority priority) {
 	switch(priority) {

@@ -566,7 +566,7 @@ struct commodity_set_base {
 		}
 	}
 	template<typename F>
-	void for_each_valid_index(F&& function) {
+	void for_each_valid_index(F&& function) const {
 		for(uint32_t i = 0; i < set_size; ++i) {
 			if(commodity_type[i]) {
 				function(i);

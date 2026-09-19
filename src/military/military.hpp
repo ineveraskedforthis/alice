@@ -162,6 +162,18 @@ dcon::navy_id subunit_get_membership(const sys::state& state, dcon::ship_id unit
 dcon::nation_id unit_get_controller(const sys::state& state, dcon::army_id unit);
 dcon::nation_id unit_get_controller(const sys::state& state, dcon::navy_id unit);
 
+template<concepts::military_subunit subunit_type>
+float subunit_get_required_reinforcement_base_cost(const sys::state& state, subunit_type unit);
+
+template<concepts::military_subunit subunit_type>
+void subunit_set_required_reinforcement_base_cost(sys::state& state, subunit_type unit, float val);
+
+template<concepts::military_subunit subunit_type>
+float subunit_get_required_supply_base_cost(const sys::state& state, subunit_type unit);
+
+template<concepts::military_subunit subunit_type>
+void subunit_set_required_supply_base_cost(sys::state& state, subunit_type unit, float val);
+
 template<unit_consumption_type consumption_type>
 const economy::commodity_set& unit_type_get_commodity_costs(const sys::state& state, dcon::unit_type_id type);
 
@@ -504,39 +516,21 @@ battle_regiment get_land_combat_target(const sys::state& state, dcon::regiment_i
 void apply_attrition_to_army(sys::state& state, dcon::army_id army);
 void apply_attrition(sys::state& state);
 void increase_dig_in(sys::state& state);
-// Get the fufilled reinforcement goods from last day for a unit
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_build_commodity_id> get_last_fufilled_reinforcement(const sys::state& state, unit_type unit);
-// Get the fufilled reinforcement goods from last day for all armies a nation owns 
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_army_reinforcement(const sys::state& state, dcon::nation_id nation);
-// Get the fufilled reinforcement goods from last day for all navies a nation owns 
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_fufilled_navy_reinforcement(const sys::state& state, dcon::nation_id nation);
 
-// Get the fufilled supply goods from last day for a unit
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_supply_commodity_id> get_last_fufilled_supply(const sys::state& state, unit_type unit);
-// Get the fufilled supply goods from last day for all armies a nation owns 
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_army_supply(const sys::state& state, dcon::nation_id nation);
-// Get the fufilled reinforcement goods from last day for all navies a nation owns 
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_fufilled_navy_supply(const sys::state& state, dcon::nation_id nation);
+// Get the last days' required goods need for a unit. Either reinforcement need or supply need depending on template param
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need(const sys::state& state, unit_type unit);
 
-// Get the required reinforcement goods from last day for a unit
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_build_commodity_id> get_last_required_reinforcement(const sys::state& state, unit_type unit);
-// Get the required reinforcement goods from last day for all armies a nation owns
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_army_reinforcement(const sys::state& state, dcon::nation_id nation);
-// Get the required reinforcement goods from last day for all navies a nation owns
-tagged_vector<float, dcon::unit_build_commodity_id> get_nation_last_required_navy_reinforcement(const sys::state& state, dcon::nation_id nation);
-// Get the required supply goods from last day for a unit
-template<concepts::military_unit unit_type>
-tagged_vector<float, dcon::unit_supply_commodity_id> get_last_required_supply(const sys::state& state, unit_type unit);
-// Get the required supply goods from last day for all armies a nation owns
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_army_supply(const sys::state& state, dcon::nation_id nation);
-// Get the required supply goods from last day for all navies a nation owns
-tagged_vector<float, dcon::unit_supply_commodity_id> get_nation_last_required_navy_supply(const sys::state& state, dcon::nation_id nation);
+// Get the last days' required goods need for a nation for a specific unit type (army or navy). Either reinforcement need or supply need depending on template param
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need(const sys::state& state, dcon::nation_id nation);
 
-
-
+// Get the last days' fufilled goods need for a unit. Either reinforcement need or supply need depending on template param
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit);
+// Get the last days' fufilled goods need for a nation for a specific unit type (army or navy). Either reinforcement need or supply need depending on template param
+template<unit_consumption_type consume_type, concepts::military_unit unit_type>
+tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need(const sys::state& state, dcon::nation_id nation);
 
 void recover_land_org(sys::state& state);
 void recover_naval_org(sys::state& state);
@@ -619,12 +613,8 @@ void disband_regiment_w_pop_death(sys::state& state, dcon::regiment_id reg_id);
 // Does not add a +1 as it is expected that will be by caller
 float get_national_supply_cost_modifiers(const sys::state& state, dcon::nation_id nation);
 
-// Gets the average good satisfaction for all navies a nation has. Does not include constructions
-template<unit_consumption_type consumption_type>
-float average_naval_consumption_satisfaction(const sys::state& state, dcon::nation_id nation);
-// Gets the average good satisfaction for all regiments a nation has. Does not include constructions
-template<unit_consumption_type consumption_type>
-float average_land_consumption_satisfaction(const sys::state& state, dcon::nation_id nation);
+template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
 
 military::unit_priority increment_priority(military::unit_priority priority);
 military::unit_priority decrement_priority(military::unit_priority priority);

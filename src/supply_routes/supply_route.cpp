@@ -8,6 +8,7 @@
 #include "supply_route_templates.hpp"
 #include "supply_route.hpp"
 #include "economy_templates.hpp"
+#include "military_templates.hpp"
 #include "nations_templates.hpp"
 
 namespace supply_routes {
@@ -44,7 +45,7 @@ auto local_stockpile_available_goods_get(const sys::state& state, market_type ma
 	return state.world.market_get_commodity_float_buffer_1(market, com_id);
 }
 
-template<concepts::any_dcon_id_type<dcon::market_id> market_type, concepts::normal_or_vector_value_type<float> float_type>
+template<concepts::any_dcon_id_type<dcon::market_id> market_type, concepts::regular_or_ve_value_type<float> float_type>
 void local_stockpile_available_goods_set(sys::state& state, market_type market, dcon::commodity_id com_id, float_type val) {
 	state.world.market_set_commodity_float_buffer_1(market, com_id, val);
 }
@@ -54,7 +55,7 @@ auto nation_stockpile_available_goods_get(const sys::state& state, nation_type n
 	return state.world.nation_get_commodity_float_buffer_1(nation, com_id);
 }
 
-template<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::normal_or_vector_value_type<float> float_type>
+template<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::regular_or_ve_value_type<float> float_type>
 void nation_stockpile_available_goods_set(sys::state& state, nation_type nation, dcon::commodity_id com_id, float_type val) {
 	state.world.nation_set_commodity_float_buffer_1(nation, com_id, val);
 }
@@ -73,7 +74,7 @@ auto unit_supply_need_get(const sys::state& state, unit_id_type unit, dcon::unit
 	}
 }
 
-template<typename unit_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<typename unit_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void unit_supply_need_set(sys::state& state, unit_id_type unit, dcon::unit_supply_commodity_id com_id, float_type val) {
 	if constexpr(concepts::any_dcon_id_type<unit_id_type, dcon::army_id>) {
 		state.world.army_set_unit_supply_commodity_float_buffer_1(unit, com_id, val);
@@ -98,7 +99,7 @@ auto unit_reinforcement_need_get(const sys::state& state, unit_id_type unit, dco
 	}
 }
 
-template<typename unit_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<typename unit_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void unit_reinforcement_need_set(sys::state& state, unit_id_type unit, dcon::unit_build_commodity_id com_id, float_type val) {
 	if constexpr(concepts::any_dcon_id_type<unit_id_type, dcon::army_id>) {
 		state.world.army_set_unit_build_commodity_float_buffer_1(unit, com_id, val);
@@ -122,7 +123,7 @@ auto nation_unit_prio_need_get(const sys::state& state, nation_id_type n, dcon::
 	}
 }
 
-template<military::unit_priority priority, concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<military::unit_priority priority, concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void nation_unit_prio_need_set(sys::state& state, nation_id_type n, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
 	if constexpr(priority == military::unit_priority::low_priority) {
 		state.world.nation_set_unit_supply_and_build_commodity_float_buffer_1(n, com_id, val);
@@ -161,7 +162,7 @@ auto nation_construction_need_get(const sys::state& state, nation_id_type n, dco
 	return state.world.nation_get_commodity_float_buffer_2(n, com_id);
 }
 
-template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void nation_construction_need_set(sys::state& state, nation_id_type n, dcon::commodity_id com_id, float_type val) {
 	state.world.nation_set_commodity_float_buffer_2(n, com_id, val);
 }
@@ -172,7 +173,7 @@ auto nation_unit_expected_satisfaction_get(const sys::state& state, nation_id_ty
 	return state.world.nation_get_unit_supply_and_build_commodity_float_buffer_4(n, com_id);
 }
 
-template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void nation_unit_expected_satisfaction_set(sys::state& state, nation_id_type n, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
 	state.world.nation_set_unit_supply_and_build_commodity_float_buffer_4(n, com_id, val);
 }
@@ -183,7 +184,7 @@ auto nation_construction_expected_satisfaction_get(const sys::state& state, nati
 	return state.world.nation_get_commodity_float_buffer_3(n, com_id);
 }
 
-template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::normal_or_vector_value_type<float> float_type>
+template<concepts::any_dcon_id_type<dcon::nation_id> nation_id_type, concepts::regular_or_ve_value_type<float> float_type>
 void nation_construction_expected_satisfaction_set(sys::state& state, nation_id_type n, dcon::commodity_id com_id, float_type val) {
 	state.world.nation_set_commodity_float_buffer_3(n, com_id, val);
 }
@@ -1712,10 +1713,8 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 			for(auto r : unit_membership) {
 				auto reg = r.get_regiment();
 				reg.set_supply_satisfaction(0.0f);
-				reg.set_last_supply_cost_modifier(0.0f);
 				reg.set_reinforcement_satisfaction(0.0f);
 				reg.set_total_pending_reinforcement(0.0f);
-				reg.set_last_potential_reinforcement(0.0f);
 			}
 			return;
 		}
@@ -1782,7 +1781,7 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 		dcon::unit_type_id type = subunit.get_type();
 		{
 			// Compute supply satisfaction
-			float supply_goods_cost_mod = military::get_supply_cost_modifiers(state, subunit);
+			float supply_goods_cost_mod = military::subunit_get_required_supply_base_cost(state, subunit.id);
 			float supply_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(u), military::unit_consumption_type::supply>(state, nation)) / 100.0f;
 			float desired_supply_mult = supply_goods_cost_mod * supply_consumption_setting;
 
@@ -1804,15 +1803,13 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 			});
 			float supply_satisfaction = (total_supply_goods_required == 0.0f ? 1.0f : total_supply_goods_consumed / total_supply_goods_required);
 			subunit.set_supply_satisfaction(supply_satisfaction);
-			subunit.set_last_supply_cost_modifier(supply_goods_cost_mod); // need this to accurately estimate the required commodities later and then calculate satisfaction rate on individual commodities.
 		}
 		// Compute reinforcement satisfaction
 		{
 			// And then compute reinforcement satisfaction
 			const economy::commodity_set& reinf_goods_cost = military::unit_type_get_commodity_costs<military::unit_consumption_type::reinforcement>(state, type);
 			// The reinforcement amount (ranges from 0.0-1.0) is also the cost modifier, as the faster it can reinforce, the more goods we need to fufill it at optimal speed. Here we get the reinforcement amount under perfect conditions (100% fufillment)
-			// It will get clamped if the unit is too close to max strength so to not allow overflow above max str
-			float reinf_goods_cost_mod = military::estimate_reinforcement<military::interval_estimation::daily, military::supply_estimation::full_supply_always, false>(state, subunit.id);
+			float reinf_goods_cost_mod = military::subunit_get_required_reinforcement_base_cost(state, subunit.id);
 			float reinf_consumption_setting = static_cast<float>(nations::get_nation_military_consumption_setting_by_type<decltype(u), military::unit_consumption_type::reinforcement>(state, nation)) / 100.0f;
 			float desired_reinf_mult = reinf_goods_cost_mod * reinf_consumption_setting;
 
@@ -1838,7 +1835,6 @@ void update_unit_commodity_satisfaction(sys::state& state, unit_type u) {
 				subunit.set_total_pending_reinforcement(subunit.get_total_pending_reinforcement() + added_pending_reinforcement);
 				assert(std::isfinite(subunit.get_total_pending_reinforcement()));
 			}
-			subunit.set_last_potential_reinforcement(reinf_goods_cost_mod); // The reinf cost mod is also the total possible reinforcement, if all goods are fufilled. Need it to accurately estimate the required commodities later and then calculate satisfaction rate on individual commodities.
 		}
 	}
 }
@@ -1853,7 +1849,7 @@ void update_construction_commodity_satisfaction(sys::state& state, construction_
 		if(supply_route_is_active(state, route.id)) {
 			float throughput = supply_routes::supply_route_get_throughput(state, route.id);
 			float supply_loss = supply_routes::supply_route_get_supply_loss(state, route.id);
-			const auto& route_goods = route.get_buffered_goods();
+			const economy::commodity_amounts& route_goods = route.get_buffered_goods();
 			for(uint32_t j = 0; j < build_costs.set_size; j++) {
 				dcon::commodity_id com_id = build_costs.commodity_type[j];
 				assert(build_costs.commodity_type[j] == current_fufilled.commodity_type[j]);
@@ -2219,8 +2215,12 @@ void update_supply_routes_daily(sys::state& state) {
 	military::parallel_for_each_unit(state, [&](auto unit) {
 		dcon::nation_id nation = military::unit_get_controller(state, unit);
 		if constexpr(std::is_same_v<decltype(unit), dcon::army_id>) {
-			// Only armies can have rebels. Ignore those
+			// Only armies can have rebels. 
 			if(!nation) {
+				military::unit_for_each_subunit(state, unit, [&](auto subunit) {
+					military::subunit_set_required_supply_base_cost(state, subunit, 0.0f);
+					military::subunit_set_required_reinforcement_base_cost(state, subunit, 0.0f);
+				});
 				return;
 			}
 		}
@@ -2246,7 +2246,17 @@ void update_supply_routes_daily(sys::state& state) {
 			unit_reinforcement_need_set(state, unit, build_id, unit_reinforcement_need_get(state, unit, build_id) + (amount * reinf_consumption_setting));
 			unit_set_needs_reinforcement_goods(state, unit, unit_needs_reinforcement_goods(state, unit) || amount > 0.0f); // set bool flag if this unit now needs more than 0 reinforcement goods
 		};
-		military::accumulate_unit_consumption(state, unit, accumulate_supply, accumulate_reinf);
+
+
+		military::unit_for_each_subunit(state, unit, [&](auto subunit) {
+			// Compute the "required_x_of_base_cost" meaning how much of the base cost is required to reach 100% satisfaction for supply and reinforcement need respectively. These are used later
+			float required_supply_goods_of_base_cost = military::get_supply_cost_modifiers(state, subunit);
+			military::subunit_set_required_supply_base_cost(state, subunit, required_supply_goods_of_base_cost);
+			float required_reinf_goods_of_base_cost = military::estimate_reinforcement<military::interval_estimation::daily, military::supply_estimation::full_supply_always, false>(state, subunit); // The reinforcement available (from 0.0-1.0f) requires that % of the base build cost to fufill
+			military::subunit_set_required_reinforcement_base_cost(state, subunit, required_reinf_goods_of_base_cost);
+			// Then accumulate each commodity required, which will call the prev. lambdas with the commodity and amount required
+			military::accumulate_subunit_consumption(state, nation, subunit, accumulate_supply, accumulate_reinf);
+		});
 	});
 	economy::parallel_for_each_construction(state, [&](auto construction) {
 		if(economy::construction_is_privately_owned(state, construction)) {
@@ -2275,6 +2285,9 @@ void update_supply_routes_daily(sys::state& state) {
 			required_buffer[set_indx] += actual_demanded;
 			construction_set_needs_construction_goods(state, construction, construction_needs_construction_goods(state, construction) || actual_demanded > 0.0f ); // set bool flag if this construction now needs more than 0 goods
 		};
+		// Compute the "required_x_of_base_cost" meaning how much of the base cost is required to reach 100% satisfaction for construction requirements. These are used later
+		float required_construction_goods_of_base_cost = economy::construction_build_cost_multiplier(state, construction) / construction_days;
+		economy::construction_set_required_construction_base_cost(state, construction, required_construction_goods_of_base_cost);
 		economy::accumulate_construction_good_requirements(state, construction, accumulate_func);
 	});
 

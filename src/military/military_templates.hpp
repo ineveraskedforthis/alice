@@ -467,26 +467,6 @@ void accumulate_subunit_consumption(const sys::state& state, dcon::nation_id own
 	});
 }
 
-// Accumulates the consumption required for a unit (army or navy) using the functors for Supply consumption and Reinforcement consumption respectively
-// Functor signature is: (dcon::commodity_id, float)
-template<concepts::military_unit unit_type, typename FSupply, typename FReinf>
-void accumulate_unit_consumption(sys::state& state, unit_type unit, FSupply&& acc_supply_func, FReinf&& acc_reinf_func) {
-	dcon::nation_id nation = military::unit_get_controller(state, unit);
-
-	auto unit_membership = military::unit_get_membership(state, unit);
-	for(auto r : unit_membership) {
-		// Accumulate the commodities needed
-		auto subunit = [&]() {
-			if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-				return r.get_regiment();
-			} else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
-				return r.get_ship();
-			}
-		}();
-		accumulate_subunit_consumption(state, nation, subunit.id, acc_supply_func, acc_reinf_func);
-	}
-}
-
 template<typename F>
 void for_each_unit(const sys::state& state, F&& func) {
 	state.world.for_each_army(func);
@@ -521,6 +501,31 @@ void ve_parallel_for_each_unit(const sys::state& state, F&& func) {
 	state.world.execute_parallel_over_navy(func);
 }
 
+template<concepts::military_unit unit_type, typename F>
+void unit_for_each_subunit(const sys::state& state, unit_type unit, F&& func) {
+	auto membership = unit_get_membership(state, unit);
+	for(auto u : membership) {
+		auto subunit = [&]() {
+			if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
+				return u.get_regiment();
+			}
+			else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
+				return u.get_ship();
+			}
+		}();
+		func(subunit.id);
+	}
+}
+
+// Accumulates the consumption required for a unit (army or navy) using the functors for Supply consumption and Reinforcement consumption respectively
+// Functor signature is: (dcon::commodity_id, float)
+template<concepts::military_unit unit_type, typename FSupply, typename FReinf>
+void accumulate_unit_consumption(sys::state& state, unit_type unit, FSupply&& acc_supply_func, FReinf&& acc_reinf_func) {
+	dcon::nation_id nation = military::unit_get_controller(state, unit);
+	unit_for_each_subunit(state, unit, [&](auto subunit) {
+		accumulate_subunit_consumption(state, nation, subunit, acc_supply_func, acc_reinf_func);
+	});
+}
 
 
 

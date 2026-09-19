@@ -172,7 +172,7 @@ void for_each_nation_construction(const sys::state& state, dcon::nation_id natio
 
 
 
-template<price_estimation price_est, concepts::any_dcon_id_type<dcon::market_id> market_type, concepts::normal_or_vector_value_type<float> float_type>
+template<price_estimation price_est, concepts::any_dcon_id_type<dcon::market_id> market_type, concepts::regular_or_ve_value_type<float> float_type>
 auto get_estimated_state_stockpile_purchase_price(const sys::state& state, market_type market, dcon::commodity_id com_id, float_type goods_desired) {
 	auto price = state.world.market_get_price(market, com_id);
 	auto percentage_weight = state.world.market_get_government_stockpile_demand_weights(market, com_id);

@@ -2069,7 +2069,7 @@ object {
 		type{ float }
 	}
 	property{
-		name { last_supply_cost_modifier }
+		name { required_supply_base_cost }
 		type{ float }
 	}
 	property{
@@ -2077,7 +2077,7 @@ object {
 		type{ float }
 	}
 	property{
-		name { last_potential_reinforcement}
+		name { required_reinforcement_base_cost }
 		type{ float }
 	}
 	property{
@@ -2271,11 +2271,11 @@ object {
 		type{ float }
 	}
 	property{
-		name { last_supply_cost_modifier }
+		name { required_supply_base_cost }
 		type{ float }
 	}
 	property{
-		name { last_potential_reinforcement}
+		name { required_reinforcement_base_cost }
 		type{ float }
 	}
 	property{
@@ -5896,6 +5896,12 @@ relationship{
 		tag{ save }
 	}
 	property{
+		name{ required_construction_base_cost }
+		type{ float }
+		tag{ save }
+	}
+
+	property{
 		name{ needs_construction_goods }
 		type{ bitfield }
 		tag { mp_checksum_excluded }
@@ -5957,6 +5963,11 @@ relationship{
 		tag{ save }
 	}
 	property{
+		name{ required_construction_base_cost }
+		type{ float }
+		tag{ save }
+	}
+	property{
 		name{ needs_construction_goods }
 		type{ bitfield }
 		tag { mp_checksum_excluded }
@@ -6010,6 +6021,11 @@ relationship{
 	property{
 		name{ is_pop_project }
 		type{ bitfield }
+		tag{ save }
+	}
+	property{
+		name{ required_construction_base_cost }
+		type{ float }
 		tag{ save }
 	}
 	property{
@@ -6078,6 +6094,11 @@ relationship{
 	property{
 		name{ refit_target }
 		type{ factory_type_id }
+		tag{ save }
+	}
+	property{
+		name{ required_construction_base_cost }
+		type{ float }
 		tag{ save }
 	}
 	property{

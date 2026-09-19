@@ -73,6 +73,13 @@ concept ve_military_supply_route_type = dcon_id_ve_type<T, dcon::army_supply_rou
 										dcon_id_ve_type<T, dcon::navy_supply_route_id>;
 
 template<typename T>
+concept ve_military_subunit_type =  dcon_id_ve_type<T, dcon::regiment_id> ||
+									dcon_id_ve_type<T, dcon::ship_id>;
+
+template<typename T>
+concept ve_or_regular_military_subunit_type = ve_military_subunit_type<T> || military_subunit<T>;
+
+template<typename T>
 concept ve_construction_supply_route_type = dcon_id_ve_type<T, dcon::land_construction_supply_route_id> ||
 											dcon_id_ve_type<T, dcon::naval_construction_supply_route_id> ||
 									        dcon_id_ve_type<T, dcon::factory_construction_supply_route_id> ||
@@ -89,10 +96,10 @@ concept any_dcon_id_type = (dcon_id_type<ID> && std::is_same_v<T, ID>) || dcon_i
 
 
 template<typename T, typename value_type>
-concept vector_value_type = std::is_same_v<T, ve::value_to_vector_type<value_type>>;
+concept ve_value_type = std::is_same_v<T, ve::value_to_vector_type<value_type>>;
 
 template<typename T, typename value_type>
-concept normal_or_vector_value_type = std::is_same_v<T, value_type> || vector_value_type<T, value_type>;
+concept regular_or_ve_value_type = std::is_same_v<T, value_type> || ve_value_type<T, value_type>;
 
 
 // This is really ugly and unintuitive. If anyone knows a nicer way of doing this (have a concept that accepts all specializations of a specific template) feel free to chang eit

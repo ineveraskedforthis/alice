@@ -547,7 +547,7 @@ void update_government_stockpile_market_demand_weights(sys::state& state) {
 	auto weights_buffer_get = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type>(nation_type nation, dcon::commodity_id com_id) {
 		return state.world.nation_get_commodity_float_buffer_1(nation, com_id);
 	};
-	auto weights_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::normal_or_vector_value_type<float> float_type>(nation_type nation, dcon::commodity_id com_id, float_type val) {
+	auto weights_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::regular_or_ve_value_type<float> float_type>(nation_type nation, dcon::commodity_id com_id, float_type val) {
 		state.world.nation_set_commodity_float_buffer_1(nation, com_id, val);
 	};
 	state.world.execute_serial_over_nation([&](auto nations) {
@@ -840,7 +840,7 @@ total_stockpile_spendings_by_commodity estimate_total_stockpile_spendings_by_com
 void populate_government_stockpile_demand(sys::state& state) {
 
 	// Nobody should be using this dcon buffer at this time, so we can re-use it.
-	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::normal_or_vector_value_type<float> float_type>(nation_type nation, dcon::commodity_id com_id, float_type val) {
+	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::regular_or_ve_value_type<float> float_type>(nation_type nation, dcon::commodity_id com_id, float_type val) {
 		state.world.nation_set_commodity_float_buffer_1(nation, com_id, val);
 	};
 	auto demand_buffer_get = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type>(nation_type nation, dcon::commodity_id com_id) {
@@ -1712,7 +1712,7 @@ void populate_army_consumption(sys::state& state) {
 		}
 	}
 	// Nobody should be using this dcon buffer at this time, so we can re-use it
-	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::normal_or_vector_value_type<float> float_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
+	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::regular_or_ve_value_type<float> float_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
 		state.world.nation_set_unit_supply_and_build_commodity_float_buffer_1(nation, com_id, val);
 	};
 	auto demand_buffer_get = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id) {
@@ -1794,7 +1794,7 @@ void populate_navy_consumption(sys::state& state) {
 		}
 	}
 	// Nobody should be using this dcon buffer at this time, so we can re-use it. Buffer 1 is already used in parallel by populating army demand...
-	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::normal_or_vector_value_type<float> float_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
+	auto demand_buffer_set = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type, concepts::regular_or_ve_value_type<float> float_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id, float_type val) {
 		state.world.nation_set_unit_supply_and_build_commodity_float_buffer_2(nation, com_id, val);
 	};
 	auto demand_buffer_get = [&]<concepts::any_dcon_id_type<dcon::nation_id> nation_type>(nation_type nation, dcon::unit_supply_and_build_commodity_id com_id) {

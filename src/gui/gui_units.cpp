@@ -2194,34 +2194,20 @@ public:
 	}
 };
 
-template<concepts::unit_supply_or_build_commodity_type com_type, concepts::military_unit unit_type>
+template<military::unit_consumption_type consume_type, concepts::military_unit unit_type>
 void explain_unit_consumption(sys::state& state, unit_type unit, text::columnar_layout& contents) {
-	uint32_t buffer_sz = [&]() {
-		if constexpr(std::is_same_v<com_type, dcon::unit_supply_commodity_id>) {
-			return state.world.unit_supply_commodity_size();
-		}
-		else if constexpr(std::is_same_v<com_type, dcon::unit_build_commodity_id>) {
-			return state.world.unit_build_commodity_size();
-		}
-	}();
-	tagged_vector<float, com_type> commodities_satisfied_no_loss(buffer_sz);
-	tagged_vector<float, com_type> commodities_actual_satisfied(buffer_sz);
-	tagged_vector<float, com_type> commodities_satisfied_w_throughput(buffer_sz);
-	tagged_vector<float, com_type> commodities_satisfied_w_loss(buffer_sz);
+	tagged_vector<float, dcon::commodity_id> commodities_satisfied_no_loss(state.world.commodity_size());
+	tagged_vector<float, dcon::commodity_id> commodities_actual_satisfied(state.world.commodity_size());
+	tagged_vector<float, dcon::commodity_id> commodities_satisfied_w_throughput(state.world.commodity_size());
+	tagged_vector<float, dcon::commodity_id> commodities_satisfied_w_loss(state.world.commodity_size());
 
 	// We get the last required supplies instead of the future required supplies because all the route data is current
-	tagged_vector<float, com_type> commodities_required = [&]() {
-		if constexpr(std::is_same_v<com_type, dcon::unit_supply_commodity_id>) {
-			return military::get_last_required_supply(state, unit);
-		} else if constexpr(std::is_same_v<com_type, dcon::unit_build_commodity_id>) {
-			return military::get_last_required_reinforcement(state, unit);
-		}
-	}();
+	tagged_vector<float, dcon::commodity_id> commodities_required = military::unit_get_last_required_goods_need<consume_type>(state, unit);
 
 	auto for_each_relevant_unit_commodity = [&]<typename F>(F && func) {
-		if constexpr(std::is_same_v<com_type, dcon::unit_supply_commodity_id>) {
+		if constexpr(consume_type == military::unit_consumption_type::supply) {
 			state.world.for_each_unit_supply_commodity(func);
-		} else if constexpr(std::is_same_v<com_type, dcon::unit_build_commodity_id>) {
+		} else if constexpr(consume_type == military::unit_consumption_type::reinforcement) {
 			state.world.for_each_unit_build_commodity(func);
 		}
 	};
@@ -2236,15 +2222,14 @@ void explain_unit_consumption(sys::state& state, unit_type unit, text::columnar_
 				dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, com_id);
 				float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
 				float buffered_amount = supply_routes::military_route_get_buffered_goods(state, route.id, com_id);
-				commodities_actual_satisfied[com_id] += (buffered_amount * throughput * supply_loss * com_supply_loss_mod);
-				commodities_satisfied_no_loss[com_id] += buffered_amount;
-				commodities_satisfied_w_throughput[com_id] += (buffered_amount * throughput);
-				commodities_satisfied_w_loss[com_id] += (buffered_amount * supply_loss * com_supply_loss_mod);
+				commodities_actual_satisfied[base_commodity] += (buffered_amount * throughput * supply_loss * com_supply_loss_mod);
+				commodities_satisfied_no_loss[base_commodity] += buffered_amount;
+				commodities_satisfied_w_throughput[base_commodity] += (buffered_amount * throughput);
+				commodities_satisfied_w_loss[base_commodity] += (buffered_amount * supply_loss * com_supply_loss_mod);
 			});
 		}
 	}
-	for_each_relevant_unit_commodity([&](auto com_id) {
-		dcon::commodity_id base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
+	economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
 		if(commodities_required[com_id] > 0.0f) {
 			float satisfaction = commodities_actual_satisfied[com_id] / commodities_required[com_id];
 			int32_t display_satisfaction = int32_t(satisfaction * 100);
@@ -2254,7 +2239,7 @@ void explain_unit_consumption(sys::state& state, unit_type unit, text::columnar_
 			float avg_throughput = (commodities_satisfied_no_loss[com_id] == 0.0f ? 0.0f : std::min(commodities_satisfied_w_throughput[com_id] / commodities_satisfied_no_loss[com_id], 1.0f));
 
 			text::substitution_map sub{};
-			auto com_icon = text::get_commodity_text_icon(state, base_com_id);
+			auto com_icon = text::get_commodity_text_icon(state, com_id);
 			//text::add_to_substitution_map(sub, text::variable_type::what, std::string_view(com_icon));
 			text::add_to_substitution_map(sub, text::variable_type::val, text::fp_three_places{ num_satisfied });
 			text::add_to_substitution_map(sub, text::variable_type::value, text::fp_three_places{ num_required });
@@ -2285,21 +2270,20 @@ public:
 		float total_satisfied = 0.0f;
 		float total_required = 0.0f;
 		if(army) {
-			auto commodities_required = military::get_last_required_supply(state, army);
-			auto commodities_fufilled = military::get_last_fufilled_supply(state, army);
-			state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
-				total_satisfied += commodities_fufilled[supply_com_id];
-				total_required += commodities_required[supply_com_id];
+			auto commodities_required = military::unit_get_last_required_goods_need<military::unit_consumption_type::supply>(state, army);
+			auto commodities_fufilled = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::supply>(state, army);
+			economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+				total_satisfied += commodities_fufilled[com_id];
+				total_required += commodities_required[com_id];
 			});
 			
 		} else if(navy) {
-			auto commodities_required = military::get_last_required_supply(state, navy);
-			auto commodities_fufilled = military::get_last_fufilled_supply(state, navy);
-			state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
-				total_satisfied += commodities_fufilled[supply_com_id];
-				total_required += commodities_required[supply_com_id];
+			auto commodities_required = military::unit_get_last_required_goods_need<military::unit_consumption_type::supply>(state, navy);
+			auto commodities_fufilled = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::supply>(state, navy);
+			economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+				total_satisfied += commodities_fufilled[com_id];
+				total_required += commodities_required[com_id];
 			});
-			
 		}
 		if(total_required == 0.0f) {
 			progress = 1.0f;
@@ -2318,10 +2302,10 @@ public:
 
 		text::add_line(state, contents, "unit_current_supply", text::variable_type::val, int16_t(progress * 100.0f));
 		if(army) {
-			explain_unit_consumption<dcon::unit_supply_commodity_id>(state, army, contents);
+			explain_unit_consumption<military::unit_consumption_type::supply>(state, army, contents);
 		}
 		else if(navy) {
-			explain_unit_consumption<dcon::unit_supply_commodity_id>(state, navy, contents);
+			explain_unit_consumption<military::unit_consumption_type::supply>(state, navy, contents);
 		}
 
 	}
@@ -2338,20 +2322,19 @@ public:
 		float total_satisfied = 0.0f;
 		float total_required = 0.0f;
 		if(army) {
-			auto commodities_required = military::get_last_required_reinforcement(state, army);
-			auto commodities_fufilled = military::get_last_fufilled_reinforcement(state, army);
-			state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id build_com_id) {
-				total_satisfied += commodities_fufilled[build_com_id];
-				total_required += commodities_required[build_com_id];
+			auto commodities_required = military::unit_get_last_required_goods_need<military::unit_consumption_type::reinforcement>(state, army);
+			auto commodities_fufilled = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::reinforcement>(state, army);
+			economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+				total_satisfied += commodities_fufilled[com_id];
+				total_required += commodities_required[com_id];
 			});
 		} else if(navy) {
-			auto commodities_required = military::get_last_required_reinforcement(state, navy);
-			auto commodities_fufilled = military::get_last_fufilled_reinforcement(state, navy);
-			state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id build_com_id) {
-				total_satisfied += commodities_fufilled[build_com_id];
-				total_required += commodities_required[build_com_id];
+			auto commodities_required = military::unit_get_last_required_goods_need<military::unit_consumption_type::reinforcement>(state, navy);
+			auto commodities_fufilled = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::reinforcement>(state, navy);
+			economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
+				total_satisfied += commodities_fufilled[com_id];
+				total_required += commodities_required[com_id];
 			});
-			
 		}
 		if(total_required == 0.0f) {
 			progress = 1.0f;
@@ -2369,11 +2352,11 @@ public:
 		auto navy = retrieve<dcon::navy_id>(state, parent);
 		if(army) {
 			text::add_line(state, contents, "unit_current_reinforcement_land", text::variable_type::val, int16_t(progress * 100.0f));
-			explain_unit_consumption<dcon::unit_build_commodity_id>(state, army, contents);
+			explain_unit_consumption<military::unit_consumption_type::reinforcement>(state, army, contents);
 		}
 		else if(navy) {
 			text::add_line(state, contents, "unit_current_reinforcement_naval", text::variable_type::val, int16_t(progress * 100.0f));
-			explain_unit_consumption<dcon::unit_build_commodity_id>(state, navy, contents);
+			explain_unit_consumption<military::unit_consumption_type::reinforcement>(state, navy, contents);
 		}
 
 	}

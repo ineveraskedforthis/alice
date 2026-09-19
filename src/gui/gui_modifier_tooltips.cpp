@@ -532,10 +532,10 @@ void display_land_battle_supply_satisfaction(sys::state& state, dcon::land_battl
 		auto army = a.get_army();
 		bool attacker_army = military::is_attacker_in_battle(state, army);
 		if((attacker && attacker_army) || (!attacker && !attacker_army)) {
-			auto fufilled_reinf_goods = military::get_last_fufilled_reinforcement(state, army.id);
-			auto required_reinf_goods = military::get_last_required_reinforcement(state, army.id);
-			auto fufilled_supply_goods = military::get_last_fufilled_supply(state, army.id);
-			auto required_supply_goods = military::get_last_required_supply(state, army.id);
+			auto fufilled_reinf_goods = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::reinforcement>(state, army.id);
+			auto required_reinf_goods = military::unit_get_last_required_goods_need<military::unit_consumption_type::reinforcement>(state, army.id);
+			auto fufilled_supply_goods = military::unit_get_last_fufilled_goods_need<military::unit_consumption_type::supply>(state, army.id);
+			auto required_supply_goods = military::unit_get_last_required_goods_need<military::unit_consumption_type::supply>(state, army.id);
 			std::for_each(fufilled_reinf_goods.begin(), fufilled_reinf_goods.end(), [&](float amount) { total_reinf_fufilled += amount; });
 			std::for_each(required_reinf_goods.begin(), required_reinf_goods.end(), [&](float amount) { total_reinf_requied += amount; });
 			std::for_each(fufilled_supply_goods.begin(), fufilled_supply_goods.end(), [&](float amount) { total_supply_fufilled += amount; });
