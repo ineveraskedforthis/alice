@@ -1120,7 +1120,8 @@ market_budget breakdown_market_budget(sys::state const& state, dcon::market_id m
 	state.world.for_each_commodity([&](auto cid) {
 		auto p = price(state, m, cid);
 		//result.bought += (supply(state, m, cid) - trade_supply(state, m, cid)) * p * state.world.market_get_actual_probability_to_sell(m, cid);
-		result.sold += demand(state, m, cid) * p * state.world.market_get_actual_probability_to_buy(m, cid);
+		auto attempt_to_sell = state.world.market_get_stockpile_sales(m, cid);
+		result.sold += attempt_to_sell * p * state.world.market_get_actual_probability_to_sell(m, cid);
 	});
 
 
