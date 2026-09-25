@@ -997,7 +997,6 @@ void fill_trade_buffers(
 
 					total_spend_import = total_spend_import + volume * (price_target);
 					total_target_tariff = total_target_tariff + volume * (price_target * import_rate);
-					total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
 					if(owner == target) {
 						total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
 					}
