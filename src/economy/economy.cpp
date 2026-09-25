@@ -2963,7 +2963,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 	auto demand_paid_education = state.world.pop_make_vectorizable_float_buffer();
 	std::vector<ve::vectorizable_buffer<float, dcon::pop_id>> demand_consumption_category {};
 	state.world.for_each_consumption_category([&](auto cat) {
-		demand_consumption_category.emplace_back(ve::vectorizable_buffer<float, dcon::pop_id>(state.world.pop_size()* state.world.consumption_category_size()));
+		demand_consumption_category.emplace_back(ve::vectorizable_buffer<float, dcon::pop_id>(state.world.pop_size()));
 	});
 	auto satisfaction_from_subsistence = state.world.pop_make_vectorizable_float_buffer();
 
@@ -5042,10 +5042,12 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 	// update median prices
 
-	concurrency::parallel_for(uint32_t(1), total_commodities, [&](uint32_t k) {
-		dcon::commodity_id cid{ dcon::commodity_id::value_base_t(k) };
-		state.world.commodity_set_median_price(cid, median_price(state, cid));
-	});
+	if(state.current_date.value % 60 == 0) {
+		concurrency::parallel_for(uint32_t(1), total_commodities, [&](uint32_t k) {
+			dcon::commodity_id cid{ dcon::commodity_id::value_base_t(k) };
+			state.world.commodity_set_median_price(cid, median_price(state, cid));
+		});
+	}
 
 	set_profile_point(state, "update median prices");
 

@@ -147,6 +147,7 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWSTR
 			for(int i = 0; i < 1000; i++) {
 				economy::update_employment(game_state, false, 1.f);
 				economy::daily_update(game_state, false, 1.f);
+				game_state.current_date += 1;
 			}
 			network::finish(game_state, true);
 		}

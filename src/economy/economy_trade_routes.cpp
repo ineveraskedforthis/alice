@@ -936,37 +936,78 @@ void fill_trade_buffers(
 			}
 		});
 	});
-	state.world.for_each_trade_route([&](auto route) {
-		auto origin = state.world.trade_route_get_origin(route);
-		auto target = state.world.trade_route_get_target(route);
-		auto owner = state.world.trade_route_get_owner(route);
-		auto cut = state.world.trade_route_get_origin_cut_rate(route);
-		auto total_earn_export = 0.f;
-		auto total_spend_import = 0.f;
-		auto total_origin_tariff = 0.f;
-		auto total_target_tariff = 0.f;
-		auto export_rate = state.world.trade_route_get_is_tariff_applied_origin(route) ? export_tariff_buffer.get(origin) : 0.f;
-		auto import_rate = state.world.trade_route_get_is_tariff_applied_origin(route) ? import_tariff_buffer.get(origin) : 0.f;
-		auto total_arbitrage = 0.f;
-		state.world.for_each_commodity([&](auto cid) {
-			auto sat = state.world.market_get_actual_probability_to_buy(origin, cid);
-			//auto budget_scale = state.world.market_get_trade_house_budget_import_scale(target);
-			auto volume = state.world.trade_route_get_volume(route, cid) * sat;
+	uint32_t total_markets = state.world.market_size();
+	concurrency::parallel_for(uint32_t(1), total_markets, [&](uint32_t k) {
+		{
+			dcon::market_id origin{ dcon::market_id::value_base_t(k) };
+			auto total_earn_export = 0.f;
+			auto total_origin_tariff = 0.f;
+			auto total_arbitrage = 0.f;
 
-			auto price_origin = state.world.market_get_price(origin, cid);
-			auto price_target = state.world.market_get_price(target, cid);
+			state.world.market_for_each_trade_route_as_origin(origin, [&](auto route) {
+				auto origin = state.world.trade_route_get_origin(route);
+				auto target = state.world.trade_route_get_target(route);
+				auto owner = state.world.trade_route_get_owner(route);
+				auto cut = state.world.trade_route_get_origin_cut_rate(route);
+				auto export_rate = state.world.trade_route_get_is_tariff_applied_origin(route)
+					? export_tariff_buffer.get(origin) : 0.f;
+				auto import_rate = state.world.trade_route_get_is_tariff_applied_origin(route)
+					? import_tariff_buffer.get(origin) : 0.f;
 
-			total_earn_export = total_earn_export + volume * (price_origin * cut);
-			total_spend_import = total_spend_import + volume * (price_target);
-			total_origin_tariff = total_origin_tariff + volume * (price_origin * export_rate);
-			total_target_tariff = total_target_tariff + volume * (price_target * import_rate);
-			total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
-		});
-		state.world.market_set_arbitrage(owner, state.world.market_get_arbitrage(owner) + total_arbitrage);
-		state.world.market_set_export_cut(origin, state.world.market_get_export_cut(origin) + total_earn_export);
-		state.world.market_set_import_spending(target, state.world.market_get_import_spending(target) + total_spend_import);
-		state.world.market_set_tariff_collected(origin, state.world.market_get_tariff_collected(origin) + total_origin_tariff);
-		state.world.market_set_tariff_collected(target, state.world.market_get_tariff_collected(target) + total_target_tariff);
+
+				state.world.for_each_commodity([&](auto cid) {
+					auto sat = state.world.market_get_actual_probability_to_buy(origin, cid);
+					auto volume = state.world.trade_route_get_volume(route, cid) * sat;
+					auto price_origin = state.world.market_get_price(origin, cid);
+					auto price_target = state.world.market_get_price(target, cid);
+					total_earn_export = total_earn_export + volume * (price_origin * cut);
+					total_origin_tariff = total_origin_tariff + volume * (price_origin * export_rate);
+
+					if(owner == origin) {
+						total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
+					}
+				});
+			});
+
+			state.world.market_set_arbitrage(origin, state.world.market_get_arbitrage(origin) + total_arbitrage);
+			state.world.market_set_export_cut(origin, state.world.market_get_export_cut(origin) + total_earn_export);
+			state.world.market_set_tariff_collected(origin, state.world.market_get_tariff_collected(origin) + total_origin_tariff);
+		}
+		{
+			dcon::market_id target{ dcon::market_id::value_base_t(k) };
+			auto total_spend_import = 0.f;
+			auto total_target_tariff = 0.f;
+			auto total_arbitrage = 0.f;
+
+			state.world.market_for_each_trade_route_as_target(target, [&](auto route) {
+				auto origin = state.world.trade_route_get_origin(route);
+				auto target = state.world.trade_route_get_target(route);
+				auto owner = state.world.trade_route_get_owner(route);
+				auto cut = state.world.trade_route_get_origin_cut_rate(route);
+				auto export_rate = state.world.trade_route_get_is_tariff_applied_origin(route)
+					? export_tariff_buffer.get(origin) : 0.f;
+				auto import_rate = state.world.trade_route_get_is_tariff_applied_origin(route)
+					? import_tariff_buffer.get(origin) : 0.f;
+
+				state.world.for_each_commodity([&](auto cid) {
+					auto sat = state.world.market_get_actual_probability_to_buy(origin, cid);
+					auto volume = state.world.trade_route_get_volume(route, cid) * sat;
+					auto price_origin = state.world.market_get_price(origin, cid);
+					auto price_target = state.world.market_get_price(target, cid);
+
+					total_spend_import = total_spend_import + volume * (price_target);
+					total_target_tariff = total_target_tariff + volume * (price_target * import_rate);
+					total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
+					if(owner == target) {
+						total_arbitrage = total_arbitrage + volume * (price_target * (1.f - import_rate) - price_origin * (1.f + export_rate + cut));
+					}
+				});
+			});
+
+			state.world.market_set_arbitrage(target, state.world.market_get_arbitrage(target) + total_arbitrage);
+			state.world.market_set_import_spending(target, state.world.market_get_import_spending(target) + total_spend_import);
+			state.world.market_set_tariff_collected(target, state.world.market_get_tariff_collected(target) + total_target_tariff);
+		}
 	});
 }
 
