@@ -544,9 +544,9 @@ void generate_sea_trade_routes(sys::state& state) {
 			bool route_already_exists = false;
 			state.world.market_for_each_trade_route_as_origin(origin_market, [&](auto route) {
 				auto target = state.world.trade_route_get_target(route);
-				auto owner = state.world.trade_route_get_owner(route);
-				auto sea_route = state.world.trade_route_get_is_sea_route(route);
-				if(target == target_market && owner == origin_market && sea_route) {
+				//auto owner = state.world.trade_route_get_owner(route);
+				//auto sea_route = state.world.trade_route_get_is_sea_route(route);
+				if(target == target_market) {
 					route_already_exists = true;
 				}
 			});
