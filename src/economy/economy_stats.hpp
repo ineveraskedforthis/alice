@@ -415,7 +415,7 @@ struct market_budget {
 	float bought = 0.f;
 	float imports = 0.f;
 	float exports = 0.f;
-	float dividents = 0.f;
+	float dividends = 0.f;
 	float investments = 0.f;
 	float wages_cut = 0.f;
 	float services = 0.f;

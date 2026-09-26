@@ -799,10 +799,10 @@ float estimate_artisan_income(sys::state const& state, dcon::province_id pid, dc
 	auto artisan_profit = state.world.province_get_artisan_profit(pid);
 	auto current_bank = state.world.province_get_artisan_bank(pid);
 	auto total = artisan_profit + current_bank;
-	auto dividents = total > 0.f ? total * 0.1f : 0.f;
+	auto dividends = total > 0.f ? total * 0.1f : 0.f;
 
 	auto num_artisans = state.world.province_get_demographics(pid, key);
-	auto per_artisan = num_artisans > 0.f ? dividents / num_artisans : 0.f;
+	auto per_artisan = num_artisans > 0.f ? dividends / num_artisans : 0.f;
 	return size * per_artisan;
 }
 
@@ -826,11 +826,11 @@ void update_income_artisans(sys::state& state) {
 		state.world.province_set_artisan_profit(pids, 0.f);
 
 		auto new_bank = state.world.province_get_artisan_bank(pids);
-		auto dividents = ve::select(new_bank > 0.f, new_bank * 0.1f, 0.f);
-		state.world.province_set_artisan_bank(pids, new_bank - dividents);
+		auto dividends = ve::select(new_bank > 0.f, new_bank * 0.1f, 0.f);
+		state.world.province_set_artisan_bank(pids, new_bank - dividends);
 
 		auto num_artisans = state.world.province_get_demographics(pids, key);
-		auto per_artisan = ve::select(num_artisans > 0.f, dividents / num_artisans, 0.f);
+		auto per_artisan = ve::select(num_artisans > 0.f, dividends / num_artisans, 0.f);
 
 		ve::apply([&](auto province, auto payment) {
 			for(auto pl : state.world.province_get_pop_location(province)) {
@@ -871,9 +871,9 @@ float estimate_local_trade_income(sys::state const& state, dcon::province_id pid
 	}
 
 	auto balance = state.world.market_get_stockpile(mid, economy::money);
-	auto trade_dividents = balance > 0.f ? balance * trade_dividents_rate : 0.f;
+	auto trade_dividends = balance > 0.f ? balance * trade_dividends_rate : 0.f;
 
-	return size / total * trade_dividents;
+	return size / total * trade_dividends;
 }
 
 /*
@@ -1021,7 +1021,7 @@ void update_income_non_labor(sys::state& state) {
 
 	constexpr float min_registered_token_size = 2.f;
 
-	constexpr float expected_share = trade_dividents_rate;
+	constexpr float expected_share = trade_dividends_rate;
 
 	auto const artisan_def = state.culture_definitions.artisans;
 	auto artisan_key = demographics::to_key(state, artisan_def);
@@ -1416,7 +1416,7 @@ money_from_nation estimate_income_from_nation(sys::state const& state, dcon::pop
 	};
 }
 
-inline constexpr float investment_divident_rate = 0.001f;
+inline constexpr float investment_dividend_rate = 0.001f;
 
 void update_income_national_subsidy(sys::state& state){
 	auto capitalists_key = demographics::to_key(state, state.culture_definitions.capitalists);
@@ -1449,7 +1449,7 @@ void update_income_national_subsidy(sys::state& state){
 			/ 100.f;
 
 
-		auto investment_dividents = (state.world.nation_get_private_investment(owners) + state.world.nation_get_national_bank(owners)) * investment_divident_rate;
+		auto investment_dividends = (state.world.nation_get_private_investment(owners) + state.world.nation_get_national_bank(owners)) * investment_dividend_rate;
 		auto investment_budget =
 			owner_spending
 			* budget
@@ -1479,7 +1479,7 @@ void update_income_national_subsidy(sys::state& state){
 		auto const payment_per_investor =
 			ve::select(
 				investors > 0.f, 
-				(investment_dividents + investment_budget)
+				(investment_dividends + investment_budget)
 				/ investors,
 				0.f
 			);
@@ -1544,12 +1544,12 @@ void update_income_national_subsidy(sys::state& state){
 #endif
 	});
 
-	// remove investment dividents:
+	// remove investment dividends:
 	state.world.execute_serial_over_nation([&](auto ids) {
 		auto investment = state.world.nation_get_private_investment(ids);
-		state.world.nation_set_private_investment(ids, investment * (1.f - investment_divident_rate));
+		state.world.nation_set_private_investment(ids, investment * (1.f - investment_dividend_rate));
 		auto bank = state.world.nation_get_national_bank(ids);
-		state.world.nation_set_national_bank(ids, bank * (1.f - investment_divident_rate));
+		state.world.nation_set_national_bank(ids, bank * (1.f - investment_dividend_rate));
 	});
 }
 

@@ -1127,7 +1127,7 @@ market_budget breakdown_market_budget(sys::state const& state, dcon::market_id m
 
 	auto treasury = state.world.market_get_stockpile(m, economy::money);
 
-	result.dividents = state.world.market_get_last_pop_dividends(m);
+	result.dividends = state.world.market_get_last_pop_dividends(m);
 
 	auto sid = state.world.market_get_zone_from_local_market(m);
 	province::for_each_province_in_state_instance(state, sid, [&](auto pid) {
@@ -1169,7 +1169,7 @@ market_budget breakdown_market_budget(sys::state const& state, dcon::market_id m
 		});
 	});
 
-	result.estimated_change = -result.bought + result.arbitrage + result.sold + result.investments - result.dividents - result.imports + result.exports;
+	result.estimated_change = -result.bought + result.arbitrage + result.sold + result.investments - result.dividends - result.imports + result.exports;
 
 	return result;
 }
@@ -1189,7 +1189,7 @@ void make_trade_center_tooltip(sys::state& state, text::columnar_layout& content
 	text::add_line(state, contents, "trade_centre_sold", text::variable_type::val, text::fp_currency{ budget.sold }, 15);
 	text::add_line(state, contents, "trade_centre_arbitrage", text::variable_type::val, text::fp_currency{ budget.arbitrage }, 15);
 	text::add_line(state, contents, "trade_centre_investments", text::variable_type::val, text::fp_currency{ budget.investments }, 15);
-	text::add_line(state, contents, "trade_centre_dividents", text::variable_type::val, text::fp_currency{ -budget.dividents }, 15);
+	text::add_line(state, contents, "trade_centre_dividends", text::variable_type::val, text::fp_currency{ -budget.dividends }, 15);
 	//text::add_line(state, contents, "trade_centre_factories", text::variable_type::val, text::fp_currency{ budget.factories }, 15);
 	//text::add_line(state, contents, "trade_centre_rgo", text::variable_type::val, text::fp_currency{ budget.rgo }, 15);
 	//text::add_line(state, contents, "trade_centre_services", text::variable_type::val, text::fp_currency{ budget.services }, 15);
@@ -1246,7 +1246,7 @@ void make_trade_center_tooltip(sys::state& state, text::columnar_layout& content
 		"factory_bank_out",
 		text::variable_type::val,
 		text::fp_currency{
-			std::max(0.f, state.world.province_get_factory_bank(province) * economy::pops::trade_dividents_rate)
+			std::max(0.f, state.world.province_get_factory_bank(province) * economy::pops::trade_dividends_rate)
 		},
 		15
 	);
@@ -1300,7 +1300,7 @@ void make_trade_center_tooltip(sys::state& state, text::columnar_layout& content
 		"rgo_bank_out",
 		text::variable_type::val,
 		text::fp_currency{
-			std::max(0.f, state.world.province_get_rgo_bank(province) * economy::pops::trade_dividents_rate)
+			std::max(0.f, state.world.province_get_rgo_bank(province) * economy::pops::trade_dividends_rate)
 		},
 		15
 	);

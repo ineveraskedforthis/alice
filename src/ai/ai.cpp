@@ -2131,8 +2131,36 @@ void update_land_constructions(sys::state& state) {
 		state.world.nation_for_each_province_land_construction(n, [&](dcon::province_land_construction_id plcid) {
 			auto fat_plc = dcon::fatten(state.world, plcid);
 			auto prov = fat_plc.get_pop().get_province_from_pop_location();
-			if(prov.get_nation_from_province_control() != n)
+			auto hopeless = prov.get_nation_from_province_control() != n;
+
+			if(!hopeless) {
+				auto& purchased = fat_plc.get_purchased_goods();
+				auto t = fat_plc.get_type();
+				auto& costs = state.military_definitions.unit_base_definitions[t].build_cost;
+				auto build_time = state.military_definitions.unit_base_definitions[t].build_time;
+				auto min_purchased = 1.f;
+				for(uint8_t i = 0; i < economy::commodity_set::set_size; i++) {
+					auto cid = costs.commodity_type[i];
+					if(!cid) {
+						break;
+					}
+					auto bought = purchased.commodity_amounts[i];
+					auto required = costs.commodity_amounts[i];
+					min_purchased = std::min(min_purchased, bought / required);
+				}
+				auto start_date = fat_plc.get_start_date();
+				auto today = state.current_date;
+
+				auto days_passed = float(today.value - start_date.value);
+				auto progress_per_day = (min_purchased + 0.1f) / days_passed;
+				if(progress_per_day * build_time < 0.1f) {
+					hopeless = true;
+				}
+			}
+
+			if(hopeless) {
 				hopeless_construction.push_back(plcid);
+			}
 		});
 
 		for(auto item : hopeless_construction) {

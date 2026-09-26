@@ -3241,7 +3241,7 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 		auto earn = ve::select(arbitrage > 0.f, arbitrage, 0.f) + export_gains + investments + unused_dividends + sales + reinvestment;
 
-		auto next_dividends = earn * economy::pops::trade_dividents_rate;
+		auto next_dividends = earn * economy::pops::trade_dividends_rate;
 		state.world.market_set_pop_dividends(market, next_dividends);
 		state.world.market_set_last_pop_dividends(market, next_dividends);
 

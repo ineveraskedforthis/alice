@@ -1613,7 +1613,7 @@ trade_centre_sold;Sales: ?Y$val$
 trade_centre_arbitrage;Arbitrage: ?Y$val$
 trade_centre_bought;Local purchases: ?Y$val$
 trade_centre_investments;Pops investment in trade: ?Y$val$
-trade_centre_dividents;Dividents to investors: ?Y$val$
+trade_centre_dividends;Dividends to investors: ?Y$val$
 trade_centre_factories;Factories balance: ?Y$val$
 trade_centre_rgo;RGO balance: ?Y$val$
 trade_centre_services;Services: ?Y$val$

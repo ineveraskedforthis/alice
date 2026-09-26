@@ -1222,13 +1222,15 @@ void populate_private_construction_consumption(sys::state& state) {
 	}
 }
 
-// this function handles refund logic for construction demand:
-// during update of national payments
-// nation pays for all generated demand
-// even if there are not enough goods on the market
-// if nation was unable to buy out all demanded goods due to low amount of actually sold goods,
-// it receives the refund while construction demand is multiplied by actual demand satisfaction
-// after usage of this function, construction demand actually becomes a stockpile for construction projects
+
+/*
+When nation attempts to buy something for construction, it can fail to do so due to lack of goods.
+In this case there are excess spendings.
+There is a choice between sending these money back to nation or somewhere else.
+If ignored, it will become a serious leak of money out of the system.
+After refund, the demand is multiplied by actual satisfaction and this array is reused as "local construction stockpile".
+This "stockpile" is used to actually advance the projects.
+*/
 void refund_construction_demand(sys::state& state, dcon::nation_id n, float total_spent_on_construction) {
 	uint32_t total_commodities = state.world.commodity_size();
 	float p_spending = state.world.nation_get_private_investment_effective_fraction(n);
