@@ -532,6 +532,13 @@ tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need(const
 template<unit_consumption_type consume_type, concepts::military_unit unit_type>
 tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need(const sys::state& state, dcon::nation_id nation);
 
+// Gets average statisfaction of either armies or navies on either supply or reinforcement satisfaction, decided by template params
+template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
+// Gets average statisfaction of either armies or navies on BOTH supply and reinforcement satisfaction combined. Army or navy is decided by template param
+template<concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
+
 void recover_land_org(sys::state& state);
 void recover_naval_org(sys::state& state);
 
@@ -613,8 +620,6 @@ void disband_regiment_w_pop_death(sys::state& state, dcon::regiment_id reg_id);
 // Does not add a +1 as it is expected that will be by caller
 float get_national_supply_cost_modifiers(const sys::state& state, dcon::nation_id nation);
 
-template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
-float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation);
 
 military::unit_priority increment_priority(military::unit_priority priority);
 military::unit_priority decrement_priority(military::unit_priority priority);

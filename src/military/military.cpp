@@ -25,6 +25,7 @@
 #include "supply_route.hpp"
 #include "validation.hpp"
 #include "supply_route_templates.hpp"
+#include "nations_templates.hpp"
 
 namespace military {
 
@@ -9767,9 +9768,10 @@ void increase_dig_in(sys::state& state) {
 	}
 }
 
-// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<unit_consumption_type consume_type, concepts::military_unit unit_type>
-void unit_get_last_required_goods_need(const sys::state& state, unit_type unit, tagged_vector<float, dcon::commodity_id>& vec_out) {
+// Internal function which takes an accumulation functor to smooth over accumulating a large amount of units
+// Signature of accumulator: void (dcom::commodity_id, float)
+template<unit_consumption_type consume_type, concepts::military_unit unit_type, typename F>
+void unit_get_last_required_goods_need(const sys::state& state, unit_type unit, F&& accumulator_func) {
 	unit_for_each_subunit(state, unit, [&](auto subunit) {
 		dcon::unit_type_id type = subunit_get_type(state, subunit);
 		const economy::commodity_set& base_cost = unit_type_get_commodity_costs<consume_type>(state, type);
@@ -9784,7 +9786,7 @@ void unit_get_last_required_goods_need(const sys::state& state, unit_type unit, 
 		}();
 		base_cost.for_each_valid_index([&](uint32_t idx) {
 			dcon::commodity_id com_id = base_cost.commodity_type[idx];
-			vec_out[com_id] += (base_cost.commodity_amounts[idx] * required_base_cost);
+			accumulator_func(com_id, base_cost.commodity_amounts[idx] * required_base_cost);
 		});
 	});
 }
@@ -9793,50 +9795,55 @@ template<unit_consumption_type consume_type, concepts::military_unit unit_type>
 tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need(const sys::state& state, unit_type unit) {
 
 	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
-	unit_get_last_required_goods_need<consume_type>(state, unit, required_amounts);
+	unit_get_last_required_goods_need<consume_type>(state, unit, [&](dcon::commodity_id id, float amount ) { required_amounts[id] += amount; });
 	return required_amounts;
 }
+template tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need<unit_consumption_type::supply>(const sys::state& state, dcon::army_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need<unit_consumption_type::reinforcement>(const sys::state& state, dcon::army_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need<unit_consumption_type::supply>(const sys::state& state, dcon::navy_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_required_goods_need<unit_consumption_type::reinforcement>(const sys::state& state, dcon::navy_id unit);
 
 template<unit_consumption_type consume_type, concepts::military_unit unit_type>
 tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need(const sys::state& state, dcon::nation_id nation) {
 
 	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
 
-	if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-		for(auto ac : state.world.nation_get_army_control(nation)) {
-			unit_get_last_required_goods_need<consume_type>(state, ac.get_army().id, required_amounts);
-		}
-	}
-	else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
-		for(auto ac : state.world.nation_get_navy_control(nation)) {
-			unit_get_last_required_goods_need<consume_type>(state, ac.get_navy().id, required_amounts);
-		}
-	}
+	auto accumulate = [&](dcon::commodity_id id, float amount) { required_amounts[id] += amount;  };
+
+	nations::nation_for_each_unit_by_type<unit_type>(state, nation, [&](unit_type unit) {
+		unit_get_last_required_goods_need<consume_type>(state, unit, accumulate);
+	});
 	return required_amounts;
 }
+template tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need<unit_consumption_type::supply, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need<unit_consumption_type::reinforcement, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need<unit_consumption_type::supply, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_required_goods_need<unit_consumption_type::reinforcement, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
 
-
-// Internal function which takes the buffer as an out-param to smooth over accumulating a large amount of units
-template<unit_consumption_type consume_type, concepts::military_unit unit_type>
-void unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit, tagged_vector<float, dcon::commodity_id>& vec_out) {
+// Internal function which takes an accumulation functor to smooth over accumulating a large amount of units
+// Signature of accumulator: void (dcom::commodity_id, float)
+template<unit_consumption_type consume_type, concepts::military_unit unit_type, typename F>
+static void unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit, F&& accumulate_func) {
 
 	auto routes = unit_get_supply_routes(state, unit);
 	for(auto route : routes) {
-		if constexpr(consume_type == unit_consumption_type::supply) {
-			state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
-				dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, supply_com_id);
-				float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
-				float buffered_goods = route.get_buffered_supply_goods(supply_com_id);
-				vec_out[base_commodity] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
-			});
-		}
-		else if constexpr(consume_type == unit_consumption_type::reinforcement) {
-			state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id reinf_com_id) {
-				dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, reinf_com_id);
-				float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
-				float buffered_goods = route.get_buffered_reinforcement_goods(reinf_com_id);
-				vec_out[base_commodity] += (buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
-			});
+		if (supply_routes::supply_route_is_active(state, route.id)) {
+			if constexpr (consume_type == unit_consumption_type::supply) {
+				state.world.for_each_unit_supply_commodity([&](dcon::unit_supply_commodity_id supply_com_id) {
+					dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, supply_com_id);
+					float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
+					float buffered_goods = route.get_buffered_supply_goods(supply_com_id);
+					accumulate_func(base_commodity, buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
+				});
+			}
+			else if constexpr (consume_type == unit_consumption_type::reinforcement) {
+				state.world.for_each_unit_build_commodity([&](dcon::unit_build_commodity_id reinf_com_id) {
+					dcon::commodity_id base_commodity = economy::unit_commodity_get_base_commodity(state, reinf_com_id);
+					float com_supply_loss_mod = state.world.commodity_get_supply_loss_rate(base_commodity);
+					float buffered_goods = route.get_buffered_reinforcement_goods(reinf_com_id);
+					accumulate_func(base_commodity, buffered_goods * supply_routes::supply_route_get_supply_loss(state, route.id) * com_supply_loss_mod * supply_routes::supply_route_get_throughput(state, route.id)); // take into account goods which will be lost to attrition and throughput
+				});
+			}
 		}
 	};
 }
@@ -9844,27 +9851,75 @@ void unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit, 
 template<unit_consumption_type consume_type, concepts::military_unit unit_type>
 tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need(const sys::state& state, unit_type unit) {
 
-	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
-	unit_get_last_fufilled_goods_need<consume_type>(state, unit, required_amounts);
-	return required_amounts;
+	tagged_vector<float, dcon::commodity_id> fufilled_amounts(state.world.commodity_size());
+	unit_get_last_fufilled_goods_need<consume_type>(state, unit, [&](dcon::commodity_id id, float amount) { fufilled_amounts[id] += amount; });
+	return fufilled_amounts;
 }
+template tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need<unit_consumption_type::supply>(const sys::state& state, dcon::army_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need<unit_consumption_type::reinforcement>(const sys::state& state, dcon::army_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need<unit_consumption_type::supply>(const sys::state& state, dcon::navy_id unit);
+template tagged_vector<float, dcon::commodity_id> unit_get_last_fufilled_goods_need<unit_consumption_type::reinforcement>(const sys::state& state, dcon::navy_id unit);
 
 template<unit_consumption_type consume_type, concepts::military_unit unit_type>
 tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need(const sys::state& state, dcon::nation_id nation) {
 
-	tagged_vector<float, dcon::commodity_id> required_amounts(state.world.commodity_size());
+	tagged_vector<float, dcon::commodity_id> fufilled_amounts(state.world.commodity_size());
 
-	if constexpr(std::is_same_v<unit_type, dcon::army_id>) {
-		for(auto ac : state.world.nation_get_army_control(nation)) {
-			unit_get_last_fufilled_goods_need<consume_type>(state, ac.get_army().id, required_amounts);
-		}
-	} else if constexpr(std::is_same_v<unit_type, dcon::navy_id>) {
-		for(auto ac : state.world.nation_get_navy_control(nation)) {
-			unit_get_last_fufilled_goods_need<consume_type>(state, ac.get_navy().id, required_amounts);
-		}
-	}
-	return required_amounts;
+	auto accumulate = [&](dcon::commodity_id id, float amount) { fufilled_amounts[id] += amount;  };
+
+	nations::nation_for_each_unit_by_type<unit_type>(state, nation, [&](unit_type unit) {
+		unit_get_last_fufilled_goods_need<consume_type>(state, unit, accumulate);
+	});
+
+	return fufilled_amounts;
 }
+template tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need<unit_consumption_type::supply, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need<unit_consumption_type::reinforcement, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need<unit_consumption_type::supply, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+template tagged_vector<float, dcon::commodity_id> nation_get_last_fufilled_goods_need<unit_consumption_type::reinforcement, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+
+template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation) {
+
+	float total_required = 0.0f;
+	float total_fufilled = 0.0f;
+
+	auto accumulate_required = [&](dcon::commodity_id, float amount) { total_required += amount;  };
+	auto accumulate_fufilled = [&](dcon::commodity_id, float amount) { total_fufilled += amount;  };
+
+	nations::nation_for_each_unit_by_type<unit_type>(state, nation, [&](unit_type unit) {
+		unit_get_last_required_goods_need<consumption_type>(state, unit, accumulate_required);
+		unit_get_last_fufilled_goods_need<consumption_type>(state, unit, accumulate_fufilled);
+	});
+
+	return(total_required == 0.0f ? 1.0f : total_fufilled / total_required);
+
+}
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
+
+template<concepts::military_unit unit_type>
+float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation) {
+
+	float total_required = 0.0f;
+	float total_fufilled = 0.0f;
+
+	auto accumulate_required = [&](dcon::commodity_id, float amount) { total_required += amount;  };
+	auto accumulate_fufilled = [&](dcon::commodity_id, float amount) { total_fufilled += amount;  };
+	nations::nation_for_each_unit_by_type<unit_type>(state, nation, [&](unit_type unit) {
+		unit_get_last_required_goods_need<unit_consumption_type::supply>(state, unit, accumulate_required);
+		unit_get_last_required_goods_need<unit_consumption_type::reinforcement>(state, unit, accumulate_required);
+		unit_get_last_fufilled_goods_need<unit_consumption_type::supply>(state, unit, accumulate_fufilled);
+		unit_get_last_fufilled_goods_need<unit_consumption_type::reinforcement>(state, unit, accumulate_fufilled);
+	});
+
+	return(total_required == 0.0f ? 1.0f : total_fufilled / total_required);
+
+}
+template float nation_average_military_satisfaction_by_type<dcon::army_id>(const sys::state& state, dcon::nation_id nation);
+template float nation_average_military_satisfaction_by_type<dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
 
 
 float get_over_naval_cap_penalty_modifier(const sys::state& state, dcon::nation_id nation) {
@@ -10809,28 +10864,6 @@ void disband_regiment_w_pop_death(sys::state& state, dcon::regiment_id reg_id) {
 	military::delete_regiment_safe_wrapper(state, reg_id);
 }
 
-
-template<unit_consumption_type consumption_type, concepts::military_unit unit_type>
-float nation_average_military_satisfaction_by_type(const sys::state& state, dcon::nation_id nation) {
-
-	float total_required = 0.0f;
-	float total_fufilled = 0.0f;
-
-	auto required_amounts = nation_get_last_required_goods_need<consumption_type, unit_type>(state, nation);
-	auto fufilled_amounts = nation_get_last_fufilled_goods_need<consumption_type, unit_type>(state, nation);
-
-	economy::for_each_commodity_no_money(state, [&](dcon::commodity_id com_id) {
-		total_required += required_amounts[com_id];
-		total_fufilled += fufilled_amounts[com_id];
-	});
-
-	return(total_required == 0.0f ? 1.0f : total_fufilled / total_required);
-
-}
-template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
-template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::army_id>(const sys::state& state, dcon::nation_id nation);
-template float nation_average_military_satisfaction_by_type<unit_consumption_type::supply, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
-template float nation_average_military_satisfaction_by_type<unit_consumption_type::reinforcement, dcon::navy_id>(const sys::state& state, dcon::nation_id nation);
 
 
 military::unit_priority increment_priority(military::unit_priority priority) {

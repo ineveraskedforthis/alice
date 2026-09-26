@@ -8,6 +8,7 @@
 #include "economy_templates.hpp"
 #include "advanced_province_buildings.hpp"
 #include "supply_route.hpp"
+#include "nations_templates.hpp"
 
 namespace economy {
 
@@ -1004,7 +1005,7 @@ void advance_private_factory_construction(
 tagged_vector<float, dcon::commodity_id> estimate_nation_construction_consumption(const sys::state& state, dcon::nation_id nation) {
 	tagged_vector<float, dcon::commodity_id> consumption(state.world.commodity_size());
 
-	for_each_nation_construction(state, nation, [&](auto construction) {
+	nations::nation_for_each_construction(state, nation, [&](auto construction) {
 
 		float construction_consumption = static_cast<float>(nations::get_nation_construction_consumption_setting_by_type<decltype(construction)>(state, nation)) / 100.0f;
 		float construction_days = static_cast<float>(construction_get_actual_construction_time(state, construction));

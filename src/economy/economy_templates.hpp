@@ -154,24 +154,6 @@ void ve_parallel_for_each_construction(const sys::state& state, F&& func) {
 	ve_parallel_for_each_building_construction(state, func);
 }
 
-template<typename F>
-void for_each_nation_construction(const sys::state& state, dcon::nation_id nation, F&& func) {
-	for(auto lc : state.world.nation_get_province_land_construction(nation)) {
-		func(lc.id);
-	}
-	for(auto nc : state.world.nation_get_province_naval_construction(nation)) {
-		func(nc.id);
-	}
-	for(auto fc : state.world.nation_get_factory_construction(nation)) {
-		func(fc.id);
-	}
-	for(auto pc : state.world.nation_get_province_building_construction(nation)) {
-		func(pc.id);
-	}
-}
-
-
-
 template<price_estimation price_est, concepts::any_dcon_id_type<dcon::market_id> market_type, concepts::regular_or_ve_value_type<float> float_type>
 auto get_estimated_state_stockpile_purchase_price(const sys::state& state, market_type market, dcon::commodity_id com_id, float_type goods_desired) {
 	auto price = state.world.market_get_price(market, com_id);

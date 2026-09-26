@@ -17,6 +17,114 @@ guiTypes = {
 		buttonFont = "vic_18_black"
 		Orientation = "LOWER_LEFT"
 	}
+
+	iconType = {
+		name ="icon_logistics"
+		extends = "topbar"
+		spriteType = "GFX_icon_supplies_small"
+		position = { x = 427 y = 83 }
+		Orientation = "UPPER_LEFT"
+	}
+	textBoxType = {
+		name = "text_logistics"
+		extends = "topbar"
+		position = { x = 452 y = 85 }
+		font = "vic_18_headline"
+		borderSize = {x = 0 y = 0}
+		text = "LOGISTICS"	
+		maxWidth = 124
+		maxHeight = 32	
+		format = left
+		fixedsize = yes
+	}
+
+	iconType = {
+		name ="topbar_army_logistics"
+		extends = "topbar"
+		spriteType = "GFX_topbar_army"
+		position = { x = 426 y = 97 }
+		Orientation = "UPPER_LEFT"
+	}
+	instantTextBoxType = {
+		position = { x = 455 y = 109 }
+		name = "logistics_army_value"
+		extends = "topbar"
+		font = "Arial12"
+		borderSize = { x = 0 y = 0 }
+		maxWidth = 40
+		maxHeight = 20
+		fixedsize = yes
+		orientation = "UPPER_LEFT"
+		format = left
+	}
+	iconType = {
+		name ="topbar_navy_logistics"
+		extends = "topbar"
+		spriteType = "GFX_topbar_navy"
+		position = { x = 495 y = 97 }
+		Orientation = "UPPER_LEFT"
+	}
+	instantTextBoxType = {
+		position = { x = 519 y = 109 }
+		name = "logistics_navy_value"
+		extends = "topbar"
+		font = "Arial12"
+		borderSize = { x = 0 y = 0 }
+		maxWidth = 40
+		maxHeight = 20
+		fixedsize = yes
+		orientation = "UPPER_LEFT"
+		format = left
+	}
+
+	iconType = {
+		name ="topbar_supply_loss_logistics"
+		extends = "topbar"
+		spriteType = "GFX_topbar_navy"
+		position = { x = 426 y = 124 }
+		Orientation = "UPPER_LEFT"
+	}
+	instantTextBoxType = {
+		position = { x = 455 y = 133 }
+		name = "logistics_supply_loss_value"
+		extends = "topbar"
+		font = "Arial12"
+		borderSize = { x = 0 y = 0 }
+		maxWidth = 40
+		maxHeight = 20
+		fixedsize = yes
+		orientation = "UPPER_LEFT"
+		format = left
+	}
+
+	iconType = {
+		name ="topbar_supply_throughput_logistics"
+		extends = "topbar"
+		spriteType = "GFX_topbar_navy"
+		position = { x = 496 y = 123 }
+		Orientation = "UPPER_LEFT"
+	}
+	instantTextBoxType = {
+		position = { x = 521 y = 133 }
+		name = "logistics_supply_throughput_value"
+		extends = "topbar"
+		font = "Arial12"
+		borderSize = { x = 0 y = 0 }
+		maxWidth = 40
+		maxHeight = 20
+		fixedsize = yes
+		orientation = "UPPER_LEFT"
+		format = left
+	}
+
+
+	iconType = {
+		name ="topbarbutton_logistics"
+		extends = "topbar"
+		spriteType = "GFX_topbar_button_military"
+		position = { x = 427 y = 83 }
+		Orientation = "UPPER_LEFT"
+	}
 	
 	windowType = {
 		name = "show_all_saves_setting_container"

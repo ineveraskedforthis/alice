@@ -22,10 +22,12 @@ struct logisticswindow_section_header_rbutton_t;
 struct logisticswindow_section_header_rrbutton_t;
 struct logisticswindow_section_header_setting_amount_t;
 struct logisticswindow_section_header_expand_button_t;
-struct logisticswindow_section_header_total_amount_t;
+struct logisticswindow_section_header_satisfaction_t;
 struct logisticswindow_section_header_min_setting_t;
 struct logisticswindow_section_header_max_setting_t;
 struct logisticswindow_section_header_info_section_header_t;
+struct logisticswindow_section_header_supply_loss_t;
+struct logisticswindow_section_header_supply_throughput_t;
 struct logisticswindow_section_header_t;
 struct logisticswindow_neutral_spacer_t;
 struct logisticswindow_bottom_spacer_t;
@@ -70,6 +72,7 @@ struct logisticswindow_main_selected_commodity_icon_t : public ui::element_base 
 struct logisticswindow_main_stockpile_target_input_t : public ui::edit_box_element_base {
 // BEGIN main::stockpile_target_input::variables
 // END
+	void on_edit_command(sys::state& state, ui::edit_command command, sys::key_modifiers mods) noexcept override;
 	void on_update(sys::state& state) noexcept override;
 	void on_create(sys::state& state) noexcept override;
 };
@@ -246,9 +249,13 @@ struct logisticswindow_section_header_expand_button_t : public alice_ui::templat
 	bool button_action(sys::state& state) noexcept override;
 	void on_update(sys::state& state) noexcept override;
 };
-struct logisticswindow_section_header_total_amount_t : public alice_ui::template_label {
-// BEGIN section_header::total_amount::variables
+struct logisticswindow_section_header_satisfaction_t : public alice_ui::template_label {
+// BEGIN section_header::satisfaction::variables
 // END
+	ui::tooltip_behavior has_tooltip(sys::state & state) noexcept override {
+		return ui::tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override;
 	void on_update(sys::state& state) noexcept override;
 };
 struct logisticswindow_section_header_min_setting_t : public alice_ui::template_label {
@@ -271,6 +278,24 @@ struct logisticswindow_section_header_max_setting_t : public alice_ui::template_
 };
 struct logisticswindow_section_header_info_section_header_t : public alice_ui::template_icon_graphic {
 // BEGIN section_header::info_section_header::variables
+// END
+	ui::tooltip_behavior has_tooltip(sys::state & state) noexcept override {
+		return ui::tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override;
+	void on_update(sys::state& state) noexcept override;
+};
+struct logisticswindow_section_header_supply_loss_t : public alice_ui::template_label {
+// BEGIN section_header::supply_loss::variables
+// END
+	ui::tooltip_behavior has_tooltip(sys::state & state) noexcept override {
+		return ui::tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override;
+	void on_update(sys::state& state) noexcept override;
+};
+struct logisticswindow_section_header_supply_throughput_t : public alice_ui::template_label {
+// BEGIN section_header::supply_throughput::variables
 // END
 	ui::tooltip_behavior has_tooltip(sys::state & state) noexcept override {
 		return ui::tooltip_behavior::variable_tooltip;
@@ -506,10 +531,15 @@ struct logisticswindow_section_header_t : public layout_window_element {
 	std::unique_ptr<logisticswindow_section_header_rrbutton_t> rrbutton;
 	std::unique_ptr<logisticswindow_section_header_setting_amount_t> setting_amount;
 	std::unique_ptr<logisticswindow_section_header_expand_button_t> expand_button;
-	std::unique_ptr<logisticswindow_section_header_total_amount_t> total_amount;
+	std::unique_ptr<logisticswindow_section_header_satisfaction_t> satisfaction;
 	std::unique_ptr<logisticswindow_section_header_min_setting_t> min_setting;
 	std::unique_ptr<logisticswindow_section_header_max_setting_t> max_setting;
 	std::unique_ptr<logisticswindow_section_header_info_section_header_t> info_section_header;
+	std::unique_ptr<logisticswindow_section_header_supply_loss_t> supply_loss;
+	std::unique_ptr<logisticswindow_section_header_supply_throughput_t> supply_throughput;
+	std::unique_ptr<template_label> satisfaction_label;
+	std::unique_ptr<template_label> supply_loss_label;
+	std::unique_ptr<template_label> supply_throughput_label;
 	std::vector<std::unique_ptr<ui::element_base>> gui_inserts;
 	void create_layout_level(sys::state& state, layout_level& lvl, char const* ldata, size_t sz);
 	void on_create(sys::state& state) noexcept override;
@@ -1278,6 +1308,17 @@ void logisticswindow_main_selected_commodity_icon_t::on_create(sys::state& state
 	}
 // BEGIN main::selected_commodity_icon::create
 // END
+}
+void logisticswindow_main_stockpile_target_input_t::on_edit_command(sys::state& state, ui::edit_command command, sys::key_modifiers mods)  noexcept {
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent)); 
+// BEGIN main::stockpile_target_input::edit_command
+	// if user presses enter, then press the confirm button. This can't be implemented as a normal shortcut since all on-key events are dispatched to the edit box when in focus instead of other shortcuts
+	if(command == ui::edit_command::new_line) {
+		main.confirm_target_button->button_action(state);
+		return;
+	}
+// END
+	ui::edit_box_element_base::on_edit_command(state, command, mods);
 }
 void logisticswindow_main_stockpile_target_input_t::on_update(sys::state& state) noexcept {
 	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent)); 
@@ -2144,15 +2185,33 @@ bool logisticswindow_section_header_expand_button_t::button_action(sys::state& s
 // END
 	return true;
 }
-void logisticswindow_section_header_total_amount_t::on_update(sys::state& state) noexcept {
+void logisticswindow_section_header_satisfaction_t::update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept {
 	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
 	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
-// BEGIN section_header::total_amount::update
+// BEGIN section_header::satisfaction::tooltip
+	std::string_view tooltip_key = "logistics_satisfaction_tooltip";
+
+	switch(section_header.section_type) {
+	case consumption_categories::land_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::land_supply:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_supply: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::army_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ economy::nation_average_construction_satisfaction_by_type<dcon::province_land_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ economy::nation_average_construction_satisfaction_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::factory_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ economy::nation_average_construction_satisfaction_by_type<dcon::factory_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::building_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ economy::nation_average_construction_satisfaction_by_type<dcon::province_building_construction_id>(state, state.local_player_nation) }); break;
+	default: set_text(state, ""); break;
+	}
+
+// END
+}
+void logisticswindow_section_header_satisfaction_t::on_update(sys::state& state) noexcept {
+	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
+// BEGIN section_header::satisfaction::update
 	auto adjust_percent_value = [&](float value) {
 		return text::format_percentage(value, 2);
 	};
-
-
 	switch(section_header.section_type) {
 	case consumption_categories::land_reinforcement:  set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation))); break;
 	case consumption_categories::land_supply:  set_text(state, adjust_percent_value(military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation))); break;
@@ -2308,6 +2367,84 @@ void logisticswindow_section_header_info_section_header_t::on_update(sys::state&
 // BEGIN section_header::info_section_header::update
 // END
 }
+void logisticswindow_section_header_supply_loss_t::update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept {
+	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
+// BEGIN section_header::supply_loss::tooltip
+	std::string_view tooltip_key = "logistics_supply_loss_tooltip";
+
+	switch(section_header.section_type) {
+	case consumption_categories::land_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::land_supply:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_supply: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::army_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_land_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::factory_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::factory_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::building_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_building_construction_id>(state, state.local_player_nation) }); break;
+	default: set_text(state, ""); break;
+	}
+// END
+}
+void logisticswindow_section_header_supply_loss_t::on_update(sys::state& state) noexcept {
+	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
+// BEGIN section_header::supply_loss::update
+	auto adjust_percent_value = [&](float value) {
+		return text::format_percentage(value, 2);
+	};
+	switch(section_header.section_type) {
+	case consumption_categories::land_reinforcement:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::land_supply:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_reinforcement:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_supply: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_loss_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::army_construction:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_land_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_construction:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::factory_construction: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::factory_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::building_construction: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_loss_by_type<dcon::province_building_construction_id>(state, state.local_player_nation))); break;
+	default: set_text(state, ""); break;
+	}
+// END
+}
+void logisticswindow_section_header_supply_throughput_t::update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept {
+	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
+// BEGIN section_header::supply_throughput::tooltip
+	std::string_view tooltip_key = "logistics_supply_throughput_tooltip";
+
+	switch(section_header.section_type) {
+	case consumption_categories::land_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::land_supply:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_reinforcement: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_supply: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::army_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_land_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::naval_construction:  text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::factory_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::factory_construction_id>(state, state.local_player_nation) }); break;
+	case consumption_categories::building_construction: text::add_line(state, contents, tooltip_key, text::variable_type::val, text::fp_percentage_two_places{ supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_building_construction_id>(state, state.local_player_nation) }); break;
+	default: set_text(state, ""); break;
+	}
+// END
+}
+void logisticswindow_section_header_supply_throughput_t::on_update(sys::state& state) noexcept {
+	logisticswindow_section_header_t& section_header = *((logisticswindow_section_header_t*)(parent)); 
+	logisticswindow_main_t& main = *((logisticswindow_main_t*)(parent->parent)); 
+// BEGIN section_header::supply_throughput::update
+	auto adjust_percent_value = [&](float value) {
+		return text::format_percentage(value, 2);
+	};
+	switch(section_header.section_type) {
+	case consumption_categories::land_reinforcement:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::reinforcement, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::land_supply:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::supply, dcon::army_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_reinforcement:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::reinforcement, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_supply: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_military_supply_throughput_by_type<military::unit_consumption_type::supply, dcon::navy_id>(state, state.local_player_nation))); break;
+	case consumption_categories::army_construction:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_land_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::naval_construction:  set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_naval_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::factory_construction: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::factory_construction_id>(state, state.local_player_nation))); break;
+	case consumption_categories::building_construction: set_text(state, adjust_percent_value(supply_routes::nation_get_avg_construction_supply_throughput_by_type<dcon::province_building_construction_id>(state, state.local_player_nation))); break;
+	default: set_text(state, ""); break;
+	}
+// END
+}
 ui::message_result logisticswindow_section_header_t::on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
 	return ui::message_result::consumed;
 }
@@ -2388,8 +2525,8 @@ void logisticswindow_section_header_t::create_layout_level(sys::state& state, la
 				if(cname == "expand_button") {
 					temp.ptr = expand_button.get();
 				} else
-				if(cname == "total_amount") {
-					temp.ptr = total_amount.get();
+				if(cname == "satisfaction") {
+					temp.ptr = satisfaction.get();
 				} else
 				if(cname == "min_setting") {
 					temp.ptr = min_setting.get();
@@ -2399,6 +2536,21 @@ void logisticswindow_section_header_t::create_layout_level(sys::state& state, la
 				} else
 				if(cname == "info_section_header") {
 					temp.ptr = info_section_header.get();
+				} else
+				if(cname == "supply_loss") {
+					temp.ptr = supply_loss.get();
+				} else
+				if(cname == "supply_throughput") {
+					temp.ptr = supply_throughput.get();
+				} else
+				if(cname == "satisfaction_label") {
+					temp.ptr = satisfaction_label.get();
+				} else
+				if(cname == "supply_loss_label") {
+					temp.ptr = supply_loss_label.get();
+				} else
+				if(cname == "supply_throughput_label") {
+					temp.ptr = supply_throughput_label.get();
 				} else
 				{
 					std::string str_cname {cname};
@@ -2607,10 +2759,10 @@ void logisticswindow_section_header_t::on_create(sys::state& state) noexcept {
 			children.push_back(cptr);
 			pending_children.pop_back(); continue;
 		} else 
-		if(child_data.name == "total_amount") {
-			total_amount = std::make_unique<logisticswindow_section_header_total_amount_t>();
-			total_amount->parent = this;
-			auto cptr = total_amount.get();
+		if(child_data.name == "satisfaction") {
+			satisfaction = std::make_unique<logisticswindow_section_header_satisfaction_t>();
+			satisfaction->parent = this;
+			auto cptr = satisfaction.get();
 			cptr->base_data.position.x = child_data.x_pos;
 			cptr->base_data.position.y = child_data.y_pos;
 			cptr->base_data.size.x = child_data.x_size;
@@ -2671,6 +2823,96 @@ void logisticswindow_section_header_t::on_create(sys::state& state) noexcept {
 			cptr->base_data.size.y = child_data.y_size;
 			cptr->template_id = child_data.template_id;
 			cptr->color = child_data.table_divider_color;
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "supply_loss") {
+			supply_loss = std::make_unique<logisticswindow_section_header_supply_loss_t>();
+			supply_loss->parent = this;
+			auto cptr = supply_loss.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "supply_throughput") {
+			supply_throughput = std::make_unique<logisticswindow_section_header_supply_throughput_t>();
+			supply_throughput->parent = this;
+			auto cptr = supply_throughput.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "satisfaction_label") {
+			satisfaction_label = std::make_unique<template_label>();
+			satisfaction_label->parent = this;
+			auto cptr = satisfaction_label.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "supply_loss_label") {
+			supply_loss_label = std::make_unique<template_label>();
+			supply_loss_label->parent = this;
+			auto cptr = supply_loss_label.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
+			if(child_data.tooltip_text_key.length() > 0)
+				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
+			cptr->parent = this;
+			cptr->on_create(state);
+			children.push_back(cptr);
+			pending_children.pop_back(); continue;
+		} else 
+		if(child_data.name == "supply_throughput_label") {
+			supply_throughput_label = std::make_unique<template_label>();
+			supply_throughput_label->parent = this;
+			auto cptr = supply_throughput_label.get();
+			cptr->base_data.position.x = child_data.x_pos;
+			cptr->base_data.position.y = child_data.y_pos;
+			cptr->base_data.size.x = child_data.x_size;
+			cptr->base_data.size.y = child_data.y_size;
+			cptr->template_id = child_data.template_id;
+			if(child_data.text_key.length() > 0)
+				cptr->default_text = state.lookup_key(child_data.text_key);
 			if(child_data.tooltip_text_key.length() > 0)
 				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
 			cptr->parent = this;
@@ -4197,26 +4439,4 @@ std::unique_ptr<ui::element_base> make_logisticswindow_commodity_spacer(sys::sta
 	return ptr;
 }
 // LOST-CODE
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-// BEGIN main::military_satisfaction_percent::update
-//	// Compute the average satisfaction percentage for all military consumption
-//	// TODO FOR LATER: show which goods are lacking
-//	/*float avg_naval_reinf_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
-//	float avg_land_reinf_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::reinforcement>(state, state.local_player_nation);
-//	float avg_naval_supply_satisfaction = military::nation_average_military_satisfaction_by_type<military::unit_consumption_type::supply>(state, state.local_player_nation);
-//	float avg_land_supply_satisfaction = military::average_land_consumption_satisfaction<military::unit_consumption_type::supply>(state, state.local_player_nation);
-
-//	float avg_satisfaction = (avg_naval_reinf_satisfaction + avg_naval_supply_satisfaction + avg_land_reinf_satisfaction + avg_land_supply_satisfaction) / 4.0f;*/
-//	set_text(state, "");
-// END
-// BEGIN main::military_table::consumption_table::sort::amount_fufilled
-//						if(a.fufilled < b.fufilled) result = -1;
-//						if(a.fufilled > b.fufilled) result = 1;
-// END
-// BEGIN main::military_table::consumption_table::sort::amount_required
-//						if(a.required < b.required) result = -1;
-//						if(a.required > b.required) result = 1;
-// END
 }

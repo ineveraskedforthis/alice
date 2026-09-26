@@ -38,6 +38,36 @@ dcon::supply_route_path_id supply_route_get_path(const sys::state& state, route_
 template<concepts::supply_route_type route_type>
 dcon::market_id supply_route_get_origin_market(const sys::state& state, route_type route);
 
+// Gets the avg supply loss of all supply routes a nation owns
+float nation_get_avg_supply_loss(const sys::state& state, dcon::nation_id nation);
+// Gets the avg supply throughput of all supply routes a nation owns
+float nation_get_avg_supply_throughput(const sys::state& state, dcon::nation_id nation);
+// Gets the avg supply loss of all construction supply routes a nation owns
+float nation_get_avg_construction_supply_loss(const sys::state& state, dcon::nation_id nation);
+// Gets the avg supply throughput of all construction supply routes a nation owns
+float nation_get_avg_construction_supply_throughput(const sys::state& state, dcon::nation_id nation);
+// Get the avg supply loss for all construction routes of a certain type a nation owns
+template<concepts::construction_type con_type>
+float nation_get_avg_construction_supply_loss_by_type(const sys::state& state, dcon::nation_id nation);
+// Get the avg supply throughput for all construction routes of a certain type a nation owns
+template<concepts::construction_type con_type>
+float nation_get_avg_construction_supply_throughput_by_type(const sys::state& state, dcon::nation_id nation);
+
+
+// Gets the avg supply loss of military supply routes a nation owns. Either army routes or navy routes depending on template param
+template<concepts::military_unit unit_type>
+float nation_get_avg_military_supply_loss_by_type(const sys::state& state, dcon::nation_id nation);
+// Gets the avg supply throughput of military supply routes a nation owns. Either army routes or navy routes depending on template param
+template<concepts::military_unit unit_type>
+float nation_get_avg_military_supply_throughput_by_type(const sys::state& state, dcon::nation_id nation);
+
+// Gets the avg supply loss of military supply routes a nation owns. Either army routes or navy routes, and either supply or reinforcement depending on template params
+template<military::unit_consumption_type consume_type, concepts::military_unit unit_type>
+float nation_get_avg_military_supply_loss_by_type(const sys::state& state, dcon::nation_id nation);
+// Gets the avg supply throughput of military supply routes a nation owns. Either army routes or navy routes, and either supply or reinforcement depending on template params
+template<military::unit_consumption_type consume_type, concepts::military_unit unit_type>
+float nation_get_avg_military_supply_throughput_by_type(const sys::state& state, dcon::nation_id nation);
+
 int8_t army_supply_setting_min(const sys::state& state, dcon::nation_id nation);
 int8_t army_supply_setting_max(const sys::state& state, dcon::nation_id nation);
 int8_t army_reinforcement_setting_min(const sys::state& state, dcon::nation_id nation);

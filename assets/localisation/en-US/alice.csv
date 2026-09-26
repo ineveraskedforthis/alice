@@ -2093,7 +2093,7 @@ mlitary_stockpile_target_error;?RInvalid input?W
 confirm_stockpile_target_tooltip;Confirm the stockpile target
 stockpile_target_set_label;Set stockpile target:
 military_stockpile_info_tooltip;Each commodity icon and the numbers under it displays diffrent values about the state of all summed-up government stockpiles. It shows:\n    -The current amount present in stockpiles\n    -The current stockpile target for the stockpile spending setting\n    -The daily amount change (positive or negative)\n    -The estimated amount of days left until stockpile exhaustion.\nSelect a commodity by ?Gright-clicking?W the icon to set a stockpile target in the right window.
-military_stockpile_targets_info_tooltip;Once a commodity is selected, its stockpile target can be set here by typing in a new target (number with or without decimals allowed), and clicking on the confirmation button below.
+military_stockpile_targets_info_tooltip;Once a commodity is selected, its stockpile target can be set here by typing in a new target (number with or without decimals)\nHit ?GEnter?W, or click on the confirmation button below to apply the new target.
 army_construction_consumption;Army Construction
 navy_construction_consumption;Navy Construction
 factory_construction_consumption;Factory Construction
@@ -2116,3 +2116,13 @@ consumption_section_army_construction_info_tooltip;Decides how big a percentage 
 consumption_section_navy_construction_info_tooltip;Decides how big a percentage of daily navy construction requirements will be routed from national stockpiles to them.\nA value of 100 means navy constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for navy constructions from the construction budget in the budget window.
 consumption_section_factory_construction_info_tooltip;Decides how big a percentage of daily government factory construction requirements will be routed from national stockpiles to them.\nA value of 100 means government factory constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for government factory constructions from the construction budget in the budget window.
 consumption_section_building_construction_info_tooltip;Decides how big a percentage of daily government province building construction requirements will be routed from national stockpiles to them.\nA value of 100 means government province building constructions will attempt to draw 100% of their daily construction need from stockpiles, and a value of 0 means armies will not draw any goods.\nThis setting also affects the amount purchased for government province building constructions from the construction budget in the budget window.
+logistics_topbar_army_tooltip;Our armies currently receive ?Y$total$?W of their total required supply & reinforcement need\nArmy Supply Satisfaction: ?Y$x$?W\nArmy Reinforcement Satisfaction: ?Y$y$?W
+logistics_topbar_navy_tooltip;Our navies currently receive ?Y$total$?W of their total required supply & reinforcement need\nNavy Supply Satisfaction: ?Y$x$?W\nNavy Reinforcement Satisfaction: ?Y$y$?W
+logistics_topbar_supply_loss_tooltip;Our supply routes currently incur an average loss of ?Y$total$?W of transported goods\nArmy Supply Route Loss: ?Y$x$?W\nNavy Supply Route Loss: ?Y$y$?W\nConstruction Supply Routes Loss: ?Y$val$?W
+logistics_topbar_supply_throughput_tooltip;Our supply routes currently operate at an average throughput of ?Y$total$?W\nArmy Supply Route Throughput: ?Y$x$?W\nNavy Supply Route Throughput: ?Y$y$?W\nConstruction Supply Routes Throughput: ?Y$val$?W
+logistics_satisfaction_label;Satisfaction:
+logistics_supply_loss_label;Loss rate:
+logistics_supply_throughput_label;Throughput:
+logistics_satisfaction_tooltip;The average satisfaction percentage of the required commodities for this section is ?Y$val$?W
+logistics_supply_loss_tooltip;The average loss percentage for the transported commodities in this section is ?Y$val$?W
+logistics_supply_throughput_tooltip;The throughput percentage for the transported commodities in this section is ?Y$val$?W
