@@ -28,7 +28,6 @@
 #include "supply_route.hpp"
 #include "gamerules.cpp"
 #include "macrobuilder2.cpp"
-#include "military_stockpile.cpp"
 #include "logisticswindow.cpp"
 #include "budgetwindow.cpp"
 #include "demographicswindow.cpp"

@@ -2,11 +2,6 @@
 // END
 
 namespace alice_ui {
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wswitch"
-#pragma clang diagnostic ignored "-Wimplicit-fallthrough"
-#endif
 struct budgetwindow_main_income_amount_t;
 struct budgetwindow_main_expenses_amount_t;
 struct budgetwindow_main_admin_eff_amount_t;
@@ -22,7 +17,6 @@ struct budgetwindow_main_max_debt_amount_t;
 struct budgetwindow_main_debt_chart_t;
 struct budgetwindow_main_chart_bg_t;
 struct budgetwindow_main_satisfaction_percent_t;
-struct budgetwindow_main_miltary_stockpile_button_t;
 struct budgetwindow_main_t;
 struct budgetwindow_section_header_label_t;
 struct budgetwindow_section_header_llbutton_t;
@@ -233,40 +227,6 @@ struct budgetwindow_main_satisfaction_percent_t : public alice_ui::template_labe
 // BEGIN main::satisfaction_percent::variables
 // END
 	void on_update(sys::state& state) noexcept override;
-};
-struct budgetwindow_main_miltary_stockpile_button_t : public alice_ui::template_mixed_button {
-// BEGIN main::miltary_stockpile_button::variables
-// END
-	bool button_action(sys::state& state) noexcept override;
-	void on_update(sys::state& state) noexcept override;
-};
-struct budgetwindow_main_military_table_t : public layout_generator {
-// BEGIN main::military_table::variables
-// END
-	struct section_header_option { int32_t section_type; };
-	std::vector<std::unique_ptr<ui::element_base>> section_header_pool;
-	int32_t section_header_pool_used = 0;
-	void add_section_header( int32_t section_type);
-	struct neutral_spacer_option { };
-	std::vector<std::unique_ptr<ui::element_base>> neutral_spacer_pool;
-	int32_t neutral_spacer_pool_used = 0;
-	void add_neutral_spacer();
-	struct bottom_spacer_option { };
-	std::vector<std::unique_ptr<ui::element_base>> bottom_spacer_pool;
-	int32_t bottom_spacer_pool_used = 0;
-	void add_bottom_spacer();
-	struct budget_row_option { std::string name; float value; };
-	std::vector<std::unique_ptr<ui::element_base>> budget_row_pool;
-	int32_t budget_row_pool_used = 0;
-	void add_budget_row( std::string name,  float value);
-	std::vector<std::unique_ptr<ui::element_base>> budget_header_pool;
-	int32_t budget_header_pool_used = 0;
-	std::vector<std::variant<std::monostate, section_header_option, neutral_spacer_option, bottom_spacer_option, budget_row_option>> values;
-	void on_create(sys::state& state, layout_window_element* container);
-	void update(sys::state& state, layout_window_element* container);
-	measure_result place_item(sys::state& state, ui::non_owning_container_base* destination, size_t index, int32_t x, int32_t y, bool first_in_section, bool& alternate) override;
-	size_t item_count() override { return values.size(); };
-	void reset_pools() override;
 };
 struct budgetwindow_main_income_table_t : public layout_generator {
 // BEGIN main::income_table::variables
@@ -484,9 +444,6 @@ struct budgetwindow_main_t : public layout_window_element {
 	std::unique_ptr<budgetwindow_main_chart_bg_t> chart_bg;
 	std::unique_ptr<template_label> military_settings_label;
 	std::unique_ptr<budgetwindow_main_satisfaction_percent_t> satisfaction_percent;
-	std::unique_ptr<template_label> military_title;
-	std::unique_ptr<budgetwindow_main_miltary_stockpile_button_t> miltary_stockpile_button;
-	budgetwindow_main_military_table_t military_table;
 	budgetwindow_main_income_table_t income_table;
 	budgetwindow_main_espenses_table_t espenses_table;
 	std::vector<std::unique_ptr<ui::element_base>> gui_inserts;
@@ -668,217 +625,6 @@ struct budgetwindow_budget_header_t : public layout_window_element {
 	void on_update(sys::state& state) noexcept override;
 };
 std::unique_ptr<ui::element_base> make_budgetwindow_budget_header(sys::state& state);
-void budgetwindow_main_military_table_t::add_section_header(int32_t section_type) {
-	values.emplace_back(section_header_option{section_type});
-}
-void budgetwindow_main_military_table_t::add_neutral_spacer() {
-	values.emplace_back(neutral_spacer_option{});
-}
-void budgetwindow_main_military_table_t::add_bottom_spacer() {
-	values.emplace_back(bottom_spacer_option{});
-}
-void budgetwindow_main_military_table_t::add_budget_row(std::string name, float value) {
-	values.emplace_back(budget_row_option{name, value});
-}
-void  budgetwindow_main_military_table_t::on_create(sys::state& state, layout_window_element* parent) {
-	budgetwindow_main_t& main = *((budgetwindow_main_t*)(parent)); 
-// BEGIN main::military_table::on_create
-// END
-}
-void  budgetwindow_main_military_table_t::update(sys::state& state, layout_window_element* parent) {
-	budgetwindow_main_t& main = *((budgetwindow_main_t*)(parent)); 
-// BEGIN main::military_table::update
-	values.clear();
-	add_section_header(budget_categories::land_supply);
-	/*if(budget_categories::expanded[budget_categories::land_supply]) {
-		add_bottom_spacer();
-		const auto& commodity_types = state.military_definitions.military_supply_goods;
-		economy::huge_commodity_amount_array total_required(commodity_types.size());
-		economy::huge_commodity_amount_array total_fufilled(commodity_types.size());
-		for(auto a : state.world.nation_get_army_control(state.local_player_nation)) {
-			auto army = a.get_army();
-			const auto required = military::get_last_required_supply<military::unit_consumption_type::supply>(state, army.id);
-			const auto fufilled = military::get_last_fufilled_supply<military::unit_consumption_type::supply>(state, army.id);
-			for(uint32_t i = 0; i < commodity_types.size(); i++) {
-				total_required[i] += required[i];
-				total_fufilled[i] += fufilled[i];
-			}
-		}
-		for(auto a : state.world.nation_get_navy_control(state.local_player_nation)) {
-			auto navy = a.get_navy();
-			const auto required = military::get_last_required_supply<military::unit_consumption_type::supply>(state, navy.id);
-			const auto fufilled = military::get_last_fufilled_supply<military::unit_consumption_type::supply>(state, navy.id);
-			for(uint32_t i = 0; i < commodity_types.size(); i++) {
-				total_required[i] += required[i];
-				total_fufilled[i] += fufilled[i];
-			}
-		}
-
-		for(uint32_t i = 0; i < commodity_types.size(); i++) {
-			auto com_id = commodity_types[i];
-			float required_count = total_required[i];
-			float fufilled_count = total_fufilled[i];
-			if(required_count > 0.0f) {
-				float fufillment = std::min(fufilled_count / required_count, 1.0f);
-				add_budget_row(text::produce_simple_string(state, state.world.commodity_get_name(com_id)), fufillment);
-			}
-		}
-	}*/
-	add_neutral_spacer();
-	add_section_header(budget_categories::land_reinforcement);
-	add_neutral_spacer();
-	add_section_header(budget_categories::naval_supply);
-	add_neutral_spacer();
-	add_section_header(budget_categories::naval_reinforcement);
-	add_neutral_spacer();
-	add_section_header(budget_categories::army_construction);
-	add_neutral_spacer();
-	add_section_header(budget_categories::naval_construction);
-	add_neutral_spacer();
-	add_section_header(budget_categories::factory_construction);
-	add_neutral_spacer();
-	add_section_header(budget_categories::building_construction);
-// END
-	{
-	bool work_to_do = false;
-	auto table_source = (budgetwindow_main_t*)(parent);
-	if(table_source->income_table_item_name_sort_direction != 0) work_to_do = true;
-	if(table_source->income_table_item_value_sort_direction != 0) work_to_do = true;
-	if(work_to_do) {
-		for(size_t i = 0; i < values.size(); ) {
-			if(std::holds_alternative<budget_row_option>(values[i])) {
-				auto start_i = i;
-				while(i < values.size() && std::holds_alternative<budget_row_option>(values[i])) ++i;
-				if(table_source->income_table_item_name_sort_direction != 0) {
-					sys::merge_sort(values.begin() + start_i, values.begin() + i, [&](auto const& raw_a, auto const& raw_b){
-						auto const& a = std::get<budget_row_option>(raw_a);
-						auto const& b = std::get<budget_row_option>(raw_b);
-						int8_t result = 0;
-// BEGIN main::military_table::income_table::sort::item_name
-// END
-						return -result == table_source->income_table_item_name_sort_direction;
-					});
-				}
-				if(table_source->income_table_item_value_sort_direction != 0) {
-					sys::merge_sort(values.begin() + start_i, values.begin() + i, [&](auto const& raw_a, auto const& raw_b){
-						auto const& a = std::get<budget_row_option>(raw_a);
-						auto const& b = std::get<budget_row_option>(raw_b);
-						int8_t result = 0;
-// BEGIN main::military_table::income_table::sort::item_value
-// END
-						return -result == table_source->income_table_item_value_sort_direction;
-					});
-				}
-			} else {
-				++i;
-			}
-		}
-	}
-	}
-}
-measure_result  budgetwindow_main_military_table_t::place_item(sys::state& state, ui::non_owning_container_base* destination, size_t index, int32_t x, int32_t y, bool first_in_section, bool& alternate) {
-	if(index >= values.size()) return measure_result{0,0,measure_result::special::none};
-	if(std::holds_alternative<section_header_option>(values[index])) {
-		if(section_header_pool.empty()) section_header_pool.emplace_back(make_budgetwindow_section_header(state));
-		if(destination) {
-			if(section_header_pool.size() <= size_t(section_header_pool_used)) section_header_pool.emplace_back(make_budgetwindow_section_header(state));
-			section_header_pool[section_header_pool_used]->base_data.position.x = int16_t(x);
-			section_header_pool[section_header_pool_used]->base_data.position.y = int16_t(y);
-			section_header_pool[section_header_pool_used]->parent = destination;
-			destination->children.push_back(section_header_pool[section_header_pool_used].get());
-			((budgetwindow_section_header_t*)(section_header_pool[section_header_pool_used].get()))->section_type = std::get<section_header_option>(values[index]).section_type;
-			section_header_pool[section_header_pool_used]->impl_on_update(state);
-			section_header_pool_used++;
-		}
-		alternate = true;
-	 	 	bool stick_to_next = false;
-		return measure_result{ section_header_pool[0]->base_data.size.x, section_header_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
-	}
-	if(std::holds_alternative<neutral_spacer_option>(values[index])) {
-		if(neutral_spacer_pool.empty()) neutral_spacer_pool.emplace_back(make_budgetwindow_neutral_spacer(state));
-		if(destination) {
-			if(neutral_spacer_pool.size() <= size_t(neutral_spacer_pool_used)) neutral_spacer_pool.emplace_back(make_budgetwindow_neutral_spacer(state));
-			neutral_spacer_pool[neutral_spacer_pool_used]->base_data.position.x = int16_t(x);
-			neutral_spacer_pool[neutral_spacer_pool_used]->base_data.position.y = int16_t(y);
-			neutral_spacer_pool[neutral_spacer_pool_used]->parent = destination;
-			destination->children.push_back(neutral_spacer_pool[neutral_spacer_pool_used].get());
-			neutral_spacer_pool[neutral_spacer_pool_used]->impl_on_update(state);
-			neutral_spacer_pool_used++;
-		}
-		alternate = true;
-	 	 	bool stick_to_next = false;
-		return measure_result{ neutral_spacer_pool[0]->base_data.size.x, neutral_spacer_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
-	}
-	if(std::holds_alternative<bottom_spacer_option>(values[index])) {
-		if(bottom_spacer_pool.empty()) bottom_spacer_pool.emplace_back(make_budgetwindow_bottom_spacer(state));
-		if(destination) {
-			if(bottom_spacer_pool.size() <= size_t(bottom_spacer_pool_used)) bottom_spacer_pool.emplace_back(make_budgetwindow_bottom_spacer(state));
-			bottom_spacer_pool[bottom_spacer_pool_used]->base_data.position.x = int16_t(x);
-			bottom_spacer_pool[bottom_spacer_pool_used]->base_data.position.y = int16_t(y);
-			bottom_spacer_pool[bottom_spacer_pool_used]->parent = destination;
-			destination->children.push_back(bottom_spacer_pool[bottom_spacer_pool_used].get());
-			bottom_spacer_pool[bottom_spacer_pool_used]->impl_on_update(state);
-			bottom_spacer_pool_used++;
-		}
-		alternate = true;
-	 	 	bool stick_to_next = false;
-		return measure_result{ bottom_spacer_pool[0]->base_data.size.x, bottom_spacer_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
-	}
-	if(std::holds_alternative<budget_row_option>(values[index])) {
-		if(budget_header_pool.empty()) budget_header_pool.emplace_back(make_budgetwindow_budget_header(state));
-		if(budget_row_pool.empty()) budget_row_pool.emplace_back(make_budgetwindow_budget_row(state));
-		if(index == 0 || first_in_section || (true && !std::holds_alternative<budget_row_option>(values[index - 1]))) {
-			if(destination) {
-				if(budget_header_pool.size() <= size_t(budget_header_pool_used)) budget_header_pool.emplace_back(make_budgetwindow_budget_header(state));
-				if(budget_row_pool.size() <= size_t(budget_row_pool_used)) budget_row_pool.emplace_back(make_budgetwindow_budget_row(state));
-				budget_header_pool[budget_header_pool_used]->base_data.position.x = int16_t(x);
-				budget_header_pool[budget_header_pool_used]->base_data.position.y = int16_t(y);
-				if(!budget_header_pool[budget_header_pool_used]->parent) {
-					budget_header_pool[budget_header_pool_used]->parent = destination;
-					budget_header_pool[budget_header_pool_used]->impl_on_update(state);
-					budget_header_pool[budget_header_pool_used]->impl_on_reset_text(state);
-				}
-				destination->children.push_back(budget_header_pool[budget_header_pool_used].get());
-			((budgetwindow_budget_header_t*)(budget_header_pool[budget_header_pool_used].get()))->set_alternate(alternate);
-				budget_row_pool[budget_row_pool_used]->base_data.position.x = int16_t(x);
-				budget_row_pool[budget_row_pool_used]->base_data.position.y = int16_t(y +  budget_header_pool[0]->base_data.size.y + 0);
-				budget_row_pool[budget_row_pool_used]->parent = destination;
-				destination->children.push_back(budget_row_pool[budget_row_pool_used].get());
-				((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->name = std::get<budget_row_option>(values[index]).name;
-				((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->value = std::get<budget_row_option>(values[index]).value;
-			((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->set_alternate(!alternate);
-				budget_row_pool[budget_row_pool_used]->impl_on_update(state);
-				budget_header_pool_used++;
-				budget_row_pool_used++;
-			}
-	 	 	bool stick_to_next = false;
-			return measure_result{std::max(budget_header_pool[0]->base_data.size.x, budget_row_pool[0]->base_data.size.x), budget_header_pool[0]->base_data.size.y + budget_row_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
-		}
-		if(destination) {
-			if(budget_row_pool.size() <= size_t(budget_row_pool_used)) budget_row_pool.emplace_back(make_budgetwindow_budget_row(state));
-			budget_row_pool[budget_row_pool_used]->base_data.position.x = int16_t(x);
-			budget_row_pool[budget_row_pool_used]->base_data.position.y = int16_t(y);
-			budget_row_pool[budget_row_pool_used]->parent = destination;
-			destination->children.push_back(budget_row_pool[budget_row_pool_used].get());
-			((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->name = std::get<budget_row_option>(values[index]).name;
-			((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->value = std::get<budget_row_option>(values[index]).value;
-			((budgetwindow_budget_row_t*)(budget_row_pool[budget_row_pool_used].get()))->set_alternate(alternate);
-			budget_row_pool[budget_row_pool_used]->impl_on_update(state);
-			budget_row_pool_used++;
-		}
-		alternate = !alternate;
-	 	 	bool stick_to_next = false;
-		return measure_result{ budget_row_pool[0]->base_data.size.x, budget_row_pool[0]->base_data.size.y + 0, stick_to_next ? measure_result::special::no_break : measure_result::special::none};
-	}
-	return measure_result{0,0,measure_result::special::none};
-}
-void  budgetwindow_main_military_table_t::reset_pools() {
-	section_header_pool_used = 0;
-	neutral_spacer_pool_used = 0;
-	bottom_spacer_pool_used = 0;
-	budget_header_pool_used = 0;
-	budget_row_pool_used = 0;
-}
 void budgetwindow_main_income_table_t::add_section_header(int32_t section_type) {
 	values.emplace_back(section_header_option{section_type});
 }
@@ -2181,40 +1927,6 @@ void budgetwindow_main_satisfaction_percent_t::on_update(sys::state& state) noex
 
 // END
 }
-void budgetwindow_main_miltary_stockpile_button_t::on_update(sys::state& state) noexcept {
-	budgetwindow_main_t& main = *((budgetwindow_main_t*)(parent)); 
-// BEGIN main::miltary_stockpile_button::update
-// END
-}
-bool budgetwindow_main_miltary_stockpile_button_t::button_action(sys::state& state) noexcept {
-	budgetwindow_main_t& main = *((budgetwindow_main_t*)(parent)); 
-// BEGIN main::miltary_stockpile_button::lbutton_action
-	/*if(!state.ui_state.military_stockpiles_window) {
-		auto window = alice_ui::make_military_stockpile_main(state);
-		window->impl_on_update(state);
-		state.ui_state.military_stockpiles_window = window.get();
-		state.ui_state.root->add_child_to_front(std::move(window));
-	} else if(state.ui_state.military_stockpiles_window->is_visible()) {
-		state.ui_state.military_stockpiles_window->set_visible(state, false);
-	} else {
-		state.ui_state.military_stockpiles_window->set_visible(state, true);
-		state.ui_state.root->move_child_to_front(state.ui_state.military_stockpiles_window);
-	}*/
-
-	if(!state.ui_state.logistics_window) {
-		auto window = alice_ui::make_logisticswindow_main(state);
-		window->impl_on_update(state);
-		state.ui_state.logistics_window = window.get();
-		state.ui_state.root->add_child_to_front(std::move(window));
-	} else if(state.ui_state.logistics_window->is_visible()) {
-		state.ui_state.logistics_window->set_visible(state, false);
-	} else {
-		state.ui_state.logistics_window->set_visible(state, true);
-		state.ui_state.root->move_child_to_front(state.ui_state.logistics_window);
-	}
-// END
-	return true;
-}
 ui::message_result budgetwindow_main_t::on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
 	state.ui_state.drag_target = this;
 	return ui::message_result::consumed;
@@ -2225,7 +1937,6 @@ ui::message_result budgetwindow_main_t::on_rbutton_down(sys::state& state, int32
 void budgetwindow_main_t::on_update(sys::state& state) noexcept {
 // BEGIN main::update
 // END
-	military_table.update(state, this);
 	income_table.update(state, this);
 	espenses_table.update(state, this);
 	remake_layout(state, true);
@@ -2367,12 +2078,6 @@ void budgetwindow_main_t::create_layout_level(sys::state& state, layout_level& l
 				if(cname == "satisfaction_percent") {
 					temp.ptr = satisfaction_percent.get();
 				} else
-				if(cname == "military_title") {
-					temp.ptr = military_title.get();
-				} else
-				if(cname == "miltary_stockpile_button") {
-					temp.ptr = miltary_stockpile_button.get();
-				} else
 				{
 					std::string str_cname {cname};
 					auto found = scripted_elements.find(str_cname);
@@ -2423,9 +2128,6 @@ void budgetwindow_main_t::create_layout_level(sys::state& state, layout_level& l
 				generator_instance temp;
 				std::string_view cname = buffer.read<std::string_view>();
 				auto gen_details = buffer.read_section(); // ignored
-				if(cname == "military_table") {
-					temp.generator = &military_table;
-				}
 				if(cname == "income_table") {
 					temp.generator = &income_table;
 				}
@@ -2985,43 +2687,6 @@ void budgetwindow_main_t::on_create(sys::state& state) noexcept {
 			children.push_back(cptr);
 			pending_children.pop_back(); continue;
 		} else 
-		if(child_data.name == "military_title") {
-			military_title = std::make_unique<template_label>();
-			military_title->parent = this;
-			auto cptr = military_title.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
-		if(child_data.name == "miltary_stockpile_button") {
-			miltary_stockpile_button = std::make_unique<budgetwindow_main_miltary_stockpile_button_t>();
-			miltary_stockpile_button->parent = this;
-			auto cptr = miltary_stockpile_button.get();
-			cptr->base_data.position.x = child_data.x_pos;
-			cptr->base_data.position.y = child_data.y_pos;
-			cptr->base_data.size.x = child_data.x_size;
-			cptr->base_data.size.y = child_data.y_size;
-			cptr->template_id = child_data.template_id;
-			cptr->icon_id = child_data.icon_id;
-			if(child_data.tooltip_text_key.length() > 0)
-				cptr->default_tooltip = state.lookup_key(child_data.tooltip_text_key);
-			if(child_data.text_key.length() > 0)
-				cptr->default_text = state.lookup_key(child_data.text_key);
-			cptr->parent = this;
-			cptr->on_create(state);
-			children.push_back(cptr);
-			pending_children.pop_back(); continue;
-		} else 
 		if(child_data.name == ".tabincome_table") {
 			int16_t running_w_total = 0;
 			auto tbuffer = serialization::in_buffer(pending_children.back().data, pending_children.back().size);
@@ -3084,7 +2749,6 @@ void budgetwindow_main_t::on_create(sys::state& state) noexcept {
 		}
 		pending_children.pop_back();
 	}
-	military_table.on_create(state, this);
 	income_table.on_create(state, this);
 	espenses_table.on_create(state, this);
 	page_left_texture_key = win_data.page_left_texture;
@@ -5148,14 +4812,5 @@ std::unique_ptr<ui::element_base> make_budgetwindow_budget_header(sys::state& st
 	ptr->on_create(state);
 	return ptr;
 }
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
 // LOST-CODE
-// BEGIN main::debt_overlay::update
-//	set_visible(state, economy::interest_payment(state, state.local_player_nation) > 0);
-// END
-// BEGIN main::close_button::lbutton_action
-////////////////////////////////////////	parent->set_visible(state, false);
-// END
 }
