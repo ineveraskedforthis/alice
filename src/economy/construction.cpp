@@ -517,6 +517,10 @@ uint32_t construction_get_actual_construction_time(const sys::state& state, con_
 		return factory_building_construction_time(state, type, state.world.factory_construction_get_is_upgrade(con));
 	}
 }
+template uint32_t construction_get_actual_construction_time(const sys::state& state, dcon::province_land_construction_id);
+template uint32_t construction_get_actual_construction_time(const sys::state& state, dcon::province_naval_construction_id);
+template uint32_t construction_get_actual_construction_time(const sys::state& state, dcon::factory_construction_id);
+template uint32_t construction_get_actual_construction_time(const sys::state& state, dcon::province_building_construction_id);
 
 
 // govt construction demand needs to be added seperately as it is handled through national stockpiles
@@ -865,6 +869,10 @@ float construction_progress(const sys::state& state, con_type c) {
 
 	return construction_days_progress;
 }
+template float construction_progress(const sys::state&, dcon::province_land_construction_id);
+template float construction_progress(const sys::state&, dcon::province_naval_construction_id);
+template float construction_progress(const sys::state&, dcon::factory_construction_id);
+template float construction_progress(const sys::state&, dcon::province_building_construction_id);
 
 struct factory_construction_data {
 	bool can_be_advanced;

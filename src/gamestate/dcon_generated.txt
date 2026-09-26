@@ -5225,8 +5225,6 @@ object{
 		type{ vector_pool{500}{supply_route_path_id} }
 		tag { mp_checksum_excluded }
 	}
-}
-
 	property {
 		name{ demand_per_consumption_category }
 		type{ array{consumption_category_id}{float} }

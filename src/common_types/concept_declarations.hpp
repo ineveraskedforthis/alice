@@ -16,10 +16,11 @@ concept military_supply_route_type = std::is_same_v<T, dcon::army_supply_route_i
 									std::is_same_v<T, dcon::navy_supply_route_id>;
 
 template<typename T>
-concept construction_supply_route_type = std::is_same_v<T, dcon::land_construction_supply_route_id> ||
-										 std::is_same_v<T, dcon::naval_construction_supply_route_id> ||
-										 std::is_same_v<T, dcon::factory_construction_supply_route_id> ||
-										 std::is_same_v<T, dcon::building_construction_supply_route_id>;
+concept construction_supply_route_type =
+	std::is_same_v<T, dcon::land_construction_supply_route_id>
+	|| std::is_same_v<T, dcon::naval_construction_supply_route_id>
+	|| std::is_same_v<T, dcon::factory_construction_supply_route_id>
+	|| std::is_same_v<T, dcon::building_construction_supply_route_id>;
 
 template<typename T>
 concept supply_route_type = military_supply_route_type<T> || construction_supply_route_type<T>;
