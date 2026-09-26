@@ -20,7 +20,7 @@
 namespace effect {
 
 #define EFFECT_PARAMTERS                                                                                                         \
-	uint16_t const *tval, sys::state &ws, int32_t primary_slot, int32_t this_slot, int32_t from_slot, uint32_t r_hi, uint32_t r_lo, bool& els
+	uint16_t const *tval, sys::state &ws, int32_t primary_slot, int32_t this_slot, int32_t from_slot, uint32_t r_lo, uint32_t r_hi, bool& els
 
 uint32_t internal_execute_effect(EFFECT_PARAMTERS);
 
@@ -328,22 +328,19 @@ uint32_t es_x_country_scope_nation(EFFECT_PARAMTERS) {
 }
 uint32_t es_x_event_country_scope_nation(EFFECT_PARAMTERS) {
 	if((tval[0] & effect::is_random_scope) != 0) {
-		std::vector<dcon::nation_id> rlist;
+		dcon::nation_id affected_nation;
 		if((tval[0] & effect::scope_has_limit) != 0) {
 			auto limit = trigger::payload(tval[2]).tr_id;
-			for(auto n : ws.world.in_nation) {
-				if(n != trigger::to_nation(primary_slot) && trigger::evaluate(ws, limit, trigger::to_generic(n.id), this_slot, from_slot))
-					rlist.push_back(n.id);
-			}
+			affected_nation = nations::get_random_nation(ws, r_hi, r_lo, [&](dcon::nation_id n) {
+				return nations::exists(ws, n) && n != trigger::to_nation(primary_slot) && trigger::evaluate(ws, limit, trigger::to_generic(n), this_slot, from_slot);
+			});
 		} else {
-			for(auto n : ws.world.in_nation) {
-				if(n != trigger::to_nation(primary_slot))
-					rlist.push_back(n.id);
-			}
+			affected_nation = nations::get_random_nation(ws, r_hi, r_lo, [&](dcon::nation_id n) {
+				return nations::exists(ws, n) && n != trigger::to_nation(primary_slot);
+			});
 		}
-		if(rlist.size() != 0) {
-			auto r = rng::get_random(ws, r_hi, r_lo) % rlist.size();
-			return 1 + apply_subeffects(tval, ws, trigger::to_generic(rlist[r]), this_slot, from_slot, r_hi, r_lo + 1, els);
+		if(affected_nation) {
+			return 1 + apply_subeffects(tval, ws, trigger::to_generic(affected_nation), this_slot, from_slot, r_hi, r_lo + 1, els);
 		}
 		return 0;
 	} else {
@@ -351,12 +348,12 @@ uint32_t es_x_event_country_scope_nation(EFFECT_PARAMTERS) {
 		if((tval[0] & effect::scope_has_limit) != 0) {
 			auto limit = trigger::payload(tval[2]).tr_id;
 			for(auto n : ws.world.in_nation) {
-				if(n != trigger::to_nation(primary_slot) && trigger::evaluate(ws, limit, trigger::to_generic(n.id), this_slot, from_slot))
+				if(nations::exists(ws, n) && n != trigger::to_nation(primary_slot) && trigger::evaluate(ws, limit, trigger::to_generic(n.id), this_slot, from_slot))
 					i += apply_subeffects(tval, ws, trigger::to_generic(n.id), this_slot, from_slot, r_hi, r_lo + i, els);
 			}
 		} else {
 			for(auto n : ws.world.in_nation) {
-				if(n != trigger::to_nation(primary_slot))
+				if(nations::exists(ws, n) && n != trigger::to_nation(primary_slot))
 					i += apply_subeffects(tval, ws, trigger::to_generic(n.id), this_slot, from_slot, r_hi, r_lo + i, els);
 			}
 		}
@@ -4766,18 +4763,51 @@ uint32_t ef_scaled_consciousness_province_unemployment(EFFECT_PARAMTERS) {
 	return 0;
 }
 uint32_t ef_variable_good_name(EFFECT_PARAMTERS) {
-	auto amount = trigger::read_float_from_payload(tval + 2);
+
+	auto nation = trigger::to_nation(primary_slot);
+	auto capital_prov = ws.world.nation_get_capital(nation);
+	auto capital_state = ws.world.province_get_state_membership(capital_prov);
+	auto capital_market = ws.world.state_instance_get_market_from_local_market(capital_state);
+	assert(capital_prov);
+	auto amount  = trigger::read_float_from_payload(tval + 2);
+	auto commodity = trigger::payload(tval[1]).com_id;
 	assert(std::isfinite(amount));
-	auto& v = ws.world.nation_get_stockpiles(trigger::to_nation(primary_slot), trigger::payload(tval[1]).com_id);
-	ws.world.nation_set_stockpiles(trigger::to_nation(primary_slot), trigger::payload(tval[1]).com_id, std::max(v + amount, 0.0f));
+	if(amount > 0.0f) {
+		// Add to capital stockpile
+		economy::add_government_stockpile(ws, nation, capital_market, commodity, amount);
+	}
+	else {
+		// Walk though state stockpiles starting from the capital and consume from them since the amount to be "gained" is negative. We dont care about the satisfaction rate and simply try to remove as much of the commodities as required
+		static std::vector<dcon::state_instance_id> closest_stockpiles;
+		closest_stockpiles.clear();
+		economy::get_closest_available_market_states(ws, closest_stockpiles, nation, capital_prov);
+
+		economy::commodity_set to_consume{ };
+		to_consume.commodity_type[0] = commodity;
+		to_consume.commodity_amounts[0] = std::abs(amount);
+		economy::consume_from_government_stockpiles(ws, to_consume, closest_stockpiles, capital_prov, nation);
+	}
+
+
 	return 0;
 }
 uint32_t ef_variable_good_name_province(EFFECT_PARAMTERS) {
-	auto amount = trigger::read_float_from_payload(tval + 2);
-	assert(std::isfinite(amount));
-	if(auto owner = ws.world.province_get_nation_from_province_ownership(trigger::to_prov(primary_slot)); owner) {
-		auto& v = ws.world.nation_get_stockpiles(owner, trigger::payload(tval[1]).com_id);
-		ws.world.nation_set_stockpiles(owner, trigger::payload(tval[1]).com_id, std::max(v + amount, 0.0f));
+	auto prov = trigger::to_prov(primary_slot);
+	if(auto owner = ws.world.province_get_nation_from_province_ownership(prov); owner) {
+		auto prov_state = ws.world.province_get_state_membership(prov);
+		auto state_controller = ws.world.state_instance_get_nation_from_state_control(prov_state);
+		auto prov_market = ws.world.state_instance_get_market_from_local_market(prov_state);
+		auto amount = trigger::read_float_from_payload(tval + 2);
+		auto commodity = trigger::payload(tval[1]).com_id;
+		assert(std::isfinite(amount));
+		if(state_controller) {
+			// Add to market
+			(amount > 0.0f ? economy::add_government_stockpile(ws, state_controller, prov_market, commodity, amount) : economy::subtract_government_stockpile(ws, state_controller, prov_market, commodity, amount));
+		}
+		else {
+			(amount > 0.0f ? economy::add_rebel_stockpile(ws, prov_market, commodity, amount) : economy::subtract_rebel_stockpile(ws, prov_market, commodity, amount));
+		}
+
 	}
 	return 0;
 }

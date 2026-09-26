@@ -729,6 +729,8 @@ std::vector<uint32_t> players_map_from(sys::state& state) {
 }
 
 #include "gui_element_types.hpp"
+#include <province_templates.hpp>
+#include <supply_route.hpp>
 
 std::vector<uint32_t> select_states_map_from(sys::state& state) {
 	uint32_t province_size = state.world.province_size();
@@ -784,6 +786,345 @@ std::vector<uint32_t> select_national_identity_map_from(sys::state& state) {
 	return prov_color;
 }
 
+std::vector<uint32_t> supply_loss_map_from(sys::state& state) {
+	uint32_t province_size = state.world.province_size();
+	uint32_t texture_size = province_size + 256 - province_size % 256;
+
+	std::vector<uint32_t> prov_color(texture_size * 2);
+
+	auto selected = state.map_state.selected_province;
+	auto for_nation = state.world.province_get_nation_from_province_ownership(selected);
+	if(for_nation) {
+		float mx = 0.0f;
+		float mn = 99999999.0f;
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto v = supply_routes::calculate_supply_loss_in_province(state, p.get_province(), state.local_player_nation);
+			mn = std::min(mn, v);
+			mx = std::max(mx, v);
+		}
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto v =  supply_routes::calculate_supply_loss_in_province(state, p.get_province(), state.local_player_nation);
+
+			uint32_t color = [&]() {
+				if(mx > mn) {
+					return ogl::color_gradient((v - mn) / (mx - mn),
+					sys::pack_color(247, 15, 15),	// from red
+					sys::pack_color(46, 247, 15)	// to green
+					);
+				}
+				else {
+					return sys::pack_color(46, 247, 15); // Just green if all provinces have the same value
+				}
+			}();
+			auto i = province::to_map_id(p.get_province());
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+		}
+		
+	} else {
+		float mx = 0.0f;
+		float mn = 99999999.0f;
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			auto v = supply_routes::calculate_supply_loss_in_province(state, prov, state.local_player_nation);
+			mn = std::min(mn, v);
+			mx = std::max(mx, v);
+		});
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			auto v = supply_routes::calculate_supply_loss_in_province(state, prov, state.local_player_nation);
+
+			uint32_t color = [&]() {
+				if(mx > mn) {
+					return ogl::color_gradient((v - mn) / (mx - mn),
+					sys::pack_color(247, 15, 15),	// from red
+					sys::pack_color(46, 247, 15)	// to green
+					);
+				} else {
+					return sys::pack_color(46, 247, 15); // Just green if all provinces have the same value
+				}
+			}();
+			auto i = province::to_map_id(prov);
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+
+		});
+
+	}
+	return prov_color;
+}
+
+
+
+
+std::vector<uint32_t> supply_throughput_map_from(sys::state& state) {
+	uint32_t province_size = state.world.province_size();
+	uint32_t texture_size = province_size + 256 - province_size % 256;
+
+	std::vector<uint32_t> prov_color(texture_size * 2);
+
+	auto selected = state.map_state.selected_province;
+	auto for_nation = state.world.province_get_nation_from_province_ownership(selected);
+	if(for_nation) {
+		float mx = 0.0f;
+		float mn = 1.0f;
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto v = supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation);
+			mn = std::min(mn, v);
+			mx = std::max(mx, v);
+		}
+
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto v = supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation);
+
+			uint32_t color = [&]() {
+				if(mx > mn) {
+					return ogl::color_gradient((v - mn) / (mx - mn),
+					sys::pack_color(46, 247, 15),	// to green
+					sys::pack_color(247, 15, 15)	// from red
+					);
+				}
+				else {
+					return sys::pack_color(46, 247, 15); // return green if all values are the same
+				}
+			}();
+			auto i = province::to_map_id(p.get_province());
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+		}
+		
+	} else {
+		float mx = 0.0f;
+		float mn = 1.0f;
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			auto v = supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation);
+			mn = std::min(mn, v);
+			mx = std::max(mx, v);
+		});
+
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			auto v = supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation);
+
+			uint32_t color = [&]() {
+				if(mx > mn) {
+					return ogl::color_gradient((v - mn) / (mx - mn),
+					sys::pack_color(46, 247, 15),	// to green
+					sys::pack_color(247, 15, 15)	// from red
+					);
+				} else {
+					return sys::pack_color(46, 247, 15); // return green if all values are the same
+				}
+			}();
+			auto i = province::to_map_id(prov);
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+
+		});
+		
+	}
+	return prov_color;
+}
+
+
+std::vector<uint32_t> port_supply_capacity_map_from(sys::state& state) {
+	uint32_t province_size = state.world.province_size();
+	uint32_t texture_size = province_size + 256 - province_size % 256;
+
+	std::vector<uint32_t> prov_color(texture_size * 2);
+
+	auto selected = state.map_state.selected_province;
+	auto for_nation = state.world.province_get_nation_from_province_ownership(selected);
+	if(for_nation) {
+		float mx = 0.0f;
+		float mn = 1.0f;
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			// Only include ports in the min/max gradient
+			if(province::is_port(state, p.get_province())) {
+				auto v = supply_routes::port_supply_capacity_in_province(state, p.get_province(), state.local_player_nation);
+				mn = std::min(mn, v);
+				mx = std::max(mx, v);
+			}
+		}
+
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto i = province::to_map_id(p.get_province());
+			// Non-port provinces are blacked out
+			if(province::is_port(state, p.get_province())) {
+				auto v = supply_routes::port_supply_capacity_in_province(state, p.get_province(), state.local_player_nation);
+
+				uint32_t color = [&]() {
+					if(mx > mn) {
+						return ogl::color_gradient((v - mn) / (mx - mn),
+						sys::pack_color(46, 247, 15),	// to green
+						sys::pack_color(247, 15, 15)	// from red
+						);
+					} else {
+						return sys::pack_color(46, 247, 15); // return green if all values are the same
+					}
+					}();
+				prov_color[i] = color;
+				prov_color[i + texture_size] = color;
+			}
+			else {
+				prov_color[i] = sys::pack_color(0, 0, 0);
+				prov_color[i + texture_size] = sys::pack_color(0, 0, 0);
+			}
+		}
+
+	} else {
+		float mx = 0.0f;
+		float mn = 1.0f;
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			// Only include ports in the min/max gradient
+			if(province::is_port(state, prov)) {
+				auto v = supply_routes::port_supply_capacity_in_province(state, prov, state.local_player_nation);
+				mn = std::min(mn, v);
+				mx = std::max(mx, v);
+			}
+		});
+
+		province::for_each_land_province(state, [&](dcon::province_id prov) {
+			auto i = province::to_map_id(prov);
+			// Non-port provinces are blacked out
+			if(province::is_port(state, prov)) {
+				auto v = supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation);
+				uint32_t color = [&]() {
+					// Non-port provinces are blacked out
+					if(!province::is_port(state, prov)) {
+						return sys::pack_color(0, 0, 0);
+					}
+					if(mx > mn) {
+						return ogl::color_gradient((v - mn) / (mx - mn),
+						sys::pack_color(46, 247, 15),	// to green
+						sys::pack_color(247, 15, 15)	// from red
+						);
+					} else {
+						return sys::pack_color(46, 247, 15); // return green if all values are the same
+					}
+					}();
+				prov_color[i] = color;
+				prov_color[i + texture_size] = color;
+			}
+			else {
+				prov_color[i] = sys::pack_color(0, 0, 0);
+				prov_color[i + texture_size] = sys::pack_color(0, 0, 0);
+			}
+
+
+
+		});
+
+	}
+	return prov_color;
+}
+
+// Province is green when high efficiency, red when low. Adjacencies with 0 available throughput are ignored
+std::vector<uint32_t> supply_route_efficiency_map_from(sys::state& state) {
+	uint32_t province_size = state.world.province_size();
+	uint32_t texture_size = province_size + 256 - province_size % 256;
+
+	std::vector<uint32_t> prov_color(texture_size * 2);
+
+	auto selected = state.map_state.selected_province;
+	auto for_nation = state.world.province_get_nation_from_province_ownership(selected);
+	float mx_eff = 0.0f;
+	float mn_eff = 1.0f;
+	if(for_nation) {
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+			auto prov = p.get_province();
+			for(auto adj : prov.get_province_adjacency()) {
+				auto indx = (adj.get_connected_provinces(0).id != prov ? 0 : 1);
+				auto adj_prov = adj.get_connected_provinces(indx);
+				auto available_throughput = supply_routes::calculate_effective_supply_throughput_in_adjacency(state, adj, state.local_player_nation);
+				// Only include if they have greater than 0 throughput
+				if(available_throughput > 0.0f) {
+					auto eff = supply_routes::effective_supply_throughput_efficiency(state, adj, state.local_player_nation);
+
+					mn_eff = std::min(mn_eff, eff);
+					mx_eff = std::max(mx_eff, eff);
+				}
+			}
+		}
+
+		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
+
+			float eff = 1.0f;
+			auto prov = p.get_province();
+			for(auto adj : prov.get_province_adjacency()) {
+				auto indx = (adj.get_connected_provinces(0).id != prov ? 0 : 1);
+				auto adj_prov = adj.get_connected_provinces(indx);
+				auto available_throughput = supply_routes::calculate_effective_supply_throughput_in_adjacency(state, adj, state.local_player_nation);
+				if(available_throughput > 0.0f) {
+					eff = std::min(supply_routes::effective_supply_throughput_efficiency(state, adj, state.local_player_nation), eff);
+				}
+			}
+
+			uint32_t color = [&]() {
+				if(mx_eff > mn_eff) {
+					return ogl::color_gradient((eff - mn_eff) / (mx_eff - mn_eff),
+					sys::pack_color(46, 247, 15),	// to green
+					sys::pack_color(247, 15, 15)	// from red
+					);
+				}
+				else {
+					return sys::pack_color(46, 247, 15); // green if all land values are the same
+				}
+			}();
+
+			auto i = province::to_map_id(p.get_province());
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+			
+		}
+	} else {
+		province::for_each_land_province(state, [&](dcon::province_id p) {
+			auto prov = fatten(state.world, p);
+			for(auto adj : prov.get_province_adjacency()) {
+				auto indx = (adj.get_connected_provinces(0).id != prov ? 0 : 1);
+				auto adj_prov = adj.get_connected_provinces(indx);
+				auto available_throughput = supply_routes::calculate_effective_supply_throughput_in_adjacency(state, adj, state.local_player_nation);
+				if(available_throughput > 0.0f) {
+					auto eff = supply_routes::effective_supply_throughput_efficiency(state, adj, state.local_player_nation);
+					mn_eff = std::min(mn_eff, eff);
+					mx_eff = std::max(mx_eff, eff);
+				}
+			}
+		});
+		province::for_each_land_province(state, [&](dcon::province_id p) {
+			auto eff = 1.0f;
+
+			auto prov = fatten(state.world, p);
+			for(auto adj : prov.get_province_adjacency()) {
+				auto indx = (adj.get_connected_provinces(0).id != prov ? 0 : 1);
+				auto adj_prov = adj.get_connected_provinces(indx);
+				auto available_throughput = supply_routes::calculate_effective_supply_throughput_in_adjacency(state, adj, state.local_player_nation);
+				if(available_throughput > 0.0f) {
+					eff = std::min(supply_routes::effective_supply_throughput_efficiency(state, adj, state.local_player_nation), eff);
+				}
+			}
+
+			uint32_t color = [&]() {
+				if(mx_eff > mn_eff) {
+					return ogl::color_gradient((eff - mn_eff) / (mx_eff - mn_eff),
+					sys::pack_color(46, 247, 15),	// to green
+					sys::pack_color(247, 15, 15)	// from red
+					);
+				} else {
+					return sys::pack_color(46, 247, 15); // green if all land values are the same
+				}
+			}();
+			auto i = province::to_map_id(prov);
+			prov_color[i] = color;
+			prov_color[i + texture_size] = color;
+
+		});
+		
+	}
+	return prov_color;
+}
+
+
+
+
+
 namespace map_mode {
 
 void set_map_mode(sys::state& state, mode mode) {
@@ -814,6 +1155,10 @@ void set_map_mode(sys::state& state, mode mode) {
 		case map_mode::mode::officers:
 		case map_mode::mode::life_rating:
 		case map_mode::mode::clerk_to_craftsmen_ratio:
+		case map_mode::mode::supply_loss:
+		case map_mode::mode::supply_throughput:
+		case map_mode::mode::port_supply_capacity:
+		case map_mode::mode::supply_route_efficiency:
 			if(state.ui_state.map_gradient_legend)
 				state.ui_state.map_gradient_legend->set_visible(state, true);
 			break;
@@ -1011,6 +1356,18 @@ void set_map_mode(sys::state& state, mode mode) {
 		break;
 	case mode::workforce:
 		prov_color = workforce_map_from(state);
+		break;
+	case mode::supply_loss:
+		prov_color = supply_loss_map_from(state);
+		break;
+	case mode::supply_throughput:
+		prov_color = supply_throughput_map_from(state);
+		break;
+	case mode::port_supply_capacity:
+		prov_color = port_supply_capacity_map_from(state);
+		break;
+	case mode::supply_route_efficiency:
+		prov_color = supply_route_efficiency_map_from(state);
 		break;
 	default:
 		return;

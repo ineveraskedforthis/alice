@@ -294,12 +294,12 @@ void create_in_game_windows(sys::state& state) {
 		state.ui_state.root->add_child_to_front(std::move(new_elm));
 	}
 	{
-		auto new_elm_army = ui::make_element_by_type<ui::unit_details_window<dcon::army_id>>(state, "sup_unit_status");
+		auto new_elm_army = ui::make_element_by_type<ui::unit_details_window<dcon::army_id>>(state, "alice_army_group_panel");
 		state.ui_state.army_status_window = static_cast<ui::unit_details_window<dcon::army_id>*>(new_elm_army.get());
 		new_elm_army->set_visible(state, false);
 		state.ui_state.root->add_child_to_front(std::move(new_elm_army));
 
-		auto new_elm_navy = ui::make_element_by_type<ui::unit_details_window<dcon::navy_id>>(state, "sup_unit_status");
+		auto new_elm_navy = ui::make_element_by_type<ui::unit_details_window<dcon::navy_id>>(state, "alice_army_group_panel");
 		state.ui_state.navy_status_window = static_cast<ui::unit_details_window<dcon::navy_id>*>(new_elm_navy.get());
 		new_elm_navy->set_visible(state, false);
 		state.ui_state.root->add_child_to_front(std::move(new_elm_navy));

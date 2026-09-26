@@ -5632,7 +5632,7 @@ TRIGGER_FUNCTION(tf_variable_pop_type_name_pop) {
 }
 TRIGGER_FUNCTION(tf_variable_good_name) {
 	auto good = payload(tval[1]).com_id;
-	auto amount = ws.world.nation_get_stockpiles(to_nation(primary_slot), good);
+	auto amount = ws.world.nation_get_total_stockpiles(to_nation(primary_slot), good);
 	return compare_values(tval[0], amount, read_float_from_payload(tval + 2));
 }
 TRIGGER_FUNCTION(tf_religion_nation) {

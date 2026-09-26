@@ -388,8 +388,13 @@ int main(int argc, char* argv[]) {
 				output += "\" :s live? " + ob.name + "_id s: true ; \"\n";
 			}
 
+			// Add new "result +=" after 30 properites or sub-objects has been added, to prevent stack warnings on the compiler
+			uint32_t added_properties = 0;
 			for(auto& p : ob.properties) {
-
+				if(added_properties == 30) {
+					output += "; result += \"\" \n";
+					added_properties = 0;
+				}
 				std::string property_type = p.data_type;
 				bool known = known_as_fif_type(p.data_type);
 				auto d_type = type_to_fif_type(p.data_type);
@@ -427,10 +432,15 @@ int main(int argc, char* argv[]) {
 				} else {
 					output += "\" :s " + p.name + " " + ob.name + "_id s: >index \" + std::to_string(sizeof(" + property_type + ")) + \" * " + offset_of_member_container(ob.name, p.name) + " + data-container @ buf-add ptr-cast ptr(" + (known ? d_type : std::string("nil")) + ") ; \"\n";
 				}
+				added_properties++;
 			} //end non relationship members
 
 			// begin relationship members
 			for(auto& i : ob.indexed_objects) {
+				if(added_properties == 30) {
+					output += "; result += \"\" \n";
+					added_properties = 0;
+				}
 				if(ob.primary_key == i) {
 					output += "\" :s " + i.property_name + " " + ob.name + "_id s: >index >" + i.type_name + "_id ; \"\n";
 				} else {
@@ -466,6 +476,7 @@ int main(int argc, char* argv[]) {
 						output += "\" :s " + ob.name + "-" + i.property_name + " " + i.type_name + "_id s: >index \" + std::to_string(sizeof(dcon::" + ob.name + "_id)) + \" * " + offset_of_member_container(ob.name, std::string("link_back_") + i.property_name) + " + data-container @ buf-add ptr-cast ptr(" + ob.name + "_id) make-index-view ; \"\n";
 					}
 				}
+				added_properties++;
 			} // end relationship members
 
 

@@ -6,6 +6,8 @@
 #include "economy_production.hpp"
 #include "economy_stats.hpp"
 #include "province.hpp"
+#include "supply_route.hpp"
+#include "gui_modifier_tooltips.hpp"
 
 namespace ui {
 
@@ -846,6 +848,115 @@ void migration_map_tt_box(sys::state& state, text::columnar_layout& contents, dc
 		}
 	}
 }
+
+
+
+
+void supply_loss_map_tt_box(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
+	if(prov) {
+		country_name_box(state, contents, prov);
+		auto local_nation = state.local_player_nation;
+		auto is_sea = province::is_sea(state, prov);
+		auto fat = dcon::fatten(state.world, prov);
+		float total = state.world.nation_get_prov_supply_loss_cache(local_nation, prov);
+		bool header = false;
+		text::add_line(state, contents, "supply_loss_total_tooltip", text::variable_type::value, text::fp_one_place{ total }, 0);
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_loss_add, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_loss_add, header);
+		} else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_loss_add, header);
+		}
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_loss_percent, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_loss_percent, header);
+		} else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_loss_percent, header);
+		}
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_loss_mul, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_loss_mul, header);
+		} else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_loss_mul, header);
+		}
+	}
+		
+}
+
+
+void supply_throughput_map_tt_box(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
+	if(prov) {
+		country_name_box(state, contents, prov);
+		auto local_nation = state.local_player_nation;
+		auto is_sea = province::is_sea(state, prov);
+		auto fat = dcon::fatten(state.world, prov);
+		bool header = false;
+		float total = state.world.nation_get_prov_supply_throughput_cache(local_nation, prov);
+		text::add_line(state, contents, "supply_throughput_total_tooltip", text::variable_type::value, text::fp_two_places{ total }, 0);
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_throughput_add, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_throughput_add, header);
+		}
+		else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_throughput_add, header);
+		}
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_throughput_percent, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_throughput_percent, header);
+		} else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_throughput_percent, header);
+		}
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::supply_throughput_mul, header);
+		if(is_sea) {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_naval_supply_throughput_mul, header);
+		} else {
+			ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_land_supply_throughput_mul, header);
+		}
+	}
+}
+
+void supply_route_efficiency_map_tt_box(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
+	if(prov) {
+		country_name_box(state, contents, prov);
+		text::add_line(state, contents, "supply_efficiency_header_tooltip");
+		auto fat = dcon::fatten(state.world, prov);
+		for(auto adj : fat.get_province_adjacency()) {
+			auto indx = (adj.get_connected_provinces(0).id != prov ? 0 : 1);
+			auto adj_prov = adj.get_connected_provinces(indx);
+			bool is_coastal_adj = (state.world.province_adjacency_get_type(adj) & province::border::coastal_bit) != 0;
+			// Only include provinces in the tooltip which are either not coastal border (land -> land or sea -> sea) and potentially lower displayed throughput if the province is a port
+			if(!is_coastal_adj || province::is_port_connected_to(state, prov, adj_prov) || province::is_port_connected_to(state, adj_prov, prov)) {
+				float available_throughput = supply_routes::calculate_effective_supply_throughput_in_adjacency(state, adj, state.local_player_nation);
+				float used_throughput = adj.get_used_supply_throughput();
+				float sup_efficiency = supply_routes::effective_supply_throughput_efficiency(state, adj, state.local_player_nation);
+				text::add_line(state, contents, "supply_efficiency_adjacency_tooltip", text::variable_type::prov, adj_prov.get_name(), text::variable_type::value, text::fp_one_place{ available_throughput }, text::variable_type::val, text::fp_one_place{ used_throughput }, text::variable_type::x, text::fp_percentage{ sup_efficiency }, 8);
+			}
+
+		}
+	}
+}
+
+void port_supply_capacity_map_tt_box(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {
+	if(prov && province::is_port(state, prov)) {
+		country_name_box(state, contents, prov);
+		auto local_nation = state.local_player_nation;
+		auto is_sea = province::is_sea(state, prov);
+		auto fat = dcon::fatten(state.world, prov);
+		bool header = false;
+		float total = supply_routes::port_supply_capacity_in_province(state, prov, local_nation);
+		text::add_line(state, contents, "port_supply_capacity_total_tooltip", text::variable_type::value, text::fp_two_places{ total }, 0);
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::port_supply_capacity_add, header);
+		ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_port_supply_capacity_add, header);
+
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::port_supply_capacity_percent, header);
+		ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_port_supply_capacity_percent, header);
+
+		ui::active_modifiers_description(state, contents, prov, 8, sys::provincial_mod_offsets::port_supply_capacity_mul, header);
+		ui::active_modifiers_description(state, contents, local_nation, 8, sys::national_mod_offsets::national_port_supply_capacity_mul, header);
+	}
+}
+
+
 
 void civilsation_level_map_tt_box(sys::state& state, text::columnar_layout& contents, dcon::province_id prov) {    //Done
 	auto fat = dcon::fatten(state.world, prov);
@@ -1707,6 +1818,18 @@ void populate_map_tooltip(sys::state& state, text::columnar_layout& contents, dc
 		break;
 	case map_mode::mode::workforce:
 		workforce_map_tt_box(state, contents, prov);
+		break;
+	case map_mode::mode::supply_loss:
+		supply_loss_map_tt_box(state, contents, prov);
+		break;
+	case map_mode::mode::supply_throughput:
+		supply_throughput_map_tt_box(state, contents, prov);
+		break;
+	case map_mode::mode::port_supply_capacity:
+		port_supply_capacity_map_tt_box(state, contents, prov);
+		break;
+	case map_mode::mode::supply_route_efficiency:
+		supply_route_efficiency_map_tt_box(state, contents, prov);
 		break;
 	default:
 		break;

@@ -348,13 +348,39 @@ float supply(
 	state.world.nation_for_each_state_ownership(s, [&](auto soid) {
 		auto sid = state.world.state_ownership_get_state(soid);
 		auto market = state.world.state_instance_get_market_from_local_market(sid);
-
 		auto local_supply = state.world.market_get_supply(market, c);
 		total_supply += local_supply;
 	});
 
 	return total_supply; //- domestic_trade_volume(state, s, c);
 }
+
+float production(
+	sys::state& state,
+	dcon::market_id s,
+	dcon::commodity_id c
+) {
+	return supply(state, s, c) - trade_supply(state, s ,c);
+}
+
+float production(
+	sys::state& state,
+	dcon::nation_id s,
+	dcon::commodity_id c
+) {
+	auto total_production = 0.f;
+	state.world.nation_for_each_state_ownership(s, [&](auto soid) {
+		auto sid = state.world.state_ownership_get_state(soid);
+		auto market = state.world.state_instance_get_market_from_local_market(sid);
+		auto local_production = production(state, market, c);
+		total_production += local_production;
+	});
+
+	return total_production;
+}
+
+
+
 
 float domestic_trade_volume(
 	sys::state const& state,
