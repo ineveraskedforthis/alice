@@ -865,25 +865,22 @@ std::vector<uint32_t> supply_throughput_map_from(sys::state& state) {
 	auto for_nation = state.world.province_get_nation_from_province_ownership(selected);
 	if(for_nation) {
 		float mx = 0.0f;
-		float mn = 1.0f;
+		float mn = 0.0f;
 		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
-			auto v = supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation);
+			auto v = log(1.f + supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation));
 			mn = std::min(mn, v);
 			mx = std::max(mx, v);
 		}
 
 		for(auto p : state.world.nation_get_province_ownership(for_nation)) {
-			auto v = supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation);
+			auto v = log(1.f + supply_routes::calculate_supply_throughput_in_province(state, p.get_province(), state.local_player_nation));
 
 			uint32_t color = [&]() {
 				if(mx > mn) {
-					return ogl::color_gradient((v - mn) / (mx - mn),
-					sys::pack_color(46, 247, 15),	// to green
-					sys::pack_color(247, 15, 15)	// from red
-					);
+					return ogl::color_gradient_hawaii((v - mn) / (mx - mn));
 				}
 				else {
-					return sys::pack_color(46, 247, 15); // return green if all values are the same
+					return ogl::color_gradient_hawaii(1.f); // return green if all values are the same
 				}
 			}();
 			auto i = province::to_map_id(p.get_province());
@@ -893,24 +890,21 @@ std::vector<uint32_t> supply_throughput_map_from(sys::state& state) {
 		
 	} else {
 		float mx = 0.0f;
-		float mn = 1.0f;
+		float mn = 0.0f;
 		province::for_each_land_province(state, [&](dcon::province_id prov) {
-			auto v = supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation);
+			auto v = log(1.f + supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation));
 			mn = std::min(mn, v);
 			mx = std::max(mx, v);
 		});
 
 		province::for_each_land_province(state, [&](dcon::province_id prov) {
-			auto v = supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation);
+			auto v = log(1.f + supply_routes::calculate_supply_throughput_in_province(state, prov, state.local_player_nation));
 
 			uint32_t color = [&]() {
 				if(mx > mn) {
-					return ogl::color_gradient((v - mn) / (mx - mn),
-					sys::pack_color(46, 247, 15),	// to green
-					sys::pack_color(247, 15, 15)	// from red
-					);
+					return ogl::color_gradient_hawaii((v - mn) / (mx - mn));
 				} else {
-					return sys::pack_color(46, 247, 15); // return green if all values are the same
+					return ogl::color_gradient_hawaii(1.f); // return green if all values are the same
 				}
 			}();
 			auto i = province::to_map_id(prov);

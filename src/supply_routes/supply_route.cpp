@@ -10,6 +10,7 @@
 #include "economy_templates.hpp"
 #include "military_templates.hpp"
 #include "nations_templates.hpp"
+#include "advanced_province_buildings.hpp"
 
 namespace supply_routes {
 
@@ -901,7 +902,13 @@ float calculate_supply_throughput_in_province(const sys::state& state, dcon::pro
 		float add_modifiers = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_throughput_add) + nation_add_mod;
 		float percent_modifiers = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_throughput_percent) + nation_percent_mod + 1.0f;
 		float mult_modifiers = access_mul_mod * hostile_armies_mul_mod * state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::supply_throughput_mul) * nation_mul_mod;
-		return std::max(add_modifiers * percent_modifiers * mult_modifiers, 0.0f);
+		float max_attrition = state.world.province_get_modifier_values(province, sys::provincial_mod_offsets::max_attrition);
+		float cities = state.world.province_get_advanced_province_building_max_private_size(province, advanced_province_buildings::list::local_cities_and_towns);
+		float pop = state.world.province_get_demographics(province, demographics::total);
+		float area  = state.map_state.map_data.province_area_km2[province::to_map_id(province)];
+		auto river = state.world.province_get_has_minor_river(province) || state.world.province_get_has_major_river(province);
+		auto coastal = province::is_port(state, province);
+		return std::max(add_modifiers * percent_modifiers * mult_modifiers + (is_sea ? 0.f : (pop / (area + 1.f) + cities / 5000.f + (coastal ? 5.f : 0.f) + (river ? 5.f : 0.f) - 5.f - (float)max_attrition)), 0.0f);
 	}
 	else {
 		return 0.0f;
