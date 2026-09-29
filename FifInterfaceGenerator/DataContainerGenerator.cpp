@@ -318,63 +318,23 @@ int main(int argc, char* argv[]) {
 		// TODO make content string
 		//
 
-		output += "std::string container_interface() {\n";
-		output += "std::string result;\n";
-		output += "result += \"\" \n";
-
-		output += "\" ptr(nil) global data-container \"\n";
-		output += "\" : set-container data-container ! ; \"\n";
-		output += "\" ptr(nil) global vector-storage \"\n";
-		output += "\" : set-vector-storage vector-storage ! ; \"\n";
-		output += "\" :export set_container ptr(nil) set-container ;  \"\n";
-		output += "\" :export set_vector_storage ptr(nil) set-vector-storage ;  \"\n";
-		output += "\" :struct bit-proxy i32 bit ptr(i8) byte ; \"\n";
-		output += "\" :struct index-view ptr($0) wrapped ; \"\n";
-		output += "\" :s @ index-view($0) s: .wrapped @ ; \"\n";
-		output += "\" :s make-index-view ptr($0) s: make index-view($0) .wrapped! ; \"\n";
-		output += "\" :s ! bool bit-proxy s: .byte@ let byte .bit let bit let arg 1 bit shl not byte @ >i32 and arg >i32 bit shl or >i8 byte ! ; \"\n";
-		output += "\" :s @ bit-proxy s: .byte@ let byte .bit let bit byte @ >i32 bit shr 1 and >bool ; \"\n";
-		output += "\" :s >index i32 s:  ; \"\n"; // nop
-		output += "\" :s >index u32 s: >i32 ; \"\n";
-		output += "\" :s >index i16 s: >i32 ; \"\n";
-		output += "\" :s >index u16 s: >i32 ; \"\n";
-		output += "\" :s >index i8 s: >i32 ; \"\n";
-		output += "\" :s >index u8 s: >i32 ; \"\n";
-		output += "\" :s >index i64 s: >i32 ; \"\n";
-		output += "\" :s >index u64 s: >i32 ; \"\n";
-
-		//
-		//
-
-
 		std::set<std::string> made_types;
 
-		//id types definitions
 		for(auto& ob : parsed_file.relationship_objects) {
-			output += "; result += \"\" \n";
 			const auto underlying_type = ob.is_expandable ? std::string("uint32_t") : size_to_tag_type(ob.size);
-			//id class begin
-			output += make_id_definition(ob.name + "_id", underlying_type);
+			output += "std::string container_interface_" + ob.name + "_id() { return \"\" \n" + make_id_definition(ob.name + "_id", underlying_type) + ";}\n";
 			made_types.insert(ob.name + "_id");
 		}
+
 		for(auto& mi : parsed_file.extra_ids) {
-			output += "; result += \"\" \n";
-			output += make_id_definition(mi.name, mi.base_type);
+			output += "std::string container_interface_" + mi.name + "_id_extra() { return \"\" \n" + make_id_definition(mi.name, mi.base_type) + ";}\n";
 			made_types.insert(mi.name);
 		}
-
-
-		//
-		// class members == dcon::internal:: .... _class
-		//
-
-
-		//write internal classes
 
 		for(auto& ob : parsed_file.relationship_objects) {
 			//predeclare helpers
 
-			output += "; result += \"\" \n";
+			output += "std::string container_interface_" + ob.name + "_helper()\n{std::string result = \"\" \n";
 
 			//begin members declaration
 			auto base_index_type = ob.is_expandable ? std::string("uint32_t") : size_to_tag_type(ob.size);
@@ -492,7 +452,58 @@ int main(int argc, char* argv[]) {
 				output += make_composite_key_declarations(o, ob.name, cc).to_string(3);
 			}
 			*/
+
+			output += "; return result;\n}\n";
 		}
+
+		output += "std::string container_interface() {\n";
+		output += "std::string result;\n";
+		output += "result += \"\" \n";
+
+		output += "\" ptr(nil) global data-container \"\n";
+		output += "\" : set-container data-container ! ; \"\n";
+		output += "\" ptr(nil) global vector-storage \"\n";
+		output += "\" : set-vector-storage vector-storage ! ; \"\n";
+		output += "\" :export set_container ptr(nil) set-container ;  \"\n";
+		output += "\" :export set_vector_storage ptr(nil) set-vector-storage ;  \"\n";
+		output += "\" :struct bit-proxy i32 bit ptr(i8) byte ; \"\n";
+		output += "\" :struct index-view ptr($0) wrapped ; \"\n";
+		output += "\" :s @ index-view($0) s: .wrapped @ ; \"\n";
+		output += "\" :s make-index-view ptr($0) s: make index-view($0) .wrapped! ; \"\n";
+		output += "\" :s ! bool bit-proxy s: .byte@ let byte .bit let bit let arg 1 bit shl not byte @ >i32 and arg >i32 bit shl or >i8 byte ! ; \"\n";
+		output += "\" :s @ bit-proxy s: .byte@ let byte .bit let bit byte @ >i32 bit shr 1 and >bool ; \"\n";
+		output += "\" :s >index i32 s:  ; \"\n"; // nop
+		output += "\" :s >index u32 s: >i32 ; \"\n";
+		output += "\" :s >index i16 s: >i32 ; \"\n";
+		output += "\" :s >index u16 s: >i32 ; \"\n";
+		output += "\" :s >index i8 s: >i32 ; \"\n";
+		output += "\" :s >index u8 s: >i32 ; \"\n";
+		output += "\" :s >index i64 s: >i32 ; \"\n";
+		output += "\" :s >index u64 s: >i32 ; \"\n;";
+
+		//
+		//
+
+		//id types definitions
+		for(auto& ob : parsed_file.relationship_objects) {
+			output += "result += container_interface_" + ob.name + "_id()\n;";
+		}
+		for(auto& mi : parsed_file.extra_ids) {
+			output += "result += container_interface_" + mi.name + "_id_extra()\n;";
+		}
+
+
+		//
+		// class members == dcon::internal:: .... _class
+		//
+
+
+		//write internal classes
+
+		for(auto& ob : parsed_file.relationship_objects) {
+			//predeclare helpers
+			output += "result += container_interface_" + ob.name + "_helper();\n";
+		}		
 
 		//
 		// TO ADD:
