@@ -503,7 +503,7 @@ int main(int argc, char* argv[]) {
 		for(auto& ob : parsed_file.relationship_objects) {
 			//predeclare helpers
 			output += "result += container_interface_" + ob.name + "_helper();\n";
-		}		
+		}
 
 		//
 		// TO ADD:

@@ -614,8 +614,7 @@ add_custom_command(
 	COMMAND DCONINTERFACEGEN ${CONTAINER_PATH}.txt
 	DEPENDS ${CONTAINER_PATH}.txt
 	DEPENDS DCONINTERFACEGEN
-	VERBATIM
-)
+	VERBATIM)
 
 add_custom_command(
 	OUTPUT ${PROJECT_SOURCE_DIR}/src/gamestate/lua_dcon_generated.hpp
