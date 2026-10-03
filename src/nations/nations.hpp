@@ -183,9 +183,15 @@ template<typename unit_type, military::unit_consumption_type consumption_type>
 int8_t get_nation_military_consumption_setting_by_type(const sys::state& state, dcon::nation_id nation);
 
 
+float trade_route_control_propagation(
+	sys::state const& state,
+	ve::vectorizable_buffer<float, dcon::province_id> const& control_buffer,
+	ve::vectorizable_buffer<dcon::province_id, dcon::state_instance_id> const& coastal_capital_buffer,
+	dcon::trade_route_id trid, float origin, float target
+);
 void update_administrative_efficiency(sys::state& state);
 void update_national_administrative_efficiency(sys::state& state);
-float admin_cost_of_province(sys::state& state, dcon::province_id pid);
+float admin_cost_of_province(sys::state const& state, dcon::province_id pid);
 
 float priority_national(sys::state& state, dcon::nation_id n, dcon::factory_type_id ftid);
 float priority_private(sys::state& state, dcon::nation_id n, dcon::factory_type_id ftid);
@@ -345,7 +351,7 @@ void make_uncivilized(sys::state& state, dcon::nation_id n);
 
 void run_gc(sys::state& state);
 
-float control_shift_weight_mult(sys::state& state, dcon::province_adjacency_id adj);
-float desire_score_province(sys::state& state, dcon::province_id pid);
+float control_shift_weight_mult(sys::state const& state, dcon::province_adjacency_id adj);
+float desire_score_province(sys::state const& state, dcon::province_id pid);
 
 } // namespace nations
