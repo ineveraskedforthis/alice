@@ -333,7 +333,7 @@ void generate_sea_trade_routes(sys::state& state) {
 		sea_trade_candidate_data data { };
 		data.coast = province::state_get_coastal_capital(state, candidate);
 		data.market = state.world.state_instance_get_market_from_local_market(candidate);
-		data.naval_base_level = military::state_naval_base_level(state, candidate);
+		data.naval_base_level = (float)(military::state_naval_base_level(state, candidate));
 		data.owner = state.world.state_instance_get_nation_from_state_ownership(candidate);
 		data.population = state.world.state_instance_get_demographics(candidate, demographics::total);
 		data.state_instance = candidate;
