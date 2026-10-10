@@ -553,7 +553,8 @@ void update_trade_routes_volume(
 			//if(ignore_reality) {
 				//change = change * 10.f;
 			//}
-			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change - 0.00001f));
+
+			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change - 0.00001f * (1.f - expected_to_sell)));
 			state.world.trade_route_set_volume(trade_route, c, next);
 		}
 	});
