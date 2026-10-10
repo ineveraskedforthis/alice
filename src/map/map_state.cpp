@@ -403,6 +403,7 @@ void load_map_text_glyphs(sys::state& state) {
 			state.font_collection.mfont.make_glyph(glyphid);
 		}
 	}
+	state.font_collection.mfont.upload_buffers();
 }
 
 void load_map_province_text_glyphs(sys::state& state) {
