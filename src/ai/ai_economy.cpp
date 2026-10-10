@@ -722,9 +722,9 @@ void update_budget(sys::state& state, bool presim) {
 			sea_budget_ratio = 0.5f;
 			
 		}
-		float education_budget_ratio = 0.30f;
+		float education_budget_ratio = 0.15f;
 		float investments_budget_ratio = 0.15f;
-		float soldiers_budget_ratio = 0.30f;
+		float soldiers_budget_ratio = 0.40f;
 		float construction_budget_ratio = 0.45f;
 		float overseas_maintenance_budget_ratio = 0.10f;
 

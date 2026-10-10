@@ -169,7 +169,7 @@ auto prepare_pop_budget_templated(
 	);
 
 	VALUE base_life_costs = (0.00001f + life_costs * pop_size / state.defines.alice_needs_scaling_factor);
-	VALUE is_poor = adaptive_ve::max<VALUE>(0.01f, 1.f - 4.f * savings / base_life_costs);
+	VALUE is_poor = adaptive_ve::max<VALUE>(0.01f, 1.f - savings / base_life_costs);
 	//VALUE current_life = pop_demographics::get_life_needs(state, ids);
 	is_poor = adaptive_ve::min<VALUE>(1.f, adaptive_ve::max<VALUE>(0.f, is_poor));
 
@@ -854,7 +854,7 @@ void update_income_artisans(sys::state& state) {
 }
 
 
-constexpr inline float national_elite_trade_weight_multiplier = 1000.f;
+constexpr inline float national_elite_trade_weight_multiplier = 100000.f;
 
 float estimate_local_trade_income(sys::state const& state, dcon::province_id pid, dcon::market_id mid, dcon::pop_type_id ptid, float size) {
 	auto sids = state.world.market_get_zone_from_local_market(mid);
@@ -1021,7 +1021,7 @@ void update_income_non_labor(sys::state& state) {
 
 	constexpr float min_registered_token_size = 2.f;
 
-	constexpr float expected_share = trade_dividents_rate;
+	constexpr float expected_share = production_dividents_rate;
 
 	auto const artisan_def = state.culture_definitions.artisans;
 	auto artisan_key = demographics::to_key(state, artisan_def);
@@ -1234,7 +1234,7 @@ void update_income_non_labor(sys::state& state) {
 		{
 			auto candidates = ve::select(valid_market, nation_trade_tokens.get(nation), 0.f);
 			auto total_money = ve::select(valid_market, nation_trade_money.get(nation), 0.f);
-			auto income = ve::select((pop_type == capis_def) && candidates > min_registered_token_size && size > 0.f, total_money / candidates * size * national_elite_trade_weight_multiplier, 0.f);
+			auto income = ve::select((pop_type == capis_def) && candidates > min_registered_token_size * national_elite_trade_weight_multiplier && size > 0.f, total_money / candidates * size * national_elite_trade_weight_multiplier, 0.f);
 #ifndef NDEBUG
 			ve::apply([](float v) { assert(std::isfinite(v) && v >= 0); }, income);
 			from_market_national = income * expected_share;

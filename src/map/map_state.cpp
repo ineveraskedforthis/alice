@@ -413,6 +413,7 @@ void load_map_province_text_glyphs(sys::state& state) {
 			state.font_collection.mfont.make_glyph(glyphid);
 		}
 	}
+	state.font_collection.mfont.upload_buffers();
 }
 
 void commit_text_lines(sys::state& state, display_data& map_data) {

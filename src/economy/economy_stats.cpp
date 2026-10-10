@@ -1246,7 +1246,7 @@ void make_trade_center_tooltip(sys::state& state, text::columnar_layout& content
 		"factory_bank_out",
 		text::variable_type::val,
 		text::fp_currency{
-			std::max(0.f, state.world.province_get_factory_bank(province) * economy::pops::trade_dividents_rate)
+			std::max(0.f, state.world.province_get_factory_bank(province) * economy::pops::production_dividents_rate)
 		},
 		15
 	);
@@ -1300,7 +1300,7 @@ void make_trade_center_tooltip(sys::state& state, text::columnar_layout& content
 		"rgo_bank_out",
 		text::variable_type::val,
 		text::fp_currency{
-			std::max(0.f, state.world.province_get_rgo_bank(province) * economy::pops::trade_dividents_rate)
+			std::max(0.f, state.world.province_get_rgo_bank(province) * economy::pops::production_dividents_rate)
 		},
 		15
 	);
@@ -1491,6 +1491,8 @@ nation_monetary_breakdown breakdown_nation_monetary_structure(sys::state& state,
 		state.world.province_for_each_pop_location(pid, [&](auto location) {
 			auto pop = state.world.pop_location_get_pop(location);
 			result.pops += state.world.pop_get_savings(pop);
+
+			/*
 			auto wages = pops::estimate_wage(state, pop);
 			auto slaves = pops::estimate_slave_income(state, pop);
 			result.pops_wages += slaves;
@@ -1516,6 +1518,7 @@ nation_monetary_breakdown breakdown_nation_monetary_structure(sys::state& state,
 
 			result.pops_cashback_housing += budget.housing.spent * (1.f - housing_sat);
 			result.pops_cashback_education += budget.education.spent * (1.f - literacy_sat_paid);
+			*/
 		});
 	});
 
