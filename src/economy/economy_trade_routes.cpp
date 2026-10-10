@@ -554,7 +554,8 @@ void update_trade_routes_volume(
 				//change = change * 10.f;
 			//}
 
-			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change - 0.00001f * (1.f - expected_to_sell)));
+			auto historical_demand = state.world.market_get_aggregated_demand_history(target, c);
+			auto next = ve::select(reset_route_commodity, 0.f, ve::max(0.f, current_volume * decay + change + ve::min(ve::fp_vector{0.f}, historical_demand - 0.0001f) ));
 			state.world.trade_route_set_volume(trade_route, c, next);
 		}
 	});
