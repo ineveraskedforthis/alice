@@ -415,10 +415,12 @@ struct cheat_data_s {
 	bool disable_economy = false;
 	bool disable_demography = false;
 	bool always_allow_wargoals = false;
+
 	bool always_allow_reforms = false;
 	bool always_accept_deals = false;
 	bool show_province_id_tooltip = false;
 	bool ui_debug_mode = false;
+
 	bool instant_army = false;
 	bool instant_industry = false;
 	std::vector<dcon::nation_id> instant_research_nations;
@@ -436,6 +438,12 @@ struct cheat_data_s {
 	bool instant_navy = false;
 	bool always_allow_decisions = false;
 	bool always_potential_decisions = false;
+
+	dcon::commodity_id tracked_commodity { };
+	dcon::province_id tracked_province { };
+	std::vector<float> commodity_prices;
+	std::vector<float> commodity_demand;
+	std::vector<float> commodity_supply;
 };
 
 struct crisis_member_def {

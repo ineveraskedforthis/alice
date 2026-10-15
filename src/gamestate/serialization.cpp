@@ -1340,6 +1340,47 @@ void write_save_file(sys::state& state, save_type type, std::string const& name,
 	}
 	*/
 
+	if(state.cheat_data.tracked_commodity) {
+		auto data_dumps_directory = simple_fs::get_or_create_data_dumps_directory();
+		auto cid_name = simple_fs::utf8_to_native(text::produce_simple_string(state, state.world.commodity_get_name(state.cheat_data.tracked_commodity)));
+
+		native_string name_price = cid_name + NATIVE("_price.txt");
+		native_string name_supply = cid_name + NATIVE("_supply.txt");
+		native_string name_demand = cid_name + NATIVE("_demand.txt");
+
+		std::string str_price;
+		std::string str_supply;
+		std::string str_demand;
+
+		for(size_t i = 0; i < state.cheat_data.commodity_prices.size(); i++) {
+			str_price += std::to_string(state.cheat_data.commodity_prices[i]) + " ";
+			str_supply += std::to_string(state.cheat_data.commodity_supply[i]) + " ";
+			str_demand += std::to_string(state.cheat_data.commodity_demand[i]) + " ";
+		}
+
+		simple_fs::append_file(
+			data_dumps_directory,
+			name_price,
+			str_price.c_str(),
+			uint32_t(str_price.size())
+		);
+		simple_fs::append_file(
+			data_dumps_directory,
+			name_supply,
+			str_supply.c_str(),
+			uint32_t(str_supply.size())
+		);
+		simple_fs::append_file(
+			data_dumps_directory,
+			name_demand,
+			str_demand.c_str(),
+			uint32_t(str_demand.size())
+		);
+
+		state.cheat_data.commodity_prices.clear();
+		state.cheat_data.commodity_supply.clear();
+		state.cheat_data.commodity_demand.clear();
+	}
 
 	if(state.cheat_data.ecodump) {
 		auto data_dumps_directory = simple_fs::get_or_create_data_dumps_directory();

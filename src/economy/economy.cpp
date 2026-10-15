@@ -5216,6 +5216,44 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 	// # STATS COLLECTION #
 	// ####################
 
+	if(state.cheat_data.tracked_commodity) {
+		if(state.cheat_data.tracked_province) {
+			auto sid = state.world.province_get_state_membership(state.cheat_data.tracked_province);
+			auto mid = state.world.state_instance_get_market_from_local_market(sid);
+
+			float price = 0.f;
+			float supply = 0.f;
+			float demand = 0.f;
+			if(mid) {
+				price = state.world.market_get_price(mid, state.cheat_data.tracked_commodity);
+				supply = state.world.market_get_supply(mid, state.cheat_data.tracked_commodity);
+				demand = state.world.market_get_demand(mid, state.cheat_data.tracked_commodity);
+			}
+
+			state.cheat_data.commodity_prices.push_back(price);
+			state.cheat_data.commodity_supply.push_back(supply);
+			state.cheat_data.commodity_demand.push_back(demand);
+		} else {
+			state.world.for_each_province([&](auto pid){
+				auto sid = state.world.province_get_state_membership(pid);
+				auto mid = state.world.state_instance_get_market_from_local_market(sid);
+
+				float price = 0.f;
+				float supply = 0.f;
+				float demand = 0.f;
+				if(mid) {
+					price = state.world.market_get_price(mid, state.cheat_data.tracked_commodity);
+					supply = state.world.market_get_supply(mid, state.cheat_data.tracked_commodity);
+					demand = state.world.market_get_demand(mid, state.cheat_data.tracked_commodity);
+				}
+
+				state.cheat_data.commodity_prices.push_back(price);
+				state.cheat_data.commodity_supply.push_back(supply);
+				state.cheat_data.commodity_demand.push_back(demand);
+			});
+		}
+	}
+
 	//write gdp and total savings to file
 	if(state.cheat_data.ecodump) {
 		nation_monetary_breakdown total_money {};

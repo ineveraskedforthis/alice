@@ -1226,6 +1226,41 @@ int32_t* f_provid(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	state->cheat_data.show_province_id_tooltip = toggle_state;
 	return p + 2;
 }
+
+int32_t* f_track_commodity(fif::state_stack& s, int32_t* p, fif::environment* e) {
+	if(fif::typechecking_mode(e->mode)) {
+		if(fif::typechecking_failed(e->mode))
+			return p + 2;
+		return p + 2;
+	}
+	auto state_global = fif::get_global_var(*e, "state-ptr");
+	sys::state* state = (sys::state*)(state_global->data);
+
+	dcon::commodity_id cid;
+	cid.value = dcon::commodity_id::value_base_t(s.main_data_back(0));
+	s.pop_main();
+
+	state->cheat_data.tracked_commodity = cid;
+	return p + 2;
+}
+
+int32_t* f_track_province(fif::state_stack& s, int32_t* p, fif::environment* e) {
+	if(fif::typechecking_mode(e->mode)) {
+		if(fif::typechecking_failed(e->mode))
+			return p + 2;
+		return p + 2;
+	}
+	auto state_global = fif::get_global_var(*e, "state-ptr");
+	sys::state* state = (sys::state*)(state_global->data);
+
+	dcon::province_id pid;
+	pid.value = dcon::province_id::value_base_t(s.main_data_back(0));
+	s.pop_main();
+
+	state->cheat_data.tracked_province = pid;
+	return p + 2;
+}
+
 int32_t* f_uidebug(fif::state_stack& s, int32_t* p, fif::environment* e) {
 	if(fif::typechecking_mode(e->mode)) {
 		if(fif::typechecking_failed(e->mode))
@@ -1565,6 +1600,7 @@ void ui::initialize_console_fif_environment(sys::state& state) {
 
 	auto nation_id_type = state.fif_environment->dict.types.find("nation_id")->second;
 	auto prov_id_type = state.fif_environment->dict.types.find("province_id")->second;
+	auto commodity_id_type = state.fif_environment->dict.types.find("commodity_id")->second;
 
 	fif::add_import("clear", nullptr, f_clear, {}, {}, * state.fif_environment);
 	fif::add_import("fps", nullptr, f_fps, { fif::fif_bool }, {}, * state.fif_environment);
@@ -1598,6 +1634,8 @@ void ui::initialize_console_fif_environment(sys::state& state) {
 	fif::add_import("save-map", nullptr, f_save_map, { fif::fif_i32 }, {}, * state.fif_environment);
 	fif::add_import("dump-econ", nullptr, f_dump_econ, {  }, {}, * state.fif_environment);
 	fif::add_import("provid", nullptr, f_provid, { fif::fif_bool }, {}, * state.fif_environment);
+	fif::add_import("track-commodity", nullptr, f_track_commodity, { commodity_id_type }, {}, * state.fif_environment);
+	fif::add_import("track-province", nullptr, f_track_province, { prov_id_type }, {}, * state.fif_environment);
 	fif::add_import("ui-debug", nullptr, f_uidebug, { fif::fif_bool }, {}, *state.fif_environment);
 	fif::add_import("fire-event", nullptr, f_fire_event, { nation_id_type, fif::fif_i32 }, {}, * state.fif_environment);
 	fif::add_import("nation-name", nullptr, f_nation_name, { nation_id_type }, { state.type_text_key }, *state.fif_environment);
