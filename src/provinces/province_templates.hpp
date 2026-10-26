@@ -17,7 +17,7 @@ auto is_occupied(const sys::state& state, province_type prov) {
 }
 
 template<typename F>
-void for_each_land_province(sys::state& state, F const& func) {
+inline void for_each_land_province(sys::state& state, F const& func) {
 	int32_t last = state.province_definitions.first_sea_province.index();
 	for(int32_t i = 0; i < last; ++i) {
 		dcon::province_id pid{dcon::province_id::value_base_t(i)};
@@ -26,13 +26,13 @@ void for_each_land_province(sys::state& state, F const& func) {
 }
 
 template<typename F>
-void ve_for_each_land_province(sys::state& state, F const& func) {
+inline void ve_for_each_land_province(sys::state& state, F const& func) {
 	int32_t last = state.province_definitions.first_sea_province.index();
 	ve::execute_serial<dcon::province_id>(uint32_t(last), func);
 }
 
 template<typename F>
-void ve_parallel_for_each_land_province(sys::state& state, F const& func) {
+inline void ve_parallel_for_each_land_province(sys::state& state, F const& func) {
 	int32_t last = state.province_definitions.first_sea_province.index();
 	ve::execute_parallel<dcon::province_id>(uint32_t(last), func);
 }
@@ -47,7 +47,7 @@ void for_each_sea_province(sys::state const& state, F const& func) {
 }
 
 template<typename F>
-void parallel_for_each_sea_province(sys::state const& state, F const& func) {
+inline void parallel_for_each_sea_province(sys::state const& state, F const& func) {
 	int32_t first = state.province_definitions.first_sea_province.index();
 	concurrency::parallel_for(uint32_t(first), uint32_t(state.world.province_size()), [&](uint32_t i) {
 		dcon::province_id pid{ dcon::province_id::value_base_t(i) };
@@ -56,7 +56,7 @@ void parallel_for_each_sea_province(sys::state const& state, F const& func) {
 }
 
 template<typename F>
-void for_each_province_in_state_instance(sys::state const& state, dcon::state_instance_id s, F const& func) {
+inline void for_each_province_in_state_instance(sys::state const& state, dcon::state_instance_id s, F const& func) {
 	auto d = state.world.state_instance_get_definition(s);
 	auto o = state.world.state_instance_get_nation_from_state_ownership(s);
 	for(auto p : state.world.state_definition_get_abstract_state_membership(d)) {
@@ -67,14 +67,14 @@ void for_each_province_in_state_instance(sys::state const& state, dcon::state_in
 }
 
 template<typename F>
-void for_each_province_building(const sys::state& state, F const& function) {
+inline void for_each_province_building(const sys::state& state, F const& function) {
 	for(auto t = economy::province_building_type::railroad; t != economy::province_building_type::last; t = economy::province_building_type(uint8_t(t) + 1)) {
 		function(t);
 	}
 }
 
 template<typename F>
-void for_each_market_province_parallel_over_market(sys::state const& state, F const& func) {
+inline void for_each_market_province_parallel_over_market(sys::state const& state, F const& func) {
 	concurrency::parallel_for((size_t)(0), (size_t)(state.world.market_size()), [&](auto raw_mid) {
 		dcon::market_id mid{ (dcon::market_id::value_base_t) (raw_mid) };
 		auto sid = state.world.market_get_zone_from_local_market(mid);
@@ -85,11 +85,34 @@ void for_each_market_province_parallel_over_market(sys::state const& state, F co
 }
 
 template<typename F>
-void for_each_nation_owned_province_parallel_over_nation(sys::state& state, F const& func) {
+inline void for_each_nation_owned_province_parallel_over_nation(sys::state& state, F const& func) {
 	concurrency::parallel_for((size_t)(0), (size_t)(state.world.nation_size()), [&](auto raw) {
 		dcon::nation_id nid{ (dcon::nation_id::value_base_t) (raw) };
 		state.world.nation_for_each_province_ownership(nid, [&](dcon::province_ownership_id poid){
 			func(nid, state.world.province_ownership_get_province(poid));
+		});
+	});
+}
+
+template<typename F>
+inline void for_each_owned_market_parallel_over_nation(sys::state& state, F const& func) {
+	concurrency::parallel_for((size_t)(0), (size_t)(state.world.nation_size()), [&](auto raw) {
+		dcon::nation_id nid{ (dcon::nation_id::value_base_t)(raw) };
+		state.world.nation_for_each_state_ownership(nid, [&](dcon::state_ownership_id soid) {
+			auto sid = state.world.state_ownership_get_state(soid);
+			auto market = state.world.state_instance_get_market_from_local_market(sid);
+			func(nid, sid, market);
+		});
+	});
+}
+template<typename F>
+inline void for_each_controlled_market_parallel_over_nation(sys::state& state, F const& func) {
+	concurrency::parallel_for((size_t)(0), (size_t)(state.world.nation_size()), [&](auto raw) {
+		dcon::nation_id nid{ (dcon::nation_id::value_base_t)(raw) };
+		state.world.nation_for_each_state_control(nid, [&](dcon::state_control_id soid) {
+			auto sid = state.world.state_control_get_state(soid);
+			auto market = state.world.state_instance_get_market_from_local_market(sid);
+			func(nid, sid, market);
 		});
 	});
 }

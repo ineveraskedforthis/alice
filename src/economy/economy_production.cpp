@@ -2062,35 +2062,44 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 
 	auto workers_optimism = 0.01f;
 
-	concurrency::parallel_for(uint32_t(0), state.world.commodity_size(), [&](uint32_t k) {
-		dcon::commodity_id c{ dcon::commodity_id::value_base_t(k) };
-		auto base_output = state.world.commodity_get_rgo_amount(c);
-		if(base_output <= 0.f) {
-			return;
-		}
 
-		auto& inputs = state.world.commodity_get_rgo_efficiency_inputs(c);
+	auto const csize = state.world.commodity_size();
 
-		province::ve_for_each_land_province(state, [&](auto pids) {
-			auto state_instance = state.world.province_get_state_membership(pids);
+	// artisans do not have natural max production size, so we use total population as a limit
+	// they also don't have secondary workers
+
+	auto artisans = state.culture_definitions.artisans;
+	auto keys = demographics::to_key(state, artisans);
+
+	province::ve_parallel_for_each_land_province(state, [&](auto ids) {
+		for (uint32_t k = uint32_t(0); k < state.world.commodity_size(); k++) {
+			dcon::commodity_id c{ dcon::commodity_id::value_base_t(k) };
+			auto base_output = state.world.commodity_get_rgo_amount(c);
+			if(base_output <= 0.f) {
+				continue;
+			}
+
+			auto& inputs = state.world.commodity_get_rgo_efficiency_inputs(c);
+
+			auto state_instance = state.world.province_get_state_membership(ids);
 			auto m = state.world.state_instance_get_market_from_local_market(state_instance);
-			auto n = state.world.province_get_nation_from_province_ownership(pids);
+			auto n = state.world.province_get_nation_from_province_ownership(ids);
 
 			auto priority = state.world.nation_get_production_directive(n, production_directives::to_key(state, c));
 			auto priority_local = state.world.state_instance_get_production_directive(state_instance, production_directives::to_key(state, c));
 			auto subsidy = ve::select(priority_local || priority, state.world.nation_get_subsidy_token_price(n), 0.f) / base_output;
 
-			auto wage_per_worker = state.world.province_get_labor_price(pids, labor::no_education);
+			auto wage_per_worker = state.world.province_get_labor_price(ids, labor::no_education);
 
-			auto workers_availability = state.world.province_get_labor_demand_satisfaction(pids, labor::no_education);
+			auto workers_availability = state.world.province_get_labor_demand_satisfaction(ids, labor::no_education);
 			if(ignore_reality) {
 				workers_availability = 1.f;
 			}
 
-			auto current_size = state.world.province_get_rgo_size(pids, c);
-			auto efficiency = state.world.province_get_rgo_efficiency(pids, c)
-				* state.world.province_get_rgo_base_efficiency(pids, c);
-			auto current_employment_target = state.world.province_get_rgo_target_employment(pids, c);
+			auto current_size = state.world.province_get_rgo_size(ids, c);
+			auto efficiency = state.world.province_get_rgo_efficiency(ids, c)
+				* state.world.province_get_rgo_base_efficiency(ids, c);
+			auto current_employment_target = state.world.province_get_rgo_target_employment(ids, c);
 			auto current_employment = current_employment_target * workers_availability;
 			auto output_per_worker = base_output * efficiency / state.defines.alice_rgo_per_size_employment;
 			
@@ -2131,12 +2140,85 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 			);
 
 			new_employment = ve::max(ve::fp_vector{0.f}, ve::min(new_employment, current_size));
-			state.world.province_set_rgo_target_employment(pids, c, new_employment);
-			state.world.province_set_rgo_output(pids, c, output_per_worker * current_employment);
+			state.world.province_set_rgo_target_employment(ids, c, new_employment);
+			state.world.province_set_rgo_output(ids, c, output_per_worker * current_employment);
+		}
+	});
+	province::ve_parallel_for_each_land_province(state, [&](auto ids) {
+		state.world.for_each_commodity([&](auto cid) {
+			auto base_output = state.world.commodity_get_artisan_output_amount(cid);
+			if(base_output == 0.f)
+				return;
+
+			auto local_states = state.world.province_get_state_membership(ids);
+			auto nations = state.world.province_get_nation_from_province_ownership(ids);
+			auto markets = state.world.state_instance_get_market_from_local_market(local_states);
+
+			//safeguard against runaway artisans target employment
+			auto local_population = state.world.province_get_demographics(ids, keys) * 2.f;
+
+			//auto min_wage = ve_artisan_min_wage(state, markets) / state.defines.alice_needs_scaling_factor;
+			//auto actual_wage = state.world.province_get_labor_price(ids, labor::guild_education);
+			auto mask = ve_valid_artisan_good(state, nations, cid);
+
+
+			auto priority = state.world.nation_get_production_directive(nations, production_directives::to_key(state, cid));
+			auto priority_local = state.world.state_instance_get_production_directive(local_states, production_directives::to_key(state, cid));
+			auto subsidy = ve::select(priority_local || priority, state.world.nation_get_subsidy_token_price(nations), 0.f) / base_output;
+
+			auto price_confidence = state.world.market_get_price_confidence(markets, cid);
+			auto expected_price = ve_price(state, markets, cid) * price_confidence + subsidy;
+			auto supply = state.world.market_get_aggregated_supply_history(markets, cid);
+			auto demand = state.world.market_get_aggregated_demand_history(markets, cid);
+
+			auto inputs_data = get_inputs_data(state, markets, state.world.commodity_get_artisan_inputs(cid));
+			auto expected_sales = state.world.market_get_expected_probability_to_sell(markets, cid);
+
+			auto sales_expectation_perception = expected_sales;
+			auto purchase_expectation_perception = inputs_data.min_expected;
+
+			auto output_cost = base_artisan_output_cost(state, markets, cid, expected_price);
+			auto input_cost = inputs_data.total_cost * artisan_input_multiplier(state, nations);
+
+			auto base_output_cost_per_worker = output_cost / artisans_per_employment_unit * sales_expectation_perception * purchase_expectation_perception;
+			auto base_input_cost_per_worker = input_cost / artisans_per_employment_unit;
+
+			auto current_employment_target = state.world.province_get_artisan_score(ids, cid);
+			auto current_employment_actual = current_employment_target
+				* state.world.province_get_labor_demand_satisfaction(ids, labor::guild_education);
+			auto profit_per_worker = ve::select(
+				mask,
+				base_output_cost_per_worker,
+				0.f
+			);
+
+			auto gradient = gradient_employment_i<ve::fp_vector>(
+				profit_per_worker,
+				base_input_cost_per_worker,
+				1.f,
+				0.f
+			);
+
+			auto employment_change = gradient_to_employment_change<ve::fp_vector>(
+				presim_employment_mult * gradient,
+				0.f,
+				current_employment_actual,
+				sales_expectation_perception * purchase_expectation_perception
+			);
+			auto decay = 0.999999f;
+			auto new_employment = ve::select(mask, ve::max(current_employment_actual * decay + employment_change, 0.0f), 0.f);
+			state.world.province_set_artisan_score(ids, cid, new_employment);
+#ifndef NDEBUG
+			ve::apply(
+				[](float x) {
+					assert(std::isfinite(x));
+				}, new_employment
+			);
+#endif // !NDEBUG
 		});
 	});
 
-	state.world.execute_serial_over_factory([&](auto facids) {
+	state.world.execute_parallel_over_factory([&](auto facids) {
 		auto pid = state.world.factory_get_province_from_factory_location(facids);
 		auto nation = state.world.province_get_nation_from_province_ownership(pid);
 		auto sid = state.world.province_get_state_membership(pid);
@@ -2334,88 +2416,6 @@ void update_employment(sys::state& state, bool ignore_reality, float presim_empl
 			state.world.factory_set_primary_employment(facids, primary_next * scaler);
 			state.world.factory_set_secondary_employment(facids, secondary_next * scaler);
 		//}
-	});
-
-	auto const csize = state.world.commodity_size();
-
-	// artisans do not have natural max production size, so we use total population as a limit
-	// they also don't have secondary workers
-
-	auto artisans = state.culture_definitions.artisans;
-	auto keys = demographics::to_key(state, artisans);
-
-	state.world.execute_parallel_over_commodity([&](auto cids) {
-		ve::apply([&](dcon::commodity_id cid) {
-			auto base_output = state.world.commodity_get_artisan_output_amount(cid);
-			if(base_output == 0.f)
-				return;
-
-			province::ve_for_each_land_province(state, [&](auto ids) {
-				auto local_states = state.world.province_get_state_membership(ids);
-				auto nations = state.world.province_get_nation_from_province_ownership(ids);
-				auto markets = state.world.state_instance_get_market_from_local_market(local_states);
-
-				//safeguard against runaway artisans target employment
-				auto local_population = state.world.province_get_demographics(ids, keys) * 2.f;
-
-				//auto min_wage = ve_artisan_min_wage(state, markets) / state.defines.alice_needs_scaling_factor;
-				//auto actual_wage = state.world.province_get_labor_price(ids, labor::guild_education);
-				auto mask = ve_valid_artisan_good(state, nations, cid);
-
-
-				auto priority = state.world.nation_get_production_directive(nations, production_directives::to_key(state, cid));
-				auto priority_local = state.world.state_instance_get_production_directive(local_states, production_directives::to_key(state, cid));
-				auto subsidy = ve::select(priority_local || priority, state.world.nation_get_subsidy_token_price(nations), 0.f) / base_output;
-
-				auto price_confidence = state.world.market_get_price_confidence(markets, cid);
-				auto expected_price = ve_price(state, markets, cid) * price_confidence + subsidy;
-				auto supply = state.world.market_get_aggregated_supply_history(markets, cid);
-				auto demand = state.world.market_get_aggregated_demand_history(markets, cid);
-
-				auto inputs_data = get_inputs_data(state, markets, state.world.commodity_get_artisan_inputs(cid));
-				auto expected_sales = state.world.market_get_expected_probability_to_sell(markets, cid);
-
-				auto sales_expectation_perception = expected_sales;
-				auto purchase_expectation_perception = inputs_data.min_expected;
-
-				auto output_cost = base_artisan_output_cost(state, markets, cid, expected_price);
-				auto input_cost = inputs_data.total_cost * artisan_input_multiplier(state, nations);
-
-				auto base_output_cost_per_worker = output_cost / artisans_per_employment_unit * sales_expectation_perception * purchase_expectation_perception;
-				auto base_input_cost_per_worker = input_cost / artisans_per_employment_unit;
-
-				auto current_employment_target = state.world.province_get_artisan_score(ids, cid);
-				auto current_employment_actual = current_employment_target
-					* state.world.province_get_labor_demand_satisfaction(ids, labor::guild_education);
-				auto profit_per_worker = ve::select(
-					mask,
-					base_output_cost_per_worker,
-					0.f
-				);
-
-				auto gradient = gradient_employment_i<ve::fp_vector>(
-					profit_per_worker,
-					base_input_cost_per_worker,
-					1.f,
-					0.f
-				);
-
-				auto employment_change = gradient_to_employment_change<ve::fp_vector>(
-					presim_employment_mult * gradient,
-					0.f,
-					current_employment_actual,
-					sales_expectation_perception * purchase_expectation_perception
-				);
-				auto decay = 0.999999f;
-				auto new_employment = ve::select(mask, ve::max(current_employment_actual * decay + employment_change, 0.0f), 0.f);
-				state.world.province_set_artisan_score(ids, cid, new_employment);
-				ve::apply(
-					[](float x) {
-							assert(std::isfinite(x));
-					}, new_employment
-				);
-			});
-		}, cids);
 	});
 }
 
