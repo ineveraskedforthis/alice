@@ -143,12 +143,177 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWSTR
 			ui::populate_definitions_map(game_state);
 			network::init(game_state);
 
+			/*
+			std::atomic<bool> work_done[4];
+			std::atomic<bool> work_requested[4];
+
+			work_done[0].store(true);
+			work_done[1].store(true);
+			work_done[2].store(true);
+			work_done[3].store(true);
+
+			work_requested[0].store(true);
+			work_requested[1].store(true);
+			work_requested[2].store(true);
+			work_requested[3].store(true);
+
+			//std::atomic<int> pops_updated;
+
+			//std::mutex pop_busy[4] {};
+
+			std::atomic<bool> quit_signaled = false;
+
+			std::thread update_thread_0([&]() {
+				while(quit_signaled.load(std::memory_order::acquire) == false) {
+					auto requested = work_requested[0].exchange(false, std::memory_order::acq_rel);
+					if (requested) {
+						continue;
+					}
+					//pop_busy[0].lock();
+					uint32_t chunks = 4;
+					auto pop_count = game_state.world.pop_size();
+					uint32_t work_per_chunk = (pop_count / chunks) + 1;
+					uint32_t work_per_chunk_adjusted = (work_per_chunk + uint32_t(7)) & ~uint32_t(7);
+					for(uint32_t i = 0; i < work_per_chunk_adjusted / 8; i += 1) {
+						auto pop = ve::contiguous_tags<dcon::pop_id>(0 * work_per_chunk_adjusted + i * 8);
+						game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+					}
+					//pop_busy[0].unlock();
+					work_done[0].store(true, std::memory_order::release);
+					//Sleep(0);
+				}
+			});
+			std::thread update_thread_1([&]() {
+				while(quit_signaled.load(std::memory_order::acquire) == false) {
+					auto requested = work_requested[1].exchange(false, std::memory_order::acq_rel);
+					if(requested) {
+						continue;
+					}
+					//pop_busy[1].lock();
+					uint32_t chunks = 4;
+					auto pop_count = game_state.world.pop_size();
+					uint32_t work_per_chunk = (pop_count / chunks) + 1;
+					uint32_t work_per_chunk_adjusted = (work_per_chunk + uint32_t(7)) & ~uint32_t(7);
+					for(uint32_t i = 0; i < work_per_chunk_adjusted / 8; i += 1) {
+						auto pop = ve::contiguous_tags<dcon::pop_id>(1 * work_per_chunk_adjusted + i * 8);
+						game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+					}
+					work_done[1].store(true, std::memory_order::release);
+					//pop_busy[1].unlock();
+					//Sleep(0);
+				}
+			});
+			std::thread update_thread_2([&]() {
+				while(quit_signaled.load(std::memory_order::acquire) == false) {
+					auto requested = work_requested[2].exchange(false, std::memory_order::acq_rel);
+					if(requested) {
+						continue;
+					}
+					//pop_busy[2].lock();
+					uint32_t chunks = 4;
+					auto pop_count = game_state.world.pop_size();
+					uint32_t work_per_chunk = (pop_count / chunks) + 1;
+					uint32_t work_per_chunk_adjusted = (work_per_chunk + uint32_t(7)) & ~uint32_t(7);
+					for(uint32_t i = 0; i < work_per_chunk_adjusted / 8; i += 1) {
+						auto pop = ve::contiguous_tags<dcon::pop_id>(2 * work_per_chunk_adjusted + i * 8);
+						game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+					}
+					work_done[2].store(true, std::memory_order::release);
+					//pop_busy[2].unlock();
+					//Sleep(0);
+				}
+			});
+			std::thread update_thread_3([&]() {
+				while(quit_signaled.load(std::memory_order::acquire) == false) {
+					auto requested = work_requested[3].exchange(false, std::memory_order::acq_rel);
+					if(requested) {
+						continue;
+					}
+					//pop_busy[3].lock();
+					uint32_t chunks = 4;
+					auto pop_count = game_state.world.pop_size();
+					uint32_t work_per_chunk = (pop_count / chunks) + 1;
+					uint32_t work_per_chunk_adjusted = (work_per_chunk + uint32_t(7)) & ~uint32_t(7);
+					for(uint32_t i = 0; i < work_per_chunk_adjusted / 8; i += 1) {
+						auto pop = ve::contiguous_tags<dcon::pop_id>(3 * work_per_chunk_adjusted + i * 8);
+						game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+					}
+					work_done[3].store(true, std::memory_order::release);
+					//pop_busy[3].unlock();
+					//Sleep(0);
+				}
+			});
+
 			game_state.single_game_tick();
-			for(int i = 0; i < 100000; i++) {
-				economy::update_employment(game_state, false, 1.f);
+
+			update_thread_0.detach();
+			update_thread_1.detach();
+			update_thread_2.detach();
+			update_thread_3.detach();
+			*/
+
+			//pop_busy[0].lock();
+			//pop_busy[1].lock();
+			//pop_busy[2].lock();
+			//pop_busy[3].lock();
+
+			for(int i = 0; i < 20000; i++) {
+				//economy::update_employment(game_state, false, 1.f);
 				economy::daily_update(game_state, false, 1.f, 0);
-				game_state.current_date += 1;
+				//economy::batched_daily_update(game_state, false, 1.f);
+				//game_state.current_date += 1;
+
+				//game_state.world.execute_serial_over_pop([&](auto pop) {
+				//	game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+				//});
+
+				//auto pop_count = game_state.world.pop_size();
+				//uint32_t chunks = 8;
+				//uint32_t work_per_chunk = (pop_count / chunks) + 1;
+				//uint32_t work_per_chunk_adjusted = (work_per_chunk + uint32_t(7)) & ~uint32_t(7);
+				//concurrency::parallel_for(uint32_t(0), chunks, [&](uint32_t work_index) {
+				//	for(uint32_t i = 0; i < work_per_chunk_adjusted / 8; i += 1) {
+				//		auto pop = ve::contiguous_tags<dcon::pop_id>(work_index * work_per_chunk_adjusted + i * 8);
+				//		game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+				//	}
+				//}, concurrency::static_partitioner());
+
+
+
+				//pop_busy[0].unlock();
+				//pop_busy[1].unlock();
+				//pop_busy[2].unlock();
+				//pop_busy[3].unlock();
+
+				/*
+				work_done[0].store(false, std::memory_order::release);
+				work_done[1].store(false, std::memory_order::release);
+				work_done[2].store(false, std::memory_order::release);
+				work_done[3].store(false, std::memory_order::release);
+				work_requested[0].store(true, std::memory_order::release);
+				work_requested[1].store(true, std::memory_order::release);
+				work_requested[2].store(true, std::memory_order::release);
+				work_requested[3].store(true, std::memory_order::release);
+				int counter = 0;
+				while(!work_done[0] || !work_done[1] || !work_done[2] || !work_done[3]) {
+					counter++;
+				}
+				*/
+
+				//pop_busy[0].lock();
+				//pop_busy[1].lock();
+				//pop_busy[2].lock();
+				//pop_busy[3].lock();
+
+				//game_state.world.execute_serial_over_pop([&](auto pop) {
+				//	game_state.world.pop_set_savings(pop, game_state.world.pop_get_savings(pop) + 1.f);
+				//});
 			}
+
+			//quit_signaled.store(true, std::memory_order::release);
+
+			game_state.quit_signaled.store(true, std::memory_order_release);
+
 			network::finish(game_state, true);
 		}
 

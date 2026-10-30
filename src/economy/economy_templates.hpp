@@ -8,7 +8,7 @@
 namespace economy {
 
 template<typename F>
-void for_each_new_factory(sys::state& state, dcon::province_id s, F&& func) {
+inline void for_each_new_factory(sys::state& state, dcon::province_id s, F&& func) {
 	for(auto st_con : state.world.province_get_factory_construction(s)) {
 		if(!st_con.get_is_upgrade() && !st_con.get_refit_target()) {
 			float admin_eff = state.world.province_get_control_ratio(st_con.get_province());
@@ -31,7 +31,7 @@ void for_each_new_factory(sys::state& state, dcon::province_id s, F&& func) {
 }
 
 template<typename F>
-void for_each_upgraded_factory(sys::state& state, dcon::province_id s, F&& func) {
+inline void for_each_upgraded_factory(sys::state& state, dcon::province_id s, F&& func) {
 	for(auto st_con : state.world.province_get_factory_construction(s)) {
 		if(st_con.get_is_upgrade() || st_con.get_refit_target()) {
 			float admin_eff = state.world.province_get_control_ratio(st_con.get_province());
@@ -57,7 +57,7 @@ void for_each_upgraded_factory(sys::state& state, dcon::province_id s, F&& func)
 
 // Iterates over each commodity but skips money
 template<typename F>
-void for_each_commodity_no_money(const sys::state& state, F&& func) {
+inline void for_each_commodity_no_money(const sys::state& state, F&& func) {
 	uint32_t total_commodities = state.world.commodity_size();
 	for(uint32_t i = 1; i < total_commodities; ++i) {
 		dcon::commodity_id cid{ dcon::commodity_id::value_base_t(i) };
@@ -65,18 +65,18 @@ void for_each_commodity_no_money(const sys::state& state, F&& func) {
 	}
 }
 template<typename F>
-void for_each_unit_construction(const sys::state& state, F&& func) {
+inline void for_each_unit_construction(const sys::state& state, F&& func) {
 	state.world.for_each_province_land_construction(func);
 	state.world.for_each_province_naval_construction(func);
 }
 template<typename F>
-void ve_for_each_unit_construction(const sys::state& state, F&& func) {
+inline void ve_for_each_unit_construction(const sys::state& state, F&& func) {
 	state.world.execute_serial_over_province_land_construction(func);
 	state.world.execute_serial_over_province_naval_construction(func);
 }
 
 template<typename F>
-void parallel_for_each_unit_construction(const sys::state& state, F&& func) {
+inline void parallel_for_each_unit_construction(const sys::state& state, F&& func) {
 	concurrency::parallel_for(uint32_t(0), state.world.province_land_construction_size(), [&](uint32_t i) {
 		dcon::province_land_construction_id construction = dcon::province_land_construction_id{ dcon::province_land_construction_id::value_base_t(i) };
 		if(state.world.province_land_construction_is_valid(construction)) {
@@ -92,7 +92,7 @@ void parallel_for_each_unit_construction(const sys::state& state, F&& func) {
 }
 
 template<typename F>
-void ve_parallel_for_each_unit_construction(const sys::state& state, F&& func) {
+inline void ve_parallel_for_each_unit_construction(const sys::state& state, F&& func) {
 	state.world.execute_parallel_over_province_land_construction(func);
 	state.world.execute_parallel_over_province_naval_construction(func);
 }

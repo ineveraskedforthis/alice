@@ -10,6 +10,8 @@
 
 namespace economy {
 
+void batched_daily_update(sys::state& state, bool presimulation, float presimulation_stage);
+
 void initialize_needs_weights(sys::state& state, dcon::market_id n);
 
 template<typename T>

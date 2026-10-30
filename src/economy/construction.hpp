@@ -68,6 +68,14 @@ struct province_naval_construction_spending_entry {
 	dcon::province_naval_construction_id construction;
 	float spending;
 };
+void populate_province_building_construction_private_demand(
+	sys::state& state,
+	dcon::province_building_construction_id construction
+);
+void populate_state_construction_private_demand(
+	sys::state& state,
+	dcon::factory_construction_id construction
+);
 struct construction_spending_explanation {
 	int32_t ongoing_projects;
 	float budget_limit_per_project;
