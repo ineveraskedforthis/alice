@@ -259,7 +259,8 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, LPWSTR
 
 			for(int i = 0; i < 20000; i++) {
 				//economy::update_employment(game_state, false, 1.f);
-				economy::daily_update(game_state, false, 1.f, 0);
+				//economy::daily_update(game_state, false, 1.f, 0);
+				economy::daily_update_market_parallel(game_state, false, 1.f, 0);
 				//economy::batched_daily_update(game_state, false, 1.f);
 				//game_state.current_date += 1;
 
